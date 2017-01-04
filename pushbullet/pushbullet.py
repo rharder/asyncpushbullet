@@ -1,6 +1,6 @@
+import asyncio
 import os
 import json
-import requests
 import warnings
 
 from .device import Device
@@ -9,7 +9,7 @@ from .chat import Chat
 from .errors import PushbulletError, InvalidKeyError, PushError
 from .filetype import get_file_type
 from ._compat import standard_b64encode
-
+import aiohttp
 
 class NoEncryptionModuleError(Exception):
     def __init__(self, msg):
@@ -31,9 +31,10 @@ class Pushbullet(object):
         self.api_key = api_key
         self._json_header = {'Content-Type': 'application/json'}
 
-        self._session = requests.Session()
+        # self._session = requests.Session()
+        self._session = aiohttp.ClientSession()
         self._session.auth = (self.api_key, "")
-        self._session.headers.update(self._json_header)
+        # self._session.headers.update(self._json_header)
 
         # RH: ADDED
         self._most_recent_timestamp = 0
@@ -41,7 +42,10 @@ class Pushbullet(object):
         if proxy:
             if "https" not in [k.lower() for k in proxy.keys()]:
                 raise ConnectionError("You can only use HTTPS proxies!")
-            self._session.proxies.update(proxy)
+            # self._session.proxies.update(proxy)
+            self._proxy = proxy
+        else:
+            self._proxy = None
 
         self.refresh()
 
@@ -63,14 +67,18 @@ class Pushbullet(object):
             )
             self._encryption_key = kdf.derive(encryption_password.encode("UTF-8"))
 
-    def _get_data(self, url):
-        resp = self._session.get(url)
+    # @asyncio.coroutine
+    async def _get_data(self, url):
+        print("_get_data")
+        # resp = yield from self._session.get(url, proxy=self._proxy)
+        async with self._session.get(url, proxy=self._proxy) as resp:
+            print(resp)
 
-        if resp.status_code in (401, 403):
+        if resp.status in (401, 403):
             raise InvalidKeyError()
-        elif resp.status_code == 429:
+        elif resp.status == 429:
             raise PushbulletError("Too Many Requests, you have been ratelimited")
-        elif resp.status_code != requests.codes.ok:
+        elif resp.status != 200:
             raise PushbulletError(resp.status_code)
 
         return resp.json()
@@ -216,8 +224,8 @@ class Pushbullet(object):
         pushes_list = []
         get_more_pushes = True
         while get_more_pushes:
-            r = self._session.get(self.PUSH_URL, params=data)
-            if r.status_code != requests.codes.ok:
+            r = self._session.get(self.PUSH_URL, params=data, proxy=self._proxy)
+            if r.status != 200:
                 raise PushbulletError(r.text)
 
             pushes_list += r.json().get("pushes")
