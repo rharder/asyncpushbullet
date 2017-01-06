@@ -1,7 +1,11 @@
 import os
 import json
+
+import datetime
 import requests
 import warnings
+
+import time
 
 from .device import Device
 from .channel import Channel
@@ -67,7 +71,10 @@ class Pushbullet(object):
         if resp.status_code in (401, 403):
             raise InvalidKeyError()
         elif resp.status_code == 429:
-            raise PushbulletError("Too Many Requests, you have been ratelimited")
+            epoch = int(resp.headers.get("X-Ratelimit-Reset", 0))
+            epoch_time = datetime.datetime.fromtimestamp(epoch).strftime('%c')
+            raise PushbulletError("Too Many Requests. " +
+                                  "You have been ratelimited until {}".format(epoch_time))
         elif resp.status_code != requests.codes.ok:
             raise PushbulletError(resp.status_code)
 
