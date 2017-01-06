@@ -86,19 +86,16 @@ class AioPushbullet(Pushbullet):
                  ("manufacturer", manufacturer), ("icon", icon)) if v is not None}
         iden = device.device_iden
         msg = await self._aio_post_data("{}/{}".format(self.DEVICES_URL, iden), data=data)
-        print("msg", msg)
         new_device = Device(self, msg)
         self.devices[self.devices.index(device)] = new_device
         return new_device
 
-    # TODO: LEFT OFF HERE.  PUSHES AFTER A TICKLE
     async def aio_get_pushes(self, modified_after=None, limit=None, filter_inactive=True):
-        # data = {"modified_after": modified_after, "limit": limit}
         data ={}
         if modified_after is not None:
-            data["modified_after"] = modified_after
+            data["modified_after"] = str(modified_after)
         if limit is not None:
-            data["limit"] = limit
+            data["limit"] = str(limit)
         if filter_inactive:
             data['active'] = "true"
 

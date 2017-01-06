@@ -395,3 +395,4 @@ class Pushbullet(object):
         self._load_chats()
         self._load_user_info()
         self._load_channels()
+        self.get_pushes(limit=1)
