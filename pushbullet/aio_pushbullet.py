@@ -17,7 +17,6 @@ class AioPushbullet(Pushbullet):
         Pushbullet.__init__(self, api_key, **kwargs)
         self._proxy = kwargs.get("proxy")
         self._aio_session = None  # type: aiohttp.ClientSession
-
         asyncio.ensure_future(self.__aio__init__())
 
     async def __aio__init__(self):

@@ -22,7 +22,6 @@ class NoEncryptionModuleError(Exception):
 
 
 class Pushbullet(object):
-
     DEVICES_URL = "https://api.pushbullet.com/v2/devices"
     CHATS_URL = "https://api.pushbullet.com/v2/chats"
     CHANNELS_URL = "https://api.pushbullet.com/v2/channels"
@@ -131,10 +130,17 @@ class Pushbullet(object):
 
         return data
 
+    def get_me(self):
+        print("regular get_me")
+
+
+    def _get_me(self):
+        pass
+
     def new_device(self, nickname, manufacturer=None, model=None, icon="system"):
         data = {"nickname": nickname, "icon": icon}
         data.update({k: v for k, v in
-            (("model", model), ("manufacturer", manufacturer)) if v is not None})
+                     (("model", model), ("manufacturer", manufacturer)) if v is not None})
         r = self._session.post(self.DEVICES_URL, data=json.dumps(data))
         if r.status_code == requests.codes.ok:
             new_device = Device(self, r.json())
@@ -166,7 +172,6 @@ class Pushbullet(object):
         else:
             raise PushbulletError(r.text)
 
-
     def edit_chat(self, chat, name):
         data = {"name": name}
         iden = chat.iden
@@ -178,7 +183,6 @@ class Pushbullet(object):
         else:
             raise PushbulletError(r.text)
 
-
     def remove_device(self, device):
         iden = device.device_iden
         r = self._session.delete("{}/{}".format(self.DEVICES_URL, iden))
@@ -186,7 +190,6 @@ class Pushbullet(object):
             self.devices.remove(device)
         else:
             raise PushbulletError(r.text)
-
 
     def remove_chat(self, chat):
         iden = chat.iden
@@ -231,7 +234,7 @@ class Pushbullet(object):
             else:
                 get_more_pushes = False
 
-        if len(pushes_list) > 0 and pushes_list[0].get('modified',0) > self._most_recent_timestamp:
+        if len(pushes_list) > 0 and pushes_list[0].get('modified', 0) > self._most_recent_timestamp:
             self._most_recent_timestamp = pushes_list[0]['modified']
 
         return pushes_list
@@ -258,7 +261,8 @@ class Pushbullet(object):
 
         if r.status_code != requests.codes.ok:
             raise PushbulletError(r.text)
-##
+        ##
+
     def upload_file(self, f, file_name, file_type=None):
         if not file_type:
             file_type = get_file_type(f, file_name)
@@ -279,7 +283,8 @@ class Pushbullet(object):
 
         return {"file_type": file_type, "file_url": file_url, "file_name": file_name}
 
-    def push_file(self, file_name, file_url, file_type, body=None, title=None, device=None, chat=None, email=None, channel=None):
+    def push_file(self, file_name, file_url, file_type, body=None, title=None, device=None, chat=None, email=None,
+                  channel=None):
         data = {"type": "file", "file_type": file_type, "file_url": file_url, "file_name": file_name}
         if body:
             data["body"] = body
@@ -388,7 +393,7 @@ class Pushbullet(object):
         decrypted = decryptor.update(encrypted_message) + decryptor.finalize()
         decrypted = decrypted.decode()
 
-        return(decrypted)
+        return (decrypted)
 
     def refresh(self):
         self._load_devices()
