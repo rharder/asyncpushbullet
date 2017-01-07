@@ -11,7 +11,7 @@ import json
 # from threading import Thread
 
 # import requests
-import websockets  # https://github.com/aaugustin/websockets
+# import websockets  # https://github.com/aaugustin/websockets
 
 log = logging.getLogger('pushbullet.Listener')
 

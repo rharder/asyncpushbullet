@@ -2,6 +2,8 @@ import os
 import json
 
 import datetime
+from pprint import pprint
+
 import requests
 import warnings
 
@@ -64,20 +66,47 @@ class Pushbullet(object):
             )
             self._encryption_key = kdf.derive(encryption_password.encode("UTF-8"))
 
-    def _get_data(self, url):
-        resp = self._session.get(url)
+    def _http(self, func, url, **kwargs):
+        if "data" in kwargs and type(kwargs["data"]) is dict:
+            kwargs["data"] = json.dumps(kwargs["data"])
 
-        if resp.status_code in (401, 403):
+        print("_http", url, kwargs)
+
+        resp = func(url, **kwargs)
+
+        code = resp.status_code
+        if code in (401, 403):
             raise InvalidKeyError()
-        elif resp.status_code == 429:
+        elif code == 429:
             epoch = int(resp.headers.get("X-Ratelimit-Reset", 0))
             epoch_time = datetime.datetime.fromtimestamp(epoch).strftime('%c')
-            raise PushbulletError("Too Many Requests. " +
+            raise PushbulletError(code, "Too Many Requests. " +
                                   "You have been ratelimited until {}".format(epoch_time))
-        elif resp.status_code != requests.codes.ok:
-            raise PushbulletError(resp.status_code)
+        elif code == 204:  # No response
+            msg = {}
+        elif code != 200:
+            try:
+                msg = resp.json()
+            except:
+                msg = resp.text
+            raise PushbulletError(code, msg)
+        else:
+            msg = resp.json()
+        return msg
 
-        return resp.json()
+    def _get_data(self, url, **kwargs):
+        print("GETTING THIS:", url, kwargs)
+        msg = self._http(self._session.get, url, **kwargs)
+        return msg
+
+    def _post_data(self, url, **kwargs):
+        msg = self._http(self._session.post, url, **kwargs)
+        return msg
+
+    def _delete_data(self, url, **kwargs):
+        msg = self._http(self._session.delete, url, **kwargs)
+        return msg
+
 
     def _load_devices(self):
         self.devices = []
@@ -130,75 +159,6 @@ class Pushbullet(object):
 
         return data
 
-    def get_me(self):
-        print("regular get_me")
-
-
-    def _get_me(self):
-        pass
-
-    def new_device(self, nickname, manufacturer=None, model=None, icon="system"):
-        data = {"nickname": nickname, "icon": icon}
-        data.update({k: v for k, v in
-                     (("model", model), ("manufacturer", manufacturer)) if v is not None})
-        r = self._session.post(self.DEVICES_URL, data=json.dumps(data))
-        if r.status_code == requests.codes.ok:
-            new_device = Device(self, r.json())
-            self.devices.append(new_device)
-            return new_device
-        else:
-            raise PushbulletError(r.text)
-
-    def new_chat(self, name, email):
-        data = {"name": name, "email": email}
-        r = self._session.post(self.CHATS_URL, data=json.dumps(data))
-        if r.status_code == requests.codes.ok:
-            new_chat = Chat(self, r.json())
-            self.chats.append(new_chat)
-            return new_chat
-        else:
-            raise PushbulletError(r.text)
-
-    def edit_device(self, device, nickname=None, model=None, manufacturer=None, icon=None):
-        data = {k: v for k, v in
-                (("nickname", nickname or device.nickname), ("model", model),
-                 ("manufacturer", manufacturer), ("icon", icon)) if v is not None}
-        iden = device.device_iden
-        r = self._session.post("{}/{}".format(self.DEVICES_URL, iden), data=json.dumps(data))
-        if r.status_code == requests.codes.ok:
-            new_device = Device(self, r.json())
-            self.devices[self.devices.index(device)] = new_device
-            return new_device
-        else:
-            raise PushbulletError(r.text)
-
-    def edit_chat(self, chat, name):
-        data = {"name": name}
-        iden = chat.iden
-        r = self._session.post("{}/{}".format(self.CHATS_URL, iden), data=json.dumps(data))
-        if r.status_code == requests.codes.ok:
-            new_chat = Chat(self, r.json())
-            self.chats[self.chats.index(chat)] = new_chat
-            return new_chat
-        else:
-            raise PushbulletError(r.text)
-
-    def remove_device(self, device):
-        iden = device.device_iden
-        r = self._session.delete("{}/{}".format(self.DEVICES_URL, iden))
-        if r.status_code == requests.codes.ok:
-            self.devices.remove(device)
-        else:
-            raise PushbulletError(r.text)
-
-    def remove_chat(self, chat):
-        iden = chat.iden
-        r = self._session.delete("{}/{}".format(self.CHATS_URL, iden))
-        if r.status_code == requests.codes.ok:
-            self.chats.remove(chat)
-            return True
-        else:
-            raise PushbulletError(r.text)
 
     def get_device(self, nickname):
         req_device = next((device for device in self.devices if device.nickname == nickname), None)
@@ -207,6 +167,98 @@ class Pushbullet(object):
             raise PushbulletError('No device found with nickname "{}"'.format(nickname))
 
         return req_device
+
+    def new_device(self, nickname, manufacturer=None, model=None, icon="system", func=None):
+        gen = self._new_device(nickname, manufacturer=manufacturer, model=model, icon=icon)
+        xfer = next(gen)  # Prep http params
+        data = xfer.get('data', {})
+        xfer["msg"] = self._post_data(self.DEVICES_URL, data=data)
+        return next(gen)  # Post process response
+
+
+    def _new_device(self, nickname, manufacturer=None, model=None, icon="system", func=None):
+        data = {"nickname": nickname, "icon": icon}
+        data.update({k: v for k, v in
+                     (("model", model), ("manufacturer", manufacturer)) if v is not None})
+        xfer = {"data":data}
+        yield xfer  # Hand control back in order to conduct IO
+
+        msg = xfer.get('msg', {})
+        new_device = Device(self, msg)
+        self.devices.append(new_device)
+        yield new_device
+
+    def edit_device(self, device, nickname=None, model=None, manufacturer=None, icon=None, has_sms=None):
+        gen = self._edit_device(device, nickname=nickname, model=model,
+                                manufacturer=manufacturer, icon=icon, has_sms=has_sms)
+        xfer = next(gen)
+        data = xfer.get('data', {})
+        xfer["msg"] = self._post_data("{}/{}".format(self.DEVICES_URL, device.device_iden), data=data)
+        return next(gen)
+
+
+    def _edit_device(self, device, nickname=None, model=None, manufacturer=None, icon=None, has_sms=None):
+        data = {k: v for k, v in
+                (("nickname", nickname or device.nickname), ("model", model),
+                 ("manufacturer", manufacturer), ("icon", icon),
+                 ("has_sms", has_sms)) if v is not None}
+        if "has_sms" in data:
+            data["has_sms"] = str(data["has_sms"]).lower()
+        xfer = {"data":data}
+        yield xfer
+
+        msg = xfer.get('msg', {})
+        new_device = Device(self, msg)
+        self.devices[self.devices.index(device)] = new_device
+        yield new_device
+
+    def remove_device(self, device):
+        msg = self._delete_data("{}/{}".format(self.DEVICES_URL, device.device_iden))
+        return msg
+
+
+    def new_chat(self, email):
+        gen = self._new_chat(email)
+        xfer = next(gen)
+        data = xfer.get('data', {})
+        xfer["msg"] = self._post_data(self.CHATS_URL, data=data)
+        return next(gen)
+
+    def _new_chat(self, email):
+        data = {"email": email}
+        xfer = {"data": data}
+        yield xfer
+
+        msg = xfer.get('msg', {})
+        new_chat = Chat(self, msg)
+        self.chats.append(new_chat)
+        yield new_chat
+
+
+    def edit_chat(self, chat, muted=False):
+        gen = self._edit_chat(chat, muted)
+        xfer = next(gen)
+        data = xfer.get('data', {})
+        xfer["msg"] = self._post_data("{}/{}".format(self.CHATS_URL, chat.iden), data=data)
+        return next(gen)
+
+    def _edit_chat(self, chat, muted=False):
+        data = {"muted": muted}
+        xfer = {"data": data}
+        yield xfer
+
+        msg = xfer.get('msg', {})
+        new_chat = Chat(self, msg)
+        self.chats[self.chats.index(chat)] = new_chat
+        yield new_chat
+
+
+    def remove_chat(self, chat):
+        msg = self._delete_data("{}/{}".format(self.CHATS_URL, chat.iden))
+        return msg
+
+
+
 
     def get_channel(self, channel_tag):
         req_channel = next((channel for channel in self.channels if channel.channel_tag == channel_tag), None)
@@ -217,22 +269,41 @@ class Pushbullet(object):
         return req_channel
 
     def get_pushes(self, modified_after=None, limit=None, filter_inactive=True):
-        data = {"modified_after": modified_after, "limit": limit}
+        gen = self._get_pushes(modified_after=modified_after,
+                               limit=limit, filter_inactive=filter_inactive)
+        xfer = next(gen)
+        print(xfer)
+        while xfer["get_more_pushes"]:
+            print(xfer)
+            xfer["msg"] = self._get_data(self.PUSH_URL, data=xfer.get('data', {}))
+
+        return next(gen)
+
+    # TODO: LEFT OFF HERE. get pushes is not working
+
+    def _get_pushes(self, modified_after=None, limit=None, filter_inactive=True):
+        data = {}
+        if modified_after is not None:
+            data["modified_after"] = str(modified_after)
+        if limit is not None:
+            data["limit"] = int(limit)
         if filter_inactive:
             data['active'] = "true"
 
         pushes_list = []
-        get_more_pushes = True
-        while get_more_pushes:
-            r = self._session.get(self.PUSH_URL, params=data)
-            if r.status_code != requests.codes.ok:
-                raise PushbulletError(r.text)
+        xfer = {"data":data}
+        xfer["get_more_pushes"] = True
+        while xfer["get_more_pushes"]:
+            yield xfer
+            # IO happens...
 
-            pushes_list += r.json().get("pushes")
-            if 'cursor' in r.json() and (not limit or len(pushes_list) < limit):
-                data['cursor'] = r.json()['cursor']
+            msg = xfer.get("msg", {})
+            pushes_list += msg.get("pushes", [])
+            if 'cursor' in msg and (not limit or len(pushes_list) < limit):
+                data['cursor'] = msg['cursor']
+                print("cursor", data['cursor'])
             else:
-                get_more_pushes = False
+                xfer["get_more_pushes"] = False
 
         if len(pushes_list) > 0 and pushes_list[0].get('modified', 0) > self._most_recent_timestamp:
             self._most_recent_timestamp = pushes_list[0]['modified']
@@ -400,4 +471,5 @@ class Pushbullet(object):
         self._load_chats()
         self._load_user_info()
         self._load_channels()
-        self.get_pushes(limit=1)
+        # self.get_pushes(limit=1)
+

@@ -24,84 +24,97 @@ class AioPushbullet(Pushbullet):
         self._aio_session = aiohttp.ClientSession(headers=headers)
 
     async def aio_get_me(self):
-        msg = await self._aio_get_data(Pushbullet.ME_URL)
+        msg = await self._async_get_data(Pushbullet.ME_URL)
         return msg
 
-    async def _aio_http(self, func, url, **kwargs):
+    async def _async_http(self, func, url, **kwargs):
         print("_aio_http")
         async with func(url, proxy=self._proxy, **kwargs) as resp:
-            if resp.status in (401, 403):
+            code = resp.status
+            if code in (401, 403):
                 raise InvalidKeyError()
-            elif resp.status == 429:
+            elif code == 429:
                 epoch = int(resp.headers.get("X-Ratelimit-Reset", 0))
                 epoch_time = datetime.datetime.fromtimestamp(epoch).strftime('%c')
                 raise PushbulletError("Too Many Requests. " +
                                       "You have been ratelimited until {}".format(epoch_time))
-            elif resp.status == 204:  # No response
+            elif code == 204:  # No response
                 msg = {}
-            elif resp.status != 200:
+            elif code != 200:
                 msg = await resp.json()
                 raise PushbulletError(resp.status, msg)
             else:
                 msg = await resp.json()
             return msg
 
-    async def _aio_get_data(self, url, **kwargs):
-        resp = await self._aio_http(self._aio_session.get, url, **kwargs)
+    async def _async_get_data(self, url, **kwargs):
+        resp = await self._async_http(self._aio_session.get, url, **kwargs)
         return resp
 
-    async def _aio_post_data(self, url, **kwargs):
-        resp = await self._aio_http(self._aio_session.post, url, **kwargs)
+    async def _async_post_data(self, url, **kwargs):
+        resp = await self._async_http(self._aio_session.post, url, **kwargs)
         return resp
 
-    async def _aio_delete_data(self, url, **kwargs):
-        resp = await self._aio_http(self._aio_session.delete, url, **kwargs)
+    async def _async_delete_data(self, url, **kwargs):
+        resp = await self._async_http(self._aio_session.delete, url, **kwargs)
         return resp
 
-    async def _aio_push(self, data):
-        msg = await self._aio_post_data(self.PUSH_URL, data=data)
+    async def _async_push(self, data):
+        msg = await self._async_post_data(self.PUSH_URL, data=data)
         return msg
 
-    async def aio_new_device(self, nickname, manufacturer=None, model=None, icon="system"):
-        data = {"nickname": nickname, "icon": icon}
-        data.update({k: v for k, v in
-                     (("model", model), ("manufacturer", manufacturer)) if v is not None})
-        data = await self._aio_post_data(self.DEVICES_URL, data=data)
-        if data:
-            new_device = Device(self, data)
-            self.devices.append(new_device)
-            return new_device
-        else:
-            raise PushbulletError("No data received from post to " + self.DEVICES_URL)
 
-    async def aio_remove_device(self, device):
-        iden = device.device_iden
-        data = await self._aio_delete_data("{}/{}".format(self.DEVICES_URL, iden))
+    async def async_new_device(self, nickname, manufacturer=None, model=None, icon="system", func=None):
+        gen = self._new_device(nickname, manufacturer=manufacturer, model=model, icon=icon)
+        xfer = next(gen)  # Prep http params
+        xfer["msg"] = await self._async_post_data(self.DEVICES_URL, data=xfer.get("data", {}))
+        return next(gen)  # Post process response
+
+    async def async_edit_device(self, device, nickname=None, model=None, manufacturer=None, icon=None, has_sms=None):
+        gen = self._edit_device(device, nickname=nickname, model=model,
+                                manufacturer=manufacturer, icon=icon, has_sms=has_sms)
+        xfer = next(gen)
+        xfer["msg"] = await self._async_post_data("{}/{}".format(self.DEVICES_URL, device.device_iden), data=xfer.get("data", {}))
+        return next(gen)
+
+    async def async_remove_device(self, device):
+        data = await self._async_delete_data("{}/{}".format(self.DEVICES_URL, device.device_iden))
         return data
 
-    async def aio_edit_device(self, device, nickname=None, model=None, manufacturer=None, icon=None):
-        data = {k: v for k, v in
-                (("nickname", nickname or device.nickname), ("model", model),
-                 ("manufacturer", manufacturer), ("icon", icon)) if v is not None}
-        iden = device.device_iden
-        msg = await self._aio_post_data("{}/{}".format(self.DEVICES_URL, iden), data=data)
-        new_device = Device(self, msg)
-        self.devices[self.devices.index(device)] = new_device
-        return new_device
+
+    async def async_new_chat(self, email):
+        gen = self._new_chat(email)
+        xfer = next(gen)
+        xfer["msg"] = await self._async_post_data(self.CHATS_URL, data=xfer.get("data", {}))
+        return next(gen)
+
+    async def async_edit_chat(self, chat, muted=False):
+        gen = self._edit_chat(chat, muted)
+        xfer = next(gen)
+        data = xfer.get('data', {})
+        xfer["msg"] = await self._async_post_data("{}/{}".format(self.CHATS_URL, chat.iden), data=data)
+        return next(gen)
+
+
+    async def async_remove_chat(self, chat):
+        msg = await self._async_delete_data("{}/{}".format(self.CHATS_URL, chat.iden))
+        return msg
+
 
     async def aio_get_pushes(self, modified_after=None, limit=None, filter_inactive=True):
         data ={}
         if modified_after is not None:
             data["modified_after"] = str(modified_after)
         if limit is not None:
-            data["limit"] = str(limit)
+            data["limit"] = int(limit)
         if filter_inactive:
             data['active'] = "true"
 
         pushes_list = []
         get_more_pushes = True
         while get_more_pushes:
-            msg = await self._aio_get_data(self.PUSH_URL, params=data)
+            msg = await self._async_get_data(self.PUSH_URL, params=data)
+            print("while", msg)
 
             pushes_list += msg.get('pushes', [])
             print("NUM PUSHES:", len(pushes_list))
@@ -109,6 +122,7 @@ class AioPushbullet(Pushbullet):
                 data['cursor'] = msg['cursor']
             else:
                 get_more_pushes = False
+            await asyncio.sleep(1)
 
         if len(pushes_list) > 0 and pushes_list[0].get('modified', 0) > self._most_recent_timestamp:
             self._most_recent_timestamp = pushes_list[0]['modified']
@@ -122,37 +136,17 @@ class AioPushbullet(Pushbullet):
 
     async def aio_dismiss_push(self, iden):
         data = {"dismissed": True}
-        msg = await self._aio_post_data("{}/{}".format(self.PUSH_URL, iden), data=data)
+        msg = await self._async_post_data("{}/{}".format(self.PUSH_URL, iden), data=data)
         return msg
 
     async def aio_delete_push(self, iden):
-        msg = await self._aio_delete_data("{}/{}".format(self.PUSH_URL, iden))
+        msg = await self._async_delete_data("{}/{}".format(self.PUSH_URL, iden))
         return msg
 
     async def aio_delete_pushes(self):
-        msg = await self._aio_delete_data(self.PUSH_URL)
+        msg = await self._async_delete_data(self.PUSH_URL)
         return msg
 
-    async def aio_new_chat(self, email):
-        data = {"email": email}
-        msg = await self._aio_post_data(self.CHATS_URL, data=data)
-        new_chat = Chat(self, msg)
-        self.chats.append(new_chat)
-        return new_chat
-
-    async def aio_edit_chat(self, chat, muted=False):
-        data = {"muted": str(muted).lower()}
-        iden = chat.iden
-        msg = await self._aio_post_data("{}/{}".format(self.CHATS_URL, iden), data=data)
-        new_chat = Chat(self, msg)
-        self.chats[self.chats.index(chat)] = new_chat
-        return new_chat
-
-    async def aio_remove_chat(self, chat):
-        iden = chat.iden
-        msg = await self._aio_delete_data("{}/{}".format(self.CHATS_URL, iden))
-        self.chats.remove(chat)
-        return msg
 
     async def aio_upload_file(self, file_path, file_type=None):
         file_name = os.path.basename(file_path)
@@ -163,14 +157,14 @@ class AioPushbullet(Pushbullet):
         data = {"file_name": file_name, "file_type": file_type}
 
         # Request url for file upload
-        msg = await self._aio_post_data(self.UPLOAD_REQUEST_URL, data=data)
+        msg = await self._async_post_data(self.UPLOAD_REQUEST_URL, data=data)
 
         upload_url = msg.get("upload_url")  # Where to upload
         file_url = msg.get("file_url")  # Resulting destination
 
         # Upload the file
         with open(file_path, "rb") as f:
-            msg = await self._aio_post_data(upload_url, data={'file': f})
+            msg = await self._async_post_data(upload_url, data={'file': f})
 
         return {"file_type": file_type, "file_url": file_url, "file_name": file_path, "resp": msg}
 
@@ -185,19 +179,19 @@ class AioPushbullet(Pushbullet):
         if title:
             data["title"] = title
         data.update(Pushbullet._recipient(device, chat, email, channel))
-        msg = await self._aio_push(data)
+        msg = await self._async_push(data)
         return msg
 
     async def push_note(self, title, body, device=None, chat=None, email=None, channel=None):
         data = {"type": "note", "title": title, "body": body}
         data.update(Pushbullet._recipient(device, chat, email, channel))
-        msg = await self._aio_push(data)
+        msg = await self._async_push(data)
         return msg
 
     async def aio_push_link(self, title, url, body=None, device=None, chat=None, email=None, channel=None):
         data = {"type": "link", "title": title, "url": url, "body": body}
         data.update(Pushbullet._recipient(device, chat, email, channel))
-        msg = await self._aio_push(data)
+        msg = await self._async_push(data)
         return msg
 
     async def aio_push_sms(self, device, number, message):
@@ -219,7 +213,7 @@ class AioPushbullet(Pushbullet):
                 "encrypted": True
             }
 
-        msg = await self._aio_post_data(self.EPHEMERALS_URL, data=data)
+        msg = await self._async_post_data(self.EPHEMERALS_URL, data=data)
         return msg
 
 
