@@ -383,7 +383,7 @@ class Pushbullet(object):
         yield xfer  # Conduct upload
 
         yield {"file_type": file_type, "file_url": file_url, "file_name": file_name}
-
+# TODO: LEFT OFF HERE: PUSH FILE
     def push_file(self, file_name, file_url, file_type, body=None, title=None, device=None, chat=None, email=None,
                   channel=None):
         data = {"type": "file", "file_type": file_type, "file_url": file_url, "file_name": file_name}
