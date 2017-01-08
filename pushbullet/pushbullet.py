@@ -66,36 +66,48 @@ class Pushbullet(object):
             )
             self._encryption_key = kdf.derive(encryption_password.encode("UTF-8"))
 
+    # ################
+    # IO Methods
+    #
+
     def _http(self, func, url, **kwargs):
-        if "data" in kwargs and type(kwargs["data"]) is dict:
-            kwargs["data"] = json.dumps(kwargs["data"])
+        # if "data" in kwargs and type(kwargs["data"]) is dict:
+        #     kwargs["data"] = json.dumps(kwargs["data"])
 
-        print("_http", url, kwargs)
+        # If uploading a file, temporarily remove JSON header
+        if "files" in kwargs:
+            del self._session.headers["Content-Type"]
 
-        resp = func(url, **kwargs)
+        try:
+            resp = func(url, **kwargs)  # Do HTTP
+        finally:
+            self._session.headers.update(self._json_header)
 
         code = resp.status_code
+        try:
+            msg = resp.json()
+        except:
+            msg = resp.text
+
+        return self._interpret_response(code, resp.headers, msg)
+
+    def _interpret_response(self, code, headers, msg):
         if code in (401, 403):
             raise InvalidKeyError()
         elif code == 429:
-            epoch = int(resp.headers.get("X-Ratelimit-Reset", 0))
+            epoch = int(headers.get("X-Ratelimit-Reset", 0))
             epoch_time = datetime.datetime.fromtimestamp(epoch).strftime('%c')
             raise PushbulletError(code, "Too Many Requests. " +
                                   "You have been ratelimited until {}".format(epoch_time))
-        elif code == 204:  # No response
-            msg = {}
-        elif code != 200:
-            try:
-                msg = resp.json()
-            except:
-                msg = resp.text
+        elif code not in (200, 204):
             raise PushbulletError(code, msg)
-        else:
-            msg = resp.json()
+
+        if type(msg) is not dict:
+            msg = {"raw": msg}
+
         return msg
 
     def _get_data(self, url, **kwargs):
-        print("GETTING THIS:", url, kwargs)
         msg = self._http(self._session.get, url, **kwargs)
         return msg
 
@@ -107,6 +119,35 @@ class Pushbullet(object):
         msg = self._http(self._session.delete, url, **kwargs)
         return msg
 
+    def _push(self, data):
+        msg = self._post_data(Pushbullet.PUSH_URL, data=data)
+        return msg
+
+    @staticmethod
+    def _recipient(device=None, chat=None, email=None, channel=None):
+        data = dict()
+
+        if device:
+            data["device_iden"] = device.device_iden
+        elif chat:
+            data["email"] = chat.email
+        elif email:
+            data["email"] = email
+        elif channel:
+            data["channel_tag"] = channel.channel_tag
+
+        return data
+
+    # ################
+    # Cached Data
+    #
+
+    def refresh(self):
+        self._load_devices()
+        self._load_chats()
+        self._load_user_info()
+        self._load_channels()
+        self.get_pushes(limit=1)
 
     def _load_devices(self):
         self.devices = []
@@ -144,22 +185,6 @@ class Pushbullet(object):
                 c = Channel(self, channel_info)
                 self.channels.append(c)
 
-    @staticmethod
-    def _recipient(device=None, chat=None, email=None, channel=None):
-        data = dict()
-
-        if device:
-            data["device_iden"] = device.device_iden
-        elif chat:
-            data["email"] = chat.email
-        elif email:
-            data["email"] = email
-        elif channel:
-            data["channel_tag"] = channel.channel_tag
-
-        return data
-
-
     def get_device(self, nickname):
         req_device = next((device for device in self.devices if device.nickname == nickname), None)
 
@@ -168,6 +193,18 @@ class Pushbullet(object):
 
         return req_device
 
+    def get_channel(self, channel_tag):
+        req_channel = next((channel for channel in self.channels if channel.channel_tag == channel_tag), None)
+
+        if req_channel is None:
+            raise PushbulletError('No channel found with channel_tag "{}"'.format(channel_tag))
+
+        return req_channel
+
+    # ################
+    # Device
+    #
+
     def new_device(self, nickname, manufacturer=None, model=None, icon="system", func=None):
         gen = self._new_device(nickname, manufacturer=manufacturer, model=model, icon=icon)
         xfer = next(gen)  # Prep http params
@@ -175,12 +212,11 @@ class Pushbullet(object):
         xfer["msg"] = self._post_data(self.DEVICES_URL, data=data)
         return next(gen)  # Post process response
 
-
     def _new_device(self, nickname, manufacturer=None, model=None, icon="system", func=None):
         data = {"nickname": nickname, "icon": icon}
         data.update({k: v for k, v in
                      (("model", model), ("manufacturer", manufacturer)) if v is not None})
-        xfer = {"data":data}
+        xfer = {"data": data}
         yield xfer  # Hand control back in order to conduct IO
 
         msg = xfer.get('msg', {})
@@ -196,7 +232,6 @@ class Pushbullet(object):
         xfer["msg"] = self._post_data("{}/{}".format(self.DEVICES_URL, device.device_iden), data=data)
         return next(gen)
 
-
     def _edit_device(self, device, nickname=None, model=None, manufacturer=None, icon=None, has_sms=None):
         data = {k: v for k, v in
                 (("nickname", nickname or device.nickname), ("model", model),
@@ -204,7 +239,7 @@ class Pushbullet(object):
                  ("has_sms", has_sms)) if v is not None}
         if "has_sms" in data:
             data["has_sms"] = str(data["has_sms"]).lower()
-        xfer = {"data":data}
+        xfer = {"data": data}
         yield xfer
 
         msg = xfer.get('msg', {})
@@ -216,6 +251,9 @@ class Pushbullet(object):
         msg = self._delete_data("{}/{}".format(self.DEVICES_URL, device.device_iden))
         return msg
 
+    # ################
+    # Chat
+    #
 
     def new_chat(self, email):
         gen = self._new_chat(email)
@@ -234,7 +272,6 @@ class Pushbullet(object):
         self.chats.append(new_chat)
         yield new_chat
 
-
     def edit_chat(self, chat, muted=False):
         gen = self._edit_chat(chat, muted)
         xfer = next(gen)
@@ -252,34 +289,23 @@ class Pushbullet(object):
         self.chats[self.chats.index(chat)] = new_chat
         yield new_chat
 
-
     def remove_chat(self, chat):
         msg = self._delete_data("{}/{}".format(self.CHATS_URL, chat.iden))
         return msg
 
-
-
-
-    def get_channel(self, channel_tag):
-        req_channel = next((channel for channel in self.channels if channel.channel_tag == channel_tag), None)
-
-        if req_channel is None:
-            raise PushbulletError('No channel found with channel_tag "{}"'.format(channel_tag))
-
-        return req_channel
+    # ################
+    # Pushes
+    #
 
     def get_pushes(self, modified_after=None, limit=None, filter_inactive=True):
         gen = self._get_pushes(modified_after=modified_after,
                                limit=limit, filter_inactive=filter_inactive)
         xfer = next(gen)
-        print(xfer)
+        resp = []
         while xfer["get_more_pushes"]:
-            print(xfer)
-            xfer["msg"] = self._get_data(self.PUSH_URL, data=xfer.get('data', {}))
-
-        return next(gen)
-
-    # TODO: LEFT OFF HERE. get pushes is not working
+            xfer["msg"] = self._get_data(self.PUSH_URL, params=xfer.get('data', {}))
+            resp = next(gen)
+        return resp
 
     def _get_pushes(self, modified_after=None, limit=None, filter_inactive=True):
         data = {}
@@ -291,24 +317,22 @@ class Pushbullet(object):
             data['active'] = "true"
 
         pushes_list = []
-        xfer = {"data":data}
+        xfer = {"data": data}
         xfer["get_more_pushes"] = True
         while xfer["get_more_pushes"]:
-            yield xfer
-            # IO happens...
+            yield xfer  # IO happens...
 
             msg = xfer.get("msg", {})
             pushes_list += msg.get("pushes", [])
             if 'cursor' in msg and (not limit or len(pushes_list) < limit):
                 data['cursor'] = msg['cursor']
-                print("cursor", data['cursor'])
             else:
                 xfer["get_more_pushes"] = False
 
         if len(pushes_list) > 0 and pushes_list[0].get('modified', 0) > self._most_recent_timestamp:
             self._most_recent_timestamp = pushes_list[0]['modified']
 
-        return pushes_list
+        yield pushes_list
 
     def get_new_pushes(self, limit=None, filter_inactive=True):
         return self.get_pushes(modified_after=self._most_recent_timestamp,
@@ -316,43 +340,49 @@ class Pushbullet(object):
 
     def dismiss_push(self, iden):
         data = {"dismissed": True}
-        r = self._session.post("{}/{}".format(self.PUSH_URL, iden), data=json.dumps(data))
-
-        if r.status_code != requests.codes.ok:
-            raise PushbulletError(r.text)
+        msg = self._post_data("{}/{}".format(self.PUSH_URL, iden), data=data)
+        return msg
 
     def delete_push(self, iden):
-        r = self._session.delete("{}/{}".format(self.PUSH_URL, iden))
-
-        if r.status_code != requests.codes.ok:
-            raise PushbulletError(r.text)
+        msg = self._delete_data("{}/{}".format(self.PUSH_URL, iden))
+        return msg
 
     def delete_pushes(self):
-        r = self._session.delete(self.PUSH_URL)
+        msg = self._delete_data(self.PUSH_URL)
+        return msg
 
-        if r.status_code != requests.codes.ok:
-            raise PushbulletError(r.text)
-        ##
+    def upload_file(self, file_path, file_type=None):
+        gen = self._upload_file(file_path, file_type=file_type)
 
-    def upload_file(self, f, file_name, file_type=None):
+        xfer = next(gen)  # Prep request params
+
+        data = json.dumps(xfer["data"])
+        xfer["msg"] = self._post_data(self.UPLOAD_REQUEST_URL, data=data)
+
+        next(gen)  # Prep upload params
+
+        with open(file_path, "rb") as f:
+            xfer["msg"] = self._post_data(xfer["upload_url"], files={"file":f})
+
+        return next(gen)  # Prep response
+
+    def _upload_file(self, file_path, file_type=None):
+
+        file_name = os.path.basename(file_path)
         if not file_type:
-            file_type = get_file_type(f, file_name)
-
+            with open(file_path, "rb") as f:
+                file_type = get_file_type(f, file_path)
         data = {"file_name": file_name, "file_type": file_type}
+        xfer = {"data": data}
+        yield xfer  # Request upload
 
-        # Request url for file upload
-        r = self._session.post(self.UPLOAD_REQUEST_URL, data=json.dumps(data))
+        msg = xfer["msg"]
+        xfer["upload_url"] = msg.get("upload_url")  # Upload location
+        file_url = msg.get("file_url")  # Final destination for downloading
+        file_type = msg.get("file_type")  # What PB thinks is the filetype
+        yield xfer  # Conduct upload
 
-        if r.status_code != requests.codes.ok:
-            raise PushbulletError(r.text)
-
-        upload_data = r.json().get("data")
-        file_url = r.json().get("file_url")
-        upload_url = r.json().get("upload_url")
-
-        upload = requests.post(upload_url, data=upload_data, files={"file": f})
-
-        return {"file_type": file_type, "file_url": file_url, "file_name": file_name}
+        yield {"file_type": file_type, "file_url": file_url, "file_name": file_name}
 
     def push_file(self, file_name, file_url, file_type, body=None, title=None, device=None, chat=None, email=None,
                   channel=None):
@@ -388,14 +418,6 @@ class Pushbullet(object):
         data.update(Pushbullet._recipient(device, chat, email, channel))
 
         return self._push(data)
-
-    def _push(self, data):
-        r = self._session.post(self.PUSH_URL, data=json.dumps(data))
-
-        if r.status_code == requests.codes.ok:
-            return r.json()
-        else:
-            raise PushError(r.text)
 
     def push_sms(self, device, number, message):
         data = {
@@ -466,10 +488,6 @@ class Pushbullet(object):
 
         return (decrypted)
 
-    def refresh(self):
-        self._load_devices()
-        self._load_chats()
-        self._load_user_info()
-        self._load_channels()
-        # self.get_pushes(limit=1)
-
+    def get_me(self):
+        msg = self._get_data(Pushbullet.ME_URL)
+        return msg
