@@ -71,55 +71,60 @@ class Pushbullet(object):
     #
 
     def _http(self, func, url, **kwargs):
-        # if "data" in kwargs and type(kwargs["data"]) is dict:
-        #     kwargs["data"] = json.dumps(kwargs["data"])
+        """ All HTTP transactions funnel through here. """
 
         # If uploading a file, temporarily remove JSON header
         if "files" in kwargs:
             del self._session.headers["Content-Type"]
-
         try:
             resp = func(url, **kwargs)  # Do HTTP
         finally:
             self._session.headers.update(self._json_header)
 
-        code = resp.status_code
         try:
             msg = resp.json()
         except:
             msg = resp.text
 
-        return self._interpret_response(code, resp.headers, msg)
+        return self._interpret_response(resp.status_code, resp.headers, msg)
 
     def _interpret_response(self, code, headers, msg):
+        """ Interpret the HTTP response headers, raise exceptions, etc. """
+
         if code in (401, 403):
             raise InvalidKeyError()
+
         elif code == 429:
             epoch = int(headers.get("X-Ratelimit-Reset", 0))
             epoch_time = datetime.datetime.fromtimestamp(epoch).strftime('%c')
             raise PushbulletError(code, "Too Many Requests. " +
                                   "You have been ratelimited until {}".format(epoch_time))
-        elif code not in (200, 204):
+
+        elif code not in (200, 204):  # 200 OK, 204 Empty response (file upload)
             raise PushbulletError(code, msg)
 
-        if type(msg) is not dict:
+        if type(msg) is not dict:  # A dict is always returned
             msg = {"raw": msg}
 
         return msg
 
     def _get_data(self, url, **kwargs):
+        """ HTTP GET """
         msg = self._http(self._session.get, url, **kwargs)
         return msg
 
     def _post_data(self, url, **kwargs):
+        """ HTTP POST """
         msg = self._http(self._session.post, url, **kwargs)
         return msg
 
     def _delete_data(self, url, **kwargs):
+        """ HTTP DELETE """
         msg = self._http(self._session.delete, url, **kwargs)
         return msg
 
     def _push(self, data):
+        """ Helper for generic push """
         msg = self._post_data(Pushbullet.PUSH_URL, data=data)
         return msg
 
@@ -140,7 +145,7 @@ class Pushbullet(object):
 
     # ################
     # Cached Data
-    #
+    # - This data is retained locally rather than querying Pushbullet each time.
 
     def refresh(self):
         self._load_devices()
