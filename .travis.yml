@@ -1,14 +1,11 @@
 language: python
 python:
-- '2.7'
-- '3.3'
-- '3.4'
 - '3.5'
 install:
 - pip install .
 - pip install coveralls
 - pip install cryptography
-- pip install websockets
+- pip install aiohttp
 script: coverage run --source pushbullet -m py.test
 env:
 - PUSHBULLET_API_KEY=RrFnc1xaeQXnRrr2auoGA1e8pQ8MWmMF
