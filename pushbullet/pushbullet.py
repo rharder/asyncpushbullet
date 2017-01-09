@@ -232,10 +232,10 @@ class Pushbullet(object):
     def edit_device(self, device, nickname=None, model=None, manufacturer=None, icon=None, has_sms=None):
         gen = self._edit_device(device, nickname=nickname, model=model,
                                 manufacturer=manufacturer, icon=icon, has_sms=has_sms)
-        xfer = next(gen)
+        xfer = next(gen)  # Prep http params
         data = xfer.get('data', {})
         xfer["msg"] = self._post_data("{}/{}".format(self.DEVICES_URL, device.device_iden), data=data)
-        return next(gen)
+        return next(gen)  # Post process response
 
     def _edit_device(self, device, nickname=None, model=None, manufacturer=None, icon=None, has_sms=None):
         data = {k: v for k, v in
@@ -262,10 +262,10 @@ class Pushbullet(object):
 
     def new_chat(self, email):
         gen = self._new_chat(email)
-        xfer = next(gen)
+        xfer = next(gen)  # Prep http params
         data = xfer.get('data', {})
         xfer["msg"] = self._post_data(self.CHATS_URL, data=data)
-        return next(gen)
+        return next(gen)  # Post process response
 
     def _new_chat(self, email):
         data = {"email": email}
@@ -279,13 +279,13 @@ class Pushbullet(object):
 
     def edit_chat(self, chat, muted=False):
         gen = self._edit_chat(chat, muted)
-        xfer = next(gen)
+        xfer = next(gen)  # Prep http params
         data = xfer.get('data', {})
         xfer["msg"] = self._post_data("{}/{}".format(self.CHATS_URL, chat.iden), data=data)
-        return next(gen)
+        return next(gen)  # Post process response
 
     def _edit_chat(self, chat, muted=False):
-        data = {"muted": muted}
+        data = {"muted": "true" if muted else "false"}
         xfer = {"data": data}
         yield xfer
 
@@ -305,11 +305,11 @@ class Pushbullet(object):
     def get_pushes(self, modified_after=None, limit=None, filter_inactive=True):
         gen = self._get_pushes(modified_after=modified_after,
                                limit=limit, filter_inactive=filter_inactive)
-        xfer = next(gen)
+        xfer = next(gen)  # Prep http params
         resp = []
         while xfer["get_more_pushes"]:
             xfer["msg"] = self._get_data(self.PUSH_URL, params=xfer.get('data', {}))
-            resp = next(gen)
+            resp = next(gen)  # Post process response
         return resp
 
     def _get_pushes(self, modified_after=None, limit=None, filter_inactive=True):
@@ -346,7 +346,7 @@ class Pushbullet(object):
     def dismiss_push(self, iden):
         if type(iden) is dict and "iden" in iden:
             iden = iden["iden"]  # In case user passes entire push
-        data = {"dismissed": True}
+        data = {"dismissed": "true"}
         msg = self._post_data("{}/{}".format(self.PUSH_URL, iden), data=data)
         return msg
 
@@ -380,10 +380,10 @@ class Pushbullet(object):
 
     def push_sms(self, device, number, message):
         gen = self._push_sms(device, number, message)
-        xfer = next(gen)  # Prep params
+        xfer = next(gen)  # Prep http params
         data = xfer.get("data")
         xfer["msg"] = self._post_data(self.EPHEMERALS_URL, data=json.dumps(data))
-        return next(gen)  # Post process
+        return next(gen)  # Post process response
 
     def _push_sms(self, device, number, message):
         data = {
@@ -401,7 +401,7 @@ class Pushbullet(object):
         if self._encryption_key:
             data["push"] = {
                 "ciphertext": self._encrypt_data(data["push"]),
-                "encrypted": True
+                "encrypted": "true"
             }
 
         xfer = {"data": data}
@@ -425,7 +425,7 @@ class Pushbullet(object):
         with open(file_path, "rb") as f:
             xfer["msg"] = self._post_data(xfer["upload_url"], files={"file": f})
 
-        return next(gen)  # Prep response
+        return next(gen)  # Post process response
 
     def _upload_file(self, file_path, file_type=None):
 
@@ -449,10 +449,10 @@ class Pushbullet(object):
                   channel=None):
         gen = self._push_file(file_name, file_url, file_type, body=body, title=title,
                               device=device, chat=chat, email=email, channel=channel)
-        xfer = next(gen)  # Prep params
+        xfer = next(gen)  # Prep http params
         data = xfer.get("data")
         xfer["msg"] = self._push(json.dumps(data))
-        return next(gen)  # Post process
+        return next(gen)  # Post process response
 
     def _push_file(self, file_name, file_url, file_type, body=None, title=None, device=None, chat=None, email=None,
                    channel=None):

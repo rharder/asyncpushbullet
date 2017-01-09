@@ -127,7 +127,7 @@ class AsyncPushbullet(Pushbullet):
     async def async_dismiss_push(self, iden):
         if type(iden) is dict and "iden" in iden:
             iden = iden["iden"]  # In case user passes entire push
-        data = {"dismissed": True}
+        data = {"dismissed": "true"}
         msg = await self._async_post_data("{}/{}".format(self.PUSH_URL, iden), data=data)
         return msg
 

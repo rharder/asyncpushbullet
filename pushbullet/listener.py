@@ -57,7 +57,7 @@ class Listener():
         self.history = []
 
     def on_open(self, ws):
-        print("on_open")
+        log.debug("on_open")
         self.connected = True
         self.last_update = time.time()
 
@@ -86,8 +86,6 @@ class Listener():
         async with self._account._aio_session.ws_connect(WEBSOCKET_URL + self._api_key) as ws:
             self.on_open(ws)
             async for msg in ws:
-                print("async msg:", msg)
-                print("msg.data", type(msg.data), msg.data)
                 self.last_update = time.time()
                 if msg.type == aiohttp.WSMsgType.TEXT:
                     await self.on_message(ws, json.loads(msg.data))
