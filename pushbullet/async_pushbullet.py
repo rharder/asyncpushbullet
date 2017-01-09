@@ -12,7 +12,7 @@ from .filetype import _guess_file_type
 from .chat import Chat
 
 
-class AioPushbullet(Pushbullet):
+class AsyncPushbullet(Pushbullet):
     def __init__(self, api_key, **kwargs):
         Pushbullet.__init__(self, api_key, **kwargs)
 
