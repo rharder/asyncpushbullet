@@ -393,52 +393,49 @@ class Pushbullet(object):
                   channel=None):
         gen = self._push_file(file_name, file_url, file_type, body=body, title=title,
                               device=device, chat=chat, email=email, channel=channel)
-        xfer = next(gen)
+        xfer = next(gen)  # Prep params
         data = xfer.get("data")
         xfer["msg"] = self._push(json.dumps(data))
-        return next(gen)
+        return next(gen)  # Post process
 
     def _push_file(self, file_name, file_url, file_type, body=None, title=None, device=None, chat=None, email=None,
               channel=None):
         data = {"type": "file", "file_type": file_type, "file_url": file_url, "file_name": file_name}
         if body:
             data["body"] = body
-
         if title:
             data["title"] = title
         data.update(Pushbullet._recipient(device, chat, email, channel))
-
         xfer = {"data": data}
-        yield xfer
-
-        msg = xfer.get("msg",{})
-        yield msg
-
-        return self._push(json.dumps(data))
+        yield xfer  # Do IO
+        yield xfer.get("msg",{})
 
     def push_note(self, title, body, device=None, chat=None, email=None, channel=None):
         data = {"type": "note", "title": title, "body": body}
-
         data.update(Pushbullet._recipient(device, chat, email, channel))
-
         return self._push(data)
 
-    def push_address(self, name, address, device=None, chat=None, email=None):
-        warnings.warn("Address push type is removed. This push will be sent as note.")
-        return self.push_note(name, address, device, chat, email)
+    # def push_address(self, name, address, device=None, chat=None, email=None):
+    #     warnings.warn("Address push type is removed. This push will be sent as note.")
+    #     return self.push_note(name, address, device, chat, email)
 
-    def push_list(self, title, items, device=None, chat=None, email=None):
-        warnings.warn("List push type is removed. This push will be sent as note.")
-        return self.push_note(title, ",".join(items), device, chat, email)
+    # def push_list(self, title, items, device=None, chat=None, email=None):
+    #     warnings.warn("List push type is removed. This push will be sent as note.")
+    #     return self.push_note(title, ",".join(items), device, chat, email)
 
     def push_link(self, title, url, body=None, device=None, chat=None, email=None, channel=None):
         data = {"type": "link", "title": title, "url": url, "body": body}
-
         data.update(Pushbullet._recipient(device, chat, email, channel))
-
         return self._push(data)
 
     def push_sms(self, device, number, message):
+        gen = self._push_sms(device, number, message)
+        xfer = next(gen)  # Prep params
+        data = xfer.get("data")
+        xfer["msg"] = self._post_data(self.EPHEMERALS_URL, data=json.dumps(data))
+        return next(gen)  # Post process
+
+    def _push_sms(self, device, number, message):
         data = {
             "type": "push",
             "push": {
@@ -457,10 +454,10 @@ class Pushbullet(object):
                 "encrypted": True
             }
 
-        r = self._session.post(self.EPHEMERALS_URL, data=json.dumps(data))
-        if r.status_code == requests.codes.ok:
-            return r.json()
-        raise PushError(r.text)
+        xfer = {"data":data}
+        yield xfer  # Do IO
+        yield xfer["msg"]
+
 
     def _encrypt_data(self, data):
         assert self._encryption_key

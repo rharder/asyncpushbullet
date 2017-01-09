@@ -121,7 +121,7 @@ class AsyncPushbullet(Pushbullet):
 
     async def async_get_new_pushes(self, limit=None, filter_inactive=True):
         pushes = await self.async_get_pushes(modified_after=self._most_recent_timestamp,
-                                           limit=limit, filter_inactive=filter_inactive)
+                                             limit=limit, filter_inactive=filter_inactive)
         return pushes
 
     async def async_dismiss_push(self, iden):
@@ -153,31 +153,9 @@ class AsyncPushbullet(Pushbullet):
 
         return next(gen)  # Prep response
 
-
-    # async def aio_upload_file(self, file_path, file_type=None):
-    #     file_name = os.path.basename(file_path)
-    #     if not file_type:
-    #         with open(file_path, "rb") as f:
-    #             file_type = get_file_type(f, file_name)
-    #
-    #     data = {"file_name": file_name, "file_type": file_type}
-    #
-    #     # Request url for file upload
-    #     msg = await self._async_post_data(self.UPLOAD_REQUEST_URL, data=data)
-    #
-    #     upload_url = msg.get("upload_url")  # Where to upload
-    #     file_url = msg.get("file_url")  # Resulting destination
-    #
-    #     # Upload the file
-    #     with open(file_path, "rb") as f:
-    #         msg = await self._async_post_data(upload_url, data={'file': f})
-    #
-    #     return {"file_type": file_type, "file_url": file_url, "file_name": file_name, "resp": msg}
-
-
-
-    async def async_push_file(self, file_name, file_url, file_type, body=None, title=None, device=None, chat=None, email=None,
-                  channel=None):
+    async def async_push_file(self, file_name, file_url, file_type, body=None, title=None, device=None, chat=None,
+                              email=None,
+                              channel=None):
         gen = self._push_file(file_name, file_url, file_type, body=body, title=title,
                               device=device, chat=chat, email=email, channel=channel)
         xfer = next(gen)
@@ -199,42 +177,29 @@ class AsyncPushbullet(Pushbullet):
         msg = await self._async_push(data)
         return msg
 
-    async def push_note(self, title, body, device=None, chat=None, email=None, channel=None):
+    async def async_push_note(self, title, body, device=None, chat=None, email=None, channel=None):
         data = {"type": "note", "title": title, "body": body}
         data.update(Pushbullet._recipient(device, chat, email, channel))
         msg = await self._async_push(data)
         return msg
 
-    async def aio_push_link(self, title, url, body=None, device=None, chat=None, email=None, channel=None):
+    async def async_push_link(self, title, url, body=None, device=None, chat=None, email=None, channel=None):
         data = {"type": "link", "title": title, "url": url, "body": body}
         data.update(Pushbullet._recipient(device, chat, email, channel))
         msg = await self._async_push(data)
         return msg
 
-    async def aio_push_sms(self, device, number, message):
-        data = {
-            "type": "push",
-            "push": {
-                "type": "messaging_extension_reply",
-                "package_name": "com.pushbullet.android",
-                "source_user_iden": self.user_info['iden'],
-                "target_device_iden": device.device_iden,
-                "conversation_iden": number,
-                "message": message
-            }
-        }
 
-        if self._encryption_key:
-            data["push"] = {
-                "ciphertext": self._encrypt_data(data["push"]),
-                "encrypted": True
-            }
+    async def async_push_sms(self, device, number, message):
+        gen = self._push_sms(device, number, message)
+        xfer = next(gen)  # Prep params
+        data = xfer.get("data")
+        xfer["msg"] = await self._async_post_data(self.EPHEMERALS_URL, data=data)
+        return next(gen)  # Post process
 
-        msg = await self._async_post_data(self.EPHEMERALS_URL, data=data)
-        return msg
 
     async def async_get_me(self):
         msg = await self._async_get_data(Pushbullet.ME_URL)
         return msg
 
-        #
+
