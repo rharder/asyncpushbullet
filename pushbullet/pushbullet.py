@@ -1,20 +1,15 @@
-import os
-import json
-
 import datetime
-from pprint import pprint
+import json
+import os
 
 import requests
-import warnings
 
-import time
-
-from .device import Device
+from ._compat import standard_b64encode
 from .channel import Channel
 from .chat import Chat
-from .errors import PushbulletError, InvalidKeyError, PushError
+from .device import Device
+from .errors import PushbulletError, InvalidKeyError
 from .filetype import get_file_type
-from ._compat import standard_b64encode
 
 
 class NoEncryptionModuleError(Exception):

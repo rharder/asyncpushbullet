@@ -43,6 +43,7 @@ class Listener():
         self.history = None
         self.clean_history()
 
+        # TODO: Proxies
         # proxy configuration
         # self.http_proxy_host = http_proxy_host
         # self.http_proxy_port = http_proxy_port
@@ -77,12 +78,7 @@ class Listener():
         asyncio.ensure_future(self._ws_monitor())
 
     async def _ws_monitor(self):
-        """
-        Begins listening to the websocket on an event loop.
-
-        Example:
-            asyncio.ensure_future(listener.connect())
-        """
+        """ Loops, listening for new messages from web socket. """
         async with self._account._aio_session.ws_connect(WEBSOCKET_URL + self._api_key) as ws:
             self.on_open(ws)
             async for msg in ws:
@@ -95,19 +91,3 @@ class Listener():
                 elif msg.type == aiohttp.WSMsgType.ERROR:
                     break
 
-            # except websockets.ConnectionClosed as ex:
-            #     self.on_close(ws)
-            # except Exception as ex:
-            #     if callable(self.on_error):
-            #         self.on_error(ws, ex)
-            #     else:
-            #         raise ex
-
-    # def run_forever(self, sockopt=None, sslopt=None, ping_interval=0, ping_timeout=None):
-    #     websocket.WebSocketApp.run_forever(self, sockopt=sockopt, sslopt=sslopt, ping_interval=ping_interval,
-    #                                        ping_timeout=ping_timeout,
-    #                                        http_proxy_host=self.http_proxy_host,
-    #                                        http_proxy_port=self.http_proxy_port)
-
-    # def run(self):
-    #     self.run_forever()

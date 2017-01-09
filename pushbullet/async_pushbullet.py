@@ -1,21 +1,17 @@
 import asyncio
-import os
-from pprint import pprint
 
 import aiohttp
-import datetime
 
-from .device import Device
-from .errors import PushbulletError, InvalidKeyError
-from .pushbullet import Pushbullet, get_file_type
-from .filetype import _guess_file_type
-from .chat import Chat
+from .pushbullet import Pushbullet
 
+__author__ = "Robert Harder"
+__email__ = "rob@iharder.net"
 
 class AsyncPushbullet(Pushbullet):
     def __init__(self, api_key, **kwargs):
         Pushbullet.__init__(self, api_key, **kwargs)
 
+        # TODO: Proxies
         self._proxy = kwargs.get("proxy")  # type: dict
         self._aio_session = None  # type: aiohttp.ClientSession
 
