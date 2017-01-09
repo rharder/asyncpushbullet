@@ -174,6 +174,17 @@ class AioPushbullet(Pushbullet):
     #
     #     return {"file_type": file_type, "file_url": file_url, "file_name": file_name, "resp": msg}
 
+
+
+    async def async_push_file(self, file_name, file_url, file_type, body=None, title=None, device=None, chat=None, email=None,
+                  channel=None):
+        gen = self._push_file(file_name, file_url, file_type, body=body, title=title,
+                              device=device, chat=chat, email=email, channel=channel)
+        xfer = next(gen)
+        data = xfer.get("data")
+        xfer["msg"] = await self._async_push(data)
+        return next(gen)
+
     async def aio_push_file(self, file_name, file_url,
                             file_type=None, body=None, title=None, device=None,
                             chat=None, email=None, channel=None):

@@ -388,19 +388,33 @@ class Pushbullet(object):
         yield xfer  # Conduct upload
 
         yield {"file_type": file_type, "file_url": file_url, "file_name": file_name}
-# TODO: LEFT OFF HERE: PUSH FILE
+
     def push_file(self, file_name, file_url, file_type, body=None, title=None, device=None, chat=None, email=None,
                   channel=None):
+        gen = self._push_file(file_name, file_url, file_type, body=body, title=title,
+                              device=device, chat=chat, email=email, channel=channel)
+        xfer = next(gen)
+        data = xfer.get("data")
+        xfer["msg"] = self._push(json.dumps(data))
+        return next(gen)
+
+    def _push_file(self, file_name, file_url, file_type, body=None, title=None, device=None, chat=None, email=None,
+              channel=None):
         data = {"type": "file", "file_type": file_type, "file_url": file_url, "file_name": file_name}
         if body:
             data["body"] = body
 
         if title:
             data["title"] = title
-
         data.update(Pushbullet._recipient(device, chat, email, channel))
 
-        return self._push(data)
+        xfer = {"data": data}
+        yield xfer
+
+        msg = xfer.get("msg",{})
+        yield msg
+
+        return self._push(json.dumps(data))
 
     def push_note(self, title, body, device=None, chat=None, email=None, channel=None):
         data = {"type": "note", "title": title, "body": body}
