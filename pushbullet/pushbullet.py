@@ -344,71 +344,21 @@ class Pushbullet(object):
                                limit=limit, filter_inactive=filter_inactive)
 
     def dismiss_push(self, iden):
+        if type(iden) is dict and "iden" in iden:
+            iden = iden["iden"]  # In case user passes entire push
         data = {"dismissed": True}
         msg = self._post_data("{}/{}".format(self.PUSH_URL, iden), data=data)
         return msg
 
     def delete_push(self, iden):
+        if type(iden) is dict and "iden" in iden:
+            iden = iden["iden"]  # In case user passes entire push
         msg = self._delete_data("{}/{}".format(self.PUSH_URL, iden))
         return msg
 
     def delete_pushes(self):
         msg = self._delete_data(self.PUSH_URL)
         return msg
-
-    def upload_file(self, file_path, file_type=None):
-        gen = self._upload_file(file_path, file_type=file_type)
-
-        xfer = next(gen)  # Prep request params
-
-        data = json.dumps(xfer["data"])
-        xfer["msg"] = self._post_data(self.UPLOAD_REQUEST_URL, data=data)
-
-        next(gen)  # Prep upload params
-
-        with open(file_path, "rb") as f:
-            xfer["msg"] = self._post_data(xfer["upload_url"], files={"file":f})
-
-        return next(gen)  # Prep response
-
-    def _upload_file(self, file_path, file_type=None):
-
-        file_name = os.path.basename(file_path)
-        if not file_type:
-            with open(file_path, "rb") as f:
-                file_type = get_file_type(f, file_path)
-        data = {"file_name": file_name, "file_type": file_type}
-        xfer = {"data": data}
-        yield xfer  # Request upload
-
-        msg = xfer["msg"]
-        xfer["upload_url"] = msg.get("upload_url")  # Upload location
-        file_url = msg.get("file_url")  # Final destination for downloading
-        file_type = msg.get("file_type")  # What PB thinks is the filetype
-        yield xfer  # Conduct upload
-
-        yield {"file_type": file_type, "file_url": file_url, "file_name": file_name}
-
-    def push_file(self, file_name, file_url, file_type, body=None, title=None, device=None, chat=None, email=None,
-                  channel=None):
-        gen = self._push_file(file_name, file_url, file_type, body=body, title=title,
-                              device=device, chat=chat, email=email, channel=channel)
-        xfer = next(gen)  # Prep params
-        data = xfer.get("data")
-        xfer["msg"] = self._push(json.dumps(data))
-        return next(gen)  # Post process
-
-    def _push_file(self, file_name, file_url, file_type, body=None, title=None, device=None, chat=None, email=None,
-              channel=None):
-        data = {"type": "file", "file_type": file_type, "file_url": file_url, "file_name": file_name}
-        if body:
-            data["body"] = body
-        if title:
-            data["title"] = title
-        data.update(Pushbullet._recipient(device, chat, email, channel))
-        xfer = {"data": data}
-        yield xfer  # Do IO
-        yield xfer.get("msg",{})
 
     def push_note(self, title, body, device=None, chat=None, email=None, channel=None):
         data = {"type": "note", "title": title, "body": body}
@@ -454,10 +404,71 @@ class Pushbullet(object):
                 "encrypted": True
             }
 
-        xfer = {"data":data}
+        xfer = {"data": data}
         yield xfer  # Do IO
         yield xfer["msg"]
 
+    # ################
+    # Files
+    #
+
+    def upload_file(self, file_path, file_type=None):
+        gen = self._upload_file(file_path, file_type=file_type)
+
+        xfer = next(gen)  # Prep request params
+
+        data = json.dumps(xfer["data"])
+        xfer["msg"] = self._post_data(self.UPLOAD_REQUEST_URL, data=data)
+
+        next(gen)  # Prep upload params
+
+        with open(file_path, "rb") as f:
+            xfer["msg"] = self._post_data(xfer["upload_url"], files={"file": f})
+
+        return next(gen)  # Prep response
+
+    def _upload_file(self, file_path, file_type=None):
+
+        file_name = os.path.basename(file_path)
+        if not file_type:
+            with open(file_path, "rb") as f:
+                file_type = get_file_type(f, file_path)
+        data = {"file_name": file_name, "file_type": file_type}
+        xfer = {"data": data}
+        yield xfer  # Request upload
+
+        msg = xfer["msg"]
+        xfer["upload_url"] = msg.get("upload_url")  # Upload location
+        file_url = msg.get("file_url")  # Final destination for downloading
+        file_type = msg.get("file_type")  # What PB thinks is the filetype
+        yield xfer  # Conduct upload
+
+        yield {"file_type": file_type, "file_url": file_url, "file_name": file_name}
+
+    def push_file(self, file_name, file_url, file_type, body=None, title=None, device=None, chat=None, email=None,
+                  channel=None):
+        gen = self._push_file(file_name, file_url, file_type, body=body, title=title,
+                              device=device, chat=chat, email=email, channel=channel)
+        xfer = next(gen)  # Prep params
+        data = xfer.get("data")
+        xfer["msg"] = self._push(json.dumps(data))
+        return next(gen)  # Post process
+
+    def _push_file(self, file_name, file_url, file_type, body=None, title=None, device=None, chat=None, email=None,
+                   channel=None):
+        data = {"type": "file", "file_type": file_type, "file_url": file_url, "file_name": file_name}
+        if body:
+            data["body"] = body
+        if title:
+            data["title"] = title
+        data.update(Pushbullet._recipient(device, chat, email, channel))
+        xfer = {"data": data}
+        yield xfer  # Do IO
+        yield xfer.get("msg", {})
+
+    def get_me(self):
+        msg = self._get_data(Pushbullet.ME_URL)
+        return msg
 
     def _encrypt_data(self, data):
         assert self._encryption_key
@@ -503,7 +514,3 @@ class Pushbullet(object):
         decrypted = decrypted.decode()
 
         return (decrypted)
-
-    def get_me(self):
-        msg = self._get_data(Pushbullet.ME_URL)
-        return msg

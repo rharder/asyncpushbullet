@@ -125,17 +125,44 @@ class AsyncPushbullet(Pushbullet):
         return pushes
 
     async def async_dismiss_push(self, iden):
+        if type(iden) is dict and "iden" in iden:
+            iden = iden["iden"]  # In case user passes entire push
         data = {"dismissed": True}
         msg = await self._async_post_data("{}/{}".format(self.PUSH_URL, iden), data=data)
         return msg
 
     async def async_delete_push(self, iden):
+        if type(iden) is dict and "iden" in iden:
+            iden = iden["iden"]  # In case user passes entire push
         msg = await self._async_delete_data("{}/{}".format(self.PUSH_URL, iden))
         return msg
 
     async def async_delete_pushes(self):
         msg = await self._async_delete_data(self.PUSH_URL)
         return msg
+
+    async def async_push_note(self, title, body, device=None, chat=None, email=None, channel=None):
+        data = {"type": "note", "title": title, "body": body}
+        data.update(Pushbullet._recipient(device, chat, email, channel))
+        msg = await self._async_push(data)
+        return msg
+
+    async def async_push_link(self, title, url, body=None, device=None, chat=None, email=None, channel=None):
+        data = {"type": "link", "title": title, "url": url, "body": body}
+        data.update(Pushbullet._recipient(device, chat, email, channel))
+        msg = await self._async_push(data)
+        return msg
+
+    async def async_push_sms(self, device, number, message):
+        gen = self._push_sms(device, number, message)
+        xfer = next(gen)  # Prep params
+        data = xfer.get("data")
+        xfer["msg"] = await self._async_post_data(self.EPHEMERALS_URL, data=data)
+        return next(gen)  # Post process
+
+    # ################
+    # Files
+    #
 
     async def async_upload_file(self, file_path, file_type=None):
         gen = self._upload_file(file_path, file_type=file_type)
@@ -163,43 +190,6 @@ class AsyncPushbullet(Pushbullet):
         xfer["msg"] = await self._async_push(data)
         return next(gen)
 
-    async def aio_push_file(self, file_name, file_url,
-                            file_type=None, body=None, title=None, device=None,
-                            chat=None, email=None, channel=None):
-        if file_type is None:
-            file_type = _guess_file_type(file_name)
-        data = {"type": "file", "file_type": file_type, "file_url": file_url, "file_name": file_name}
-        if body:
-            data["body"] = body
-        if title:
-            data["title"] = title
-        data.update(Pushbullet._recipient(device, chat, email, channel))
-        msg = await self._async_push(data)
-        return msg
-
-    async def async_push_note(self, title, body, device=None, chat=None, email=None, channel=None):
-        data = {"type": "note", "title": title, "body": body}
-        data.update(Pushbullet._recipient(device, chat, email, channel))
-        msg = await self._async_push(data)
-        return msg
-
-    async def async_push_link(self, title, url, body=None, device=None, chat=None, email=None, channel=None):
-        data = {"type": "link", "title": title, "url": url, "body": body}
-        data.update(Pushbullet._recipient(device, chat, email, channel))
-        msg = await self._async_push(data)
-        return msg
-
-
-    async def async_push_sms(self, device, number, message):
-        gen = self._push_sms(device, number, message)
-        xfer = next(gen)  # Prep params
-        data = xfer.get("data")
-        xfer["msg"] = await self._async_post_data(self.EPHEMERALS_URL, data=data)
-        return next(gen)  # Post process
-
-
     async def async_get_me(self):
         msg = await self._async_get_data(Pushbullet.ME_URL)
         return msg
-
-
