@@ -7,6 +7,7 @@ from .pushbullet import Pushbullet
 __author__ = "Robert Harder"
 __email__ = "rob@iharder.net"
 
+
 class AsyncPushbullet(Pushbullet):
     def __init__(self, api_key, **kwargs):
         Pushbullet.__init__(self, api_key, **kwargs)

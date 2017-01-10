@@ -1,29 +1,22 @@
 import asyncio
-from pprint import pprint
+import json
+import logging
+import time
 
 import aiohttp
 
 __author__ = 'Igor Maculan <n3wtron@gmail.com>'
-
-import logging
-import time
-import json
-# from threading import Thread
-
-# import requests
-# import websockets  # https://github.com/aaugustin/websockets
-
 log = logging.getLogger('pushbullet.Listener')
-
-WEBSOCKET_URL = 'wss://stream.pushbullet.com/websocket/'
 
 
 class Listener():
+    WEBSOCKET_URL = 'wss://stream.pushbullet.com/websocket/'
+
     def __init__(self, account,
                  on_push=None,
-                 on_error=None):#,
-                 # http_proxy_host=None,
-                 # http_proxy_port=None):
+                 on_error=None):  # ,
+        # http_proxy_host=None,
+        # http_proxy_port=None):
         """
         :param api_key: pushbullet Key
         :param on_push: function that get's called on all pushes
@@ -85,16 +78,15 @@ class Listener():
 
     async def _ws_monitor(self):
         """ Loops, listening for new messages from web socket. """
-        async with self._account._aio_session.ws_connect(WEBSOCKET_URL + self._api_key) as self._ws:
+        async with self._account._aio_session.ws_connect(Listener.WEBSOCKET_URL + self._api_key) as self._ws:
             self.on_open(self._ws)
             async for msg in self._ws:
                 self.last_update = time.time()
                 if msg.type == aiohttp.WSMsgType.TEXT:
                     await self.on_message(self._ws, json.loads(msg.data))
                 elif msg.type == aiohttp.WSMsgType.CLOSED:
-                    self.on_close(ws)
+                    self.on_close(self._ws)
                     break
                 elif msg.type == aiohttp.WSMsgType.ERROR:
                     break
-        print("ws with loop complete", flush=True)
-
+        print("async ws with loop complete", flush=True)

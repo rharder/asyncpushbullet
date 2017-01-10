@@ -120,7 +120,7 @@ class Pushbullet(object):
 
     def _push(self, data):
         """ Helper for generic push """
-        msg = self._post_data(Pushbullet.PUSH_URL, data=data)
+        msg = self._post_data(Pushbullet.PUSH_URL, data=json.dumps(data))
         return msg
 
     @staticmethod
@@ -185,19 +185,26 @@ class Pushbullet(object):
                 c = Channel(self, channel_info)
                 self.channels.append(c)
 
-    def get_device(self, nickname):
-        req_device = next((device for device in self.devices if device.nickname == nickname), None)
-
-        if req_device is None:
-            raise PushbulletError('No device found with nickname "{}"'.format(nickname))
+    def get_device(self, nickname=None, iden=None):
+        req_device = None
+        if nickname:
+            req_device = next((device for device in self.devices if device.nickname == nickname), None)
+            # if req_device is None:
+            #     raise PushbulletError('No device found with nickname "{}"'.format(nickname))
+        elif iden:
+            req_device = next((device for device in self.devices if device.device_iden == iden), None)
+            # if req_device is None:
+            #     raise PushbulletError('No device found with iden "{}"'.format(iden))
+        # else:
+        #     raise PushbulletError('No device found because no search parameters were provided')
 
         return req_device
 
     def get_channel(self, channel_tag):
         req_channel = next((channel for channel in self.channels if channel.channel_tag == channel_tag), None)
 
-        if req_channel is None:
-            raise PushbulletError('No channel found with channel_tag "{}"'.format(channel_tag))
+        # if req_channel is None:
+        #     raise PushbulletError('No channel found with channel_tag "{}"'.format(channel_tag))
 
         return req_channel
 
@@ -209,7 +216,7 @@ class Pushbullet(object):
         gen = self._new_device(nickname, manufacturer=manufacturer, model=model, icon=icon)
         xfer = next(gen)  # Prep http params
         data = xfer.get('data', {})
-        xfer["msg"] = self._post_data(self.DEVICES_URL, data=data)
+        xfer["msg"] = self._post_data(self.DEVICES_URL, data=json.dumps(data))
         return next(gen)  # Post process response
 
     def _new_device(self, nickname, manufacturer=None, model=None, icon="system", func=None):
@@ -229,7 +236,7 @@ class Pushbullet(object):
                                 manufacturer=manufacturer, icon=icon, has_sms=has_sms)
         xfer = next(gen)  # Prep http params
         data = xfer.get('data', {})
-        xfer["msg"] = self._post_data("{}/{}".format(self.DEVICES_URL, device.device_iden), data=data)
+        xfer["msg"] = self._post_data("{}/{}".format(self.DEVICES_URL, device.device_iden), data=json.dumps(data))
         return next(gen)  # Post process response
 
     def _edit_device(self, device, nickname=None, model=None, manufacturer=None, icon=None, has_sms=None):
@@ -259,7 +266,7 @@ class Pushbullet(object):
         gen = self._new_chat(email)
         xfer = next(gen)  # Prep http params
         data = xfer.get('data', {})
-        xfer["msg"] = self._post_data(self.CHATS_URL, data=data)
+        xfer["msg"] = self._post_data(self.CHATS_URL, data=json.dumps(data))
         return next(gen)  # Post process response
 
     def _new_chat(self, email):
@@ -276,7 +283,7 @@ class Pushbullet(object):
         gen = self._edit_chat(chat, muted)
         xfer = next(gen)  # Prep http params
         data = xfer.get('data', {})
-        xfer["msg"] = self._post_data("{}/{}".format(self.CHATS_URL, chat.iden), data=data)
+        xfer["msg"] = self._post_data("{}/{}".format(self.CHATS_URL, chat.iden), data=json.dumps(data))
         return next(gen)  # Post process response
 
     def _edit_chat(self, chat, muted=False):
@@ -342,7 +349,7 @@ class Pushbullet(object):
         if type(iden) is dict and "iden" in iden:
             iden = iden["iden"]  # In case user passes entire push
         data = {"dismissed": "true"}
-        msg = self._post_data("{}/{}".format(self.PUSH_URL, iden), data=data)
+        msg = self._post_data("{}/{}".format(self.PUSH_URL, iden), data=json.dumps(data))
         return msg
 
     def delete_push(self, iden):
@@ -413,7 +420,7 @@ class Pushbullet(object):
         xfer = next(gen)  # Prep request params
 
         data = json.dumps(xfer["data"])
-        xfer["msg"] = self._post_data(self.UPLOAD_REQUEST_URL, data=data)
+        xfer["msg"] = self._post_data(self.UPLOAD_REQUEST_URL, data=json.dumps(data))
 
         next(gen)  # Prep upload params
 
