@@ -71,10 +71,11 @@ class Pushbullet(object):
         # If uploading a file, temporarily remove JSON header
         if "files" in kwargs:
             del self._session.headers["Content-Type"]
+        # Do HTTP
         try:
-            resp = func(url, **kwargs)  # Do HTTP
+            resp = func(url, **kwargs)
         finally:
-            self._session.headers.update(self._json_header)
+            self._session.headers.update(self._json_header)  # Put JSON header back
 
         try:
             msg = resp.json()
@@ -107,6 +108,64 @@ class Pushbullet(object):
         """ HTTP GET """
         msg = self._http(self._session.get, url, **kwargs)
         return msg
+
+    def _get_data_with_pagination(self, url, item_name, **kwargs):
+        """ Performs a GET on a list that Pushbullet may paginate. """
+        gen = self._get_data_with_pagination_generator(url, item_name, **kwargs)
+        xfer = next(gen)  # Prep params
+        msg = {}
+        while xfer.get("get_more", False):
+            args = xfer.get("kwargs", {})  # type: dict
+            xfer["msg"] = self._get_data(url, **args)
+            msg = next(gen)
+        return msg
+
+    def _get_data_with_pagination_generator(self, url, item_name, **kwargs):
+        msg = {}
+        items = []
+        limit = kwargs.get("params", {}).get("limit")
+        xfer = {"kwargs": kwargs, "get_more": True}
+        while xfer["get_more"]:
+            yield xfer  # Do IO
+
+            msg = xfer.get("msg", {})  # IO response
+            items_this_round = msg.get(item_name, [])
+            items += items_this_round
+
+            # Need subsequent calls to get rest of data?
+            if "cursor" in msg and len(items_this_round) > 0 \
+                    and (limit is None or len(items) < limit):
+                if "params" in xfer["kwargs"]:
+                    xfer["kwargs"]["params"].update({"cursor": msg["cursor"]})
+                else:
+                    xfer["kwargs"]["params"] = {"cursor": msg["cursor"]}
+                print("PAGING FOR MORE", item_name, len(items))
+            else:
+                xfer["get_more"] = False
+        msg[item_name] = items[:limit]  # Cut down to limit
+        yield msg
+
+    # def _get_data_with_pagination_orig(self, url, item_name, **kwargs):
+    #
+    #     msg = {}
+    #     items = []
+    #     limit = kwargs.get("params", {}).get("limit")
+    #     get_more = True
+    #     while get_more:
+    #         msg = self._get_data(url, **kwargs)
+    #         items_this_round = msg.get(item_name, [])
+    #         items += items_this_round
+    #         if "cursor" in msg and len(items_this_round) > 0 \
+    #                 and (limit is None or len(items) < limit):
+    #             if "params" in kwargs:
+    #                 kwargs["params"].update({"cursor": msg["cursor"]})
+    #             else:
+    #                 kwargs["params"] = {"cursor": msg["cursor"]}
+    #             print("PAGING FOR MORE", item_name, len(items))
+    #         else:
+    #             get_more = False
+    #     msg[item_name] = items[:limit]
+    #     return msg
 
     def _post_data(self, url, **kwargs):
         """ HTTP POST """
@@ -152,8 +211,8 @@ class Pushbullet(object):
     def _load_devices(self):
         self.devices = []
 
-        resp_dict = self._get_data(self.DEVICES_URL)
-        device_list = resp_dict.get("devices", [])
+        msg = self._get_data_with_pagination(self.DEVICES_URL, "devices")
+        device_list = msg.get('devices', [])
 
         for device_info in device_list:
             if device_info.get("active"):
@@ -163,8 +222,8 @@ class Pushbullet(object):
     def _load_chats(self):
         self.chats = []
 
-        resp_dict = self._get_data(self.CHATS_URL)
-        chat_list = resp_dict.get("chats", [])
+        msg = self._get_data_with_pagination(self.CHATS_URL, "chats")
+        chat_list = msg.get('chats', [])
 
         for chat_info in chat_list:
             if chat_info.get("active"):
@@ -177,8 +236,8 @@ class Pushbullet(object):
     def _load_channels(self):
         self.channels = []
 
-        resp_dict = self._get_data(self.CHANNELS_URL)
-        channel_list = resp_dict.get("channels", [])
+        msg = self._get_data_with_pagination(self.CHANNELS_URL, "channels")
+        channel_list = msg.get('channels', [])
 
         for channel_info in channel_list:
             if channel_info.get("active"):
@@ -308,11 +367,19 @@ class Pushbullet(object):
         gen = self._get_pushes(modified_after=modified_after,
                                limit=limit, filter_inactive=filter_inactive)
         xfer = next(gen)  # Prep http params
-        resp = []
-        while xfer["get_more_pushes"]:
-            xfer["msg"] = self._get_data(self.PUSH_URL, params=xfer.get('data', {}))
-            resp = next(gen)  # Post process response
-        return resp
+        data = xfer.get('data', {})
+        xfer["msg"] = self._get_data_with_pagination(self.PUSH_URL, "pushes", params=data)
+        return next(gen)  # Post process response
+
+    # def get_pushes_orig(self, modified_after=None, limit=None, filter_inactive=True):
+    #     gen = self._get_pushes(modified_after=modified_after,
+    #                            limit=limit, filter_inactive=filter_inactive)
+    #     xfer = next(gen)  # Prep http params
+    #     resp = []
+    #     while xfer["get_more_pushes"]:
+    #         xfer["msg"] = self._get_data(self.PUSH_URL, params=xfer.get('data', {}))
+    #         resp = next(gen)  # Post process response
+    #     return resp
 
     def _get_pushes(self, modified_after=None, limit=None, filter_inactive=True):
         data = {}
@@ -322,24 +389,44 @@ class Pushbullet(object):
             data["limit"] = int(limit)
         if filter_inactive:
             data['active'] = "true"
-
-        pushes_list = []
         xfer = {"data": data}
-        xfer["get_more_pushes"] = True
-        while xfer["get_more_pushes"]:
-            yield xfer  # IO happens...
+        yield xfer  # Do IO
 
-            msg = xfer.get("msg", {})
-            pushes_list += msg.get("pushes", [])
-            if 'cursor' in msg and (not limit or len(pushes_list) < limit):
-                data['cursor'] = msg['cursor']
-            else:
-                xfer["get_more_pushes"] = False
-
+        msg = xfer.get('msg', {})
+        pushes_list = msg.get("pushes", [])
         if len(pushes_list) > 0 and pushes_list[0].get('modified', 0) > self._most_recent_timestamp:
             self._most_recent_timestamp = pushes_list[0]['modified']
 
         yield pushes_list
+
+    #
+    #
+    # def _get_pushes_orig(self, modified_after=None, limit=None, filter_inactive=True):
+    #     data = {}
+    #     if modified_after is not None:
+    #         data["modified_after"] = str(modified_after)
+    #     if limit is not None:
+    #         data["limit"] = int(limit)
+    #     if filter_inactive:
+    #         data['active'] = "true"
+    #
+    #     pushes_list = []
+    #     xfer = {"data": data}
+    #     xfer["get_more_pushes"] = True
+    #     while xfer["get_more_pushes"]:
+    #         yield xfer  # IO happens...
+    #
+    #         msg = xfer.get("msg", {})
+    #         pushes_list += msg.get("pushes", [])
+    #         if 'cursor' in msg and (not limit or len(pushes_list) < limit):
+    #             data['cursor'] = msg['cursor']
+    #         else:
+    #             xfer["get_more_pushes"] = False
+    #
+    #     if len(pushes_list) > 0 and pushes_list[0].get('modified', 0) > self._most_recent_timestamp:
+    #         self._most_recent_timestamp = pushes_list[0]['modified']
+    #
+    #     yield pushes_list
 
     def get_new_pushes(self, limit=None, filter_inactive=True):
         return self.get_pushes(modified_after=self._most_recent_timestamp,

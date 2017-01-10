@@ -46,6 +46,38 @@ class AsyncPushbullet(Pushbullet):
         msg = await self._async_http(self._aio_session.get, url, **kwargs)
         return msg
 
+    async def _async_get_data_with_pagination(self, url, item_name, **kwargs):
+        gen = self._get_data_with_pagination_generator(url, item_name, **kwargs)
+        xfer = next(gen)  # Prep params
+        msg = {}
+        while xfer.get("get_more", False):
+            args = xfer.get("kwargs", {})  # type: dict
+            xfer["msg"] = await self._async_get_data(url, **args)
+            msg = next(gen)
+        return msg
+
+    async def _async_get_data_with_pagination_OLD(self, url, item_name, **kwargs):
+
+        msg = {}
+        items = []
+        limit = kwargs.get("params", {}).get("limit")
+        get_more = True
+        while get_more:
+            msg = await self._get_data(url, **kwargs)
+            items_this_round = msg.get(item_name, [])
+            items += items_this_round
+            if "cursor" in msg and len(items_this_round) > 0 \
+                    and (limit is None or len(items) < limit):
+                if "params" in kwargs:
+                    kwargs["params"].update({"cursor": msg["cursor"]})
+                else:
+                    kwargs["params"] = {"cursor": msg["cursor"]}
+                print("PAGING FOR MORE", item_name, len(items))
+            else:
+                get_more = False
+        msg[item_name] = items[:limit]
+        return msg
+
     async def _async_post_data(self, url, **kwargs):
         msg = await self._async_http(self._aio_session.post, url, **kwargs)
         return msg
@@ -106,15 +138,24 @@ class AsyncPushbullet(Pushbullet):
     # Pushes
     #
 
+
     async def async_get_pushes(self, modified_after=None, limit=None, filter_inactive=True):
         gen = self._get_pushes(modified_after=modified_after,
                                limit=limit, filter_inactive=filter_inactive)
-        xfer = next(gen)
-        resp = []
-        while xfer["get_more_pushes"]:
-            xfer["msg"] = await self._async_get_data(self.PUSH_URL, params=xfer.get('data', {}))
-            resp = next(gen)
-        return resp
+        xfer = next(gen)  # Prep http params
+        data = xfer.get('data', {})
+        xfer["msg"] = await self._async_get_data_with_pagination(self.PUSH_URL, "pushes", params=data)
+        return next(gen)  # Post process response
+
+    # async def async_get_pushes(self, modified_after=None, limit=None, filter_inactive=True):
+    #     gen = self._get_pushes(modified_after=modified_after,
+    #                            limit=limit, filter_inactive=filter_inactive)
+    #     xfer = next(gen)
+    #     resp = []
+    #     while xfer["get_more_pushes"]:
+    #         xfer["msg"] = await self._async_get_data_with_pagination(self.PUSH_URL, params=xfer.get('data', {}))
+    #         resp = next(gen)
+    #     return resp
 
     async def async_get_new_pushes(self, limit=None, filter_inactive=True):
         pushes = await self.async_get_pushes(modified_after=self._most_recent_timestamp,
