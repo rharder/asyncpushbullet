@@ -138,7 +138,6 @@ class AsyncPushbullet(Pushbullet):
     # Pushes
     #
 
-
     async def async_get_pushes(self, modified_after=None, limit=None, filter_inactive=True):
         gen = self._get_pushes_generator(modified_after=modified_after,
                                          limit=limit, filter_inactive=filter_inactive)
@@ -146,16 +145,6 @@ class AsyncPushbullet(Pushbullet):
         data = xfer.get('data', {})
         xfer["msg"] = await self._async_get_data_with_pagination(self.PUSH_URL, "pushes", params=data)
         return next(gen)  # Post process response
-
-    # async def async_get_pushes(self, modified_after=None, limit=None, filter_inactive=True):
-    #     gen = self._get_pushes(modified_after=modified_after,
-    #                            limit=limit, filter_inactive=filter_inactive)
-    #     xfer = next(gen)
-    #     resp = []
-    #     while xfer["get_more_pushes"]:
-    #         xfer["msg"] = await self._async_get_data_with_pagination(self.PUSH_URL, params=xfer.get('data', {}))
-    #         resp = next(gen)
-    #     return resp
 
     async def async_get_new_pushes(self, limit=None, filter_inactive=True):
         pushes = await self.async_get_pushes(modified_after=self._most_recent_timestamp,

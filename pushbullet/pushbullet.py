@@ -145,28 +145,6 @@ class Pushbullet(object):
         msg[item_name] = items[:limit]  # Cut down to limit
         yield msg
 
-    # def _get_data_with_pagination_orig(self, url, item_name, **kwargs):
-    #
-    #     msg = {}
-    #     items = []
-    #     limit = kwargs.get("params", {}).get("limit")
-    #     get_more = True
-    #     while get_more:
-    #         msg = self._get_data(url, **kwargs)
-    #         items_this_round = msg.get(item_name, [])
-    #         items += items_this_round
-    #         if "cursor" in msg and len(items_this_round) > 0 \
-    #                 and (limit is None or len(items) < limit):
-    #             if "params" in kwargs:
-    #                 kwargs["params"].update({"cursor": msg["cursor"]})
-    #             else:
-    #                 kwargs["params"] = {"cursor": msg["cursor"]}
-    #             print("PAGING FOR MORE", item_name, len(items))
-    #         else:
-    #             get_more = False
-    #     msg[item_name] = items[:limit]
-    #     return msg
-
     def _post_data(self, url, **kwargs):
         """ HTTP POST """
         msg = self._http(self._session.post, url, **kwargs)
@@ -202,18 +180,19 @@ class Pushbullet(object):
     # - This data is retained locally rather than querying Pushbullet each time.
 
     def refresh(self):
+        self._load_user_info()
         self._load_devices()
         self._load_chats()
-        self._load_user_info()
         self._load_channels()
         self.get_pushes(limit=1)
 
+    def _load_user_info(self):
+        self.user_info = self._get_data(self.ME_URL)
+
     def _load_devices(self):
         self.devices = []
-
-        msg = self._get_data_with_pagination(self.DEVICES_URL, "devices", params={"active":"true"})
+        msg = self._get_data_with_pagination(self.DEVICES_URL, "devices", params={"active": "true"})
         device_list = msg.get('devices', [])
-
         for device_info in device_list:
             if device_info.get("active"):
                 d = Device(self, device_info)
@@ -221,51 +200,30 @@ class Pushbullet(object):
 
     def _load_chats(self):
         self.chats = []
-
-        msg = self._get_data_with_pagination(self.CHATS_URL, "chats", params={"active":"true"})
+        msg = self._get_data_with_pagination(self.CHATS_URL, "chats", params={"active": "true"})
         chat_list = msg.get('chats', [])
-
         for chat_info in chat_list:
             if chat_info.get("active"):
                 c = Chat(self, chat_info)
                 self.chats.append(c)
 
-    def _load_user_info(self):
-        self.user_info = self._get_data(self.ME_URL)
-
     def _load_channels(self):
         self.channels = []
-
-        msg = self._get_data_with_pagination(self.CHANNELS_URL, "channels", params={"active":"true"})
+        msg = self._get_data_with_pagination(self.CHANNELS_URL, "channels", params={"active": "true"})
         channel_list = msg.get('channels', [])
-
         for channel_info in channel_list:
             if channel_info.get("active"):
                 c = Channel(self, channel_info)
                 self.channels.append(c)
 
     def get_device(self, nickname=None, iden=None):
-        req_device = None
         if nickname:
-            req_device = next((device for device in self.devices if device.nickname == nickname), None)
-            # if req_device is None:
-            #     raise PushbulletError('No device found with nickname "{}"'.format(nickname))
+            return next((device for device in self.devices if device.nickname == nickname), None)
         elif iden:
-            req_device = next((device for device in self.devices if device.device_iden == iden), None)
-            # if req_device is None:
-            #     raise PushbulletError('No device found with iden "{}"'.format(iden))
-        # else:
-        #     raise PushbulletError('No device found because no search parameters were provided')
-
-        return req_device
+            return next((device for device in self.devices if device.device_iden == iden), None)
 
     def get_channel(self, channel_tag):
-        req_channel = next((channel for channel in self.channels if channel.channel_tag == channel_tag), None)
-
-        # if req_channel is None:
-        #     raise PushbulletError('No channel found with channel_tag "{}"'.format(channel_tag))
-
-        return req_channel
+        return next((channel for channel in self.channels if channel.channel_tag == channel_tag), None)
 
     # ################
     # Device
@@ -371,16 +329,6 @@ class Pushbullet(object):
         xfer["msg"] = self._get_data_with_pagination(self.PUSH_URL, "pushes", params=data)
         return next(gen)  # Post process response
 
-    # def get_pushes_orig(self, modified_after=None, limit=None, filter_inactive=True):
-    #     gen = self._get_pushes(modified_after=modified_after,
-    #                            limit=limit, filter_inactive=filter_inactive)
-    #     xfer = next(gen)  # Prep http params
-    #     resp = []
-    #     while xfer["get_more_pushes"]:
-    #         xfer["msg"] = self._get_data(self.PUSH_URL, params=xfer.get('data', {}))
-    #         resp = next(gen)  # Post process response
-    #     return resp
-
     def _get_pushes_generator(self, modified_after=None, limit=None, filter_inactive=True):
         data = {}
         if modified_after is not None:
@@ -398,35 +346,6 @@ class Pushbullet(object):
             self._most_recent_timestamp = pushes_list[0]['modified']
 
         yield pushes_list
-
-    #
-    #
-    # def _get_pushes_orig(self, modified_after=None, limit=None, filter_inactive=True):
-    #     data = {}
-    #     if modified_after is not None:
-    #         data["modified_after"] = str(modified_after)
-    #     if limit is not None:
-    #         data["limit"] = int(limit)
-    #     if filter_inactive:
-    #         data['active'] = "true"
-    #
-    #     pushes_list = []
-    #     xfer = {"data": data}
-    #     xfer["get_more_pushes"] = True
-    #     while xfer["get_more_pushes"]:
-    #         yield xfer  # IO happens...
-    #
-    #         msg = xfer.get("msg", {})
-    #         pushes_list += msg.get("pushes", [])
-    #         if 'cursor' in msg and (not limit or len(pushes_list) < limit):
-    #             data['cursor'] = msg['cursor']
-    #         else:
-    #             xfer["get_more_pushes"] = False
-    #
-    #     if len(pushes_list) > 0 and pushes_list[0].get('modified', 0) > self._most_recent_timestamp:
-    #         self._most_recent_timestamp = pushes_list[0]['modified']
-    #
-    #     yield pushes_list
 
     def get_new_pushes(self, limit=None, filter_inactive=True):
         return self.get_pushes(modified_after=self._most_recent_timestamp,
@@ -453,14 +372,6 @@ class Pushbullet(object):
         data = {"type": "note", "title": title, "body": body}
         data.update(Pushbullet._recipient(device, chat, email, channel))
         return self._push(data)
-
-    # def push_address(self, name, address, device=None, chat=None, email=None):
-    #     warnings.warn("Address push type is removed. This push will be sent as note.")
-    #     return self.push_note(name, address, device, chat, email)
-
-    # def push_list(self, title, items, device=None, chat=None, email=None):
-    #     warnings.warn("List push type is removed. This push will be sent as note.")
-    #     return self.push_note(title, ",".join(items), device, chat, email)
 
     def push_link(self, title, url, body=None, device=None, chat=None, email=None, channel=None):
         data = {"type": "link", "title": title, "url": url, "body": body}
@@ -540,7 +451,8 @@ class Pushbullet(object):
         xfer["msg"] = self._push(json.dumps(data))
         return next(gen)  # Post process response
 
-    def _push_file_generator(self, file_name, file_url, file_type, body=None, title=None, device=None, chat=None, email=None,
+    def _push_file_generator(self, file_name, file_url, file_type, body=None, title=None, device=None, chat=None,
+                             email=None,
                              channel=None):
         data = {"type": "file", "file_type": file_type, "file_url": file_url, "file_name": file_name}
         if body:
