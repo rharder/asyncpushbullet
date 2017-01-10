@@ -95,15 +95,15 @@ class AsyncPushbullet(Pushbullet):
     #
 
     async def async_new_device(self, nickname, manufacturer=None, model=None, icon="system", func=None):
-        gen = self._new_device(nickname, manufacturer=manufacturer, model=model, icon=icon)
+        gen = self._new_device_generator(nickname, manufacturer=manufacturer, model=model, icon=icon)
         xfer = next(gen)  # Prep http params
         data = xfer["data"]
         xfer["msg"] = await self._async_post_data(self.DEVICES_URL, data=data)
         return next(gen)  # Post process response
 
     async def async_edit_device(self, device, nickname=None, model=None, manufacturer=None, icon=None, has_sms=None):
-        gen = self._edit_device(device, nickname=nickname, model=model,
-                                manufacturer=manufacturer, icon=icon, has_sms=has_sms)
+        gen = self._edit_device_generator(device, nickname=nickname, model=model,
+                                          manufacturer=manufacturer, icon=icon, has_sms=has_sms)
         xfer = next(gen)
         data = xfer["data"]
         xfer["msg"] = await self._async_post_data("{}/{}".format(self.DEVICES_URL, device.device_iden), data=data)
@@ -118,13 +118,13 @@ class AsyncPushbullet(Pushbullet):
     #
 
     async def async_new_chat(self, email):
-        gen = self._new_chat(email)
+        gen = self._new_chat_generator(email)
         xfer = next(gen)
         xfer["msg"] = await self._async_post_data(self.CHATS_URL, data=xfer.get("data", {}))
         return next(gen)
 
     async def async_edit_chat(self, chat, muted=False):
-        gen = self._edit_chat(chat, muted)
+        gen = self._edit_chat_generator(chat, muted)
         xfer = next(gen)
         data = xfer.get('data', {})
         xfer["msg"] = await self._async_post_data("{}/{}".format(self.CHATS_URL, chat.iden), data=data)
@@ -140,8 +140,8 @@ class AsyncPushbullet(Pushbullet):
 
 
     async def async_get_pushes(self, modified_after=None, limit=None, filter_inactive=True):
-        gen = self._get_pushes(modified_after=modified_after,
-                               limit=limit, filter_inactive=filter_inactive)
+        gen = self._get_pushes_generator(modified_after=modified_after,
+                                         limit=limit, filter_inactive=filter_inactive)
         xfer = next(gen)  # Prep http params
         data = xfer.get('data', {})
         xfer["msg"] = await self._async_get_data_with_pagination(self.PUSH_URL, "pushes", params=data)
@@ -192,7 +192,7 @@ class AsyncPushbullet(Pushbullet):
         return msg
 
     async def async_push_sms(self, device, number, message):
-        gen = self._push_sms(device, number, message)
+        gen = self._push_sms_generator(device, number, message)
         xfer = next(gen)  # Prep params
         data = xfer.get("data")
         xfer["msg"] = await self._async_post_data(self.EPHEMERALS_URL, data=data)
@@ -203,7 +203,7 @@ class AsyncPushbullet(Pushbullet):
     #
 
     async def async_upload_file(self, file_path, file_type=None):
-        gen = self._upload_file(file_path, file_type=file_type)
+        gen = self._upload_file_generator(file_path, file_type=file_type)
 
         xfer = next(gen)  # Prep request params
 
@@ -221,13 +221,9 @@ class AsyncPushbullet(Pushbullet):
     async def async_push_file(self, file_name, file_url, file_type, body=None, title=None, device=None, chat=None,
                               email=None,
                               channel=None):
-        gen = self._push_file(file_name, file_url, file_type, body=body, title=title,
-                              device=device, chat=chat, email=email, channel=channel)
+        gen = self._push_file_generator(file_name, file_url, file_type, body=body, title=title,
+                                        device=device, chat=chat, email=email, channel=channel)
         xfer = next(gen)
         data = xfer.get("data")
         xfer["msg"] = await self._async_push(data)
         return next(gen)
-
-    async def async_get_me(self):
-        msg = await self._async_get_data(Pushbullet.ME_URL)
-        return msg
