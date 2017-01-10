@@ -35,6 +35,7 @@ class Listener():
         self.on_error = on_error
 
         self.connected = False
+        self._ws = None  # type: aiohttp.ClientWebSocketResponse
         self.last_update = time.time()
 
         self.on_push = on_push
@@ -57,6 +58,10 @@ class Listener():
     def clean_history(self):
         self.history = []
 
+    async def close(self):
+        if self.connected:
+            await self._ws.close()
+
     def on_open(self, ws):
         log.debug("on_open")
         self.connected = True
@@ -64,6 +69,7 @@ class Listener():
 
     def on_close(self, ws):
         log.debug('Listener closed')
+        print("close")
         self.connected = False
 
     async def on_message(self, ws, msg):
@@ -79,15 +85,16 @@ class Listener():
 
     async def _ws_monitor(self):
         """ Loops, listening for new messages from web socket. """
-        async with self._account._aio_session.ws_connect(WEBSOCKET_URL + self._api_key) as ws:
-            self.on_open(ws)
-            async for msg in ws:
+        async with self._account._aio_session.ws_connect(WEBSOCKET_URL + self._api_key) as self._ws:
+            self.on_open(self._ws)
+            async for msg in self._ws:
                 self.last_update = time.time()
                 if msg.type == aiohttp.WSMsgType.TEXT:
-                    await self.on_message(ws, json.loads(msg.data))
+                    await self.on_message(self._ws, json.loads(msg.data))
                 elif msg.type == aiohttp.WSMsgType.CLOSED:
                     self.on_close(ws)
                     break
                 elif msg.type == aiohttp.WSMsgType.ERROR:
                     break
+        print("ws with loop complete", flush=True)
 
