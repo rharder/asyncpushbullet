@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.DEBUG)
 API_KEY = ''  # YOUR API KEY
 HTTP_PROXY_HOST = None
 HTTP_PROXY_PORT = None
-
+PB = None  # type: AsyncPushbullet
 
 async def on_push(json_msg):
     pprint(json_msg)
