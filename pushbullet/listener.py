@@ -90,3 +90,17 @@ class Listener():
                 elif msg.type == aiohttp.WSMsgType.ERROR:
                     break
         print("async ws with loop complete", flush=True)
+
+    class _PagedIter:
+        def __init__(self, account, url, item_name, page_size, **kwargs):
+            self.acct = account
+            self.url = url
+            self.item_name = item_name
+            self.page_size = page_size
+            self.cursor = None  # type: str
+
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            pass

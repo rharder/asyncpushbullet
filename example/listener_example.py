@@ -6,7 +6,8 @@ from pprint import pprint
 from pushbullet import AsyncPushbullet
 from pushbullet import Listener
 
-__author__ = 'Igor Maculan <n3wtron@gmail.com>'
+__author__ = 'Robert Harder'
+__email__ = "rob@iharder.net"
 
 logging.basicConfig(level=logging.DEBUG)
 

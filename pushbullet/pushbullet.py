@@ -387,14 +387,12 @@ class Pushbullet(object):
         data = {"type": "note", "title": title, "body": body}
         data.update(Pushbullet._recipient(device, chat, email, channel))
         resp = self._push(data)
-        # log.info("Pushed note: {}".format(resp))
         return resp
 
     def push_link(self, title, url, body=None, device=None, chat=None, email=None, channel=None):
         data = {"type": "link", "title": title, "url": url, "body": body}
         data.update(Pushbullet._recipient(device, chat, email, channel))
         resp = self._push(data)
-        # log.info("Pushed link: {}".format(resp))
         return resp
 
     def push_sms(self, device, number, message):
@@ -403,7 +401,6 @@ class Pushbullet(object):
         data = xfer.get("data")
         xfer["msg"] = self._post_data(self.EPHEMERALS_URL, data=json.dumps(data))
         resp = next(gen)  # Post process response
-        # log.info("Pushed sms: {}".format(resp))
         return resp
 
     def _push_sms_generator(self, device, number, message):
