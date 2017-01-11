@@ -2,6 +2,7 @@ import datetime
 import json
 import os
 
+import logging
 import requests
 
 from ._compat import standard_b64encode
@@ -10,6 +11,8 @@ from .chat import Chat
 from .device import Device
 from .errors import PushbulletError, InvalidKeyError
 from .filetype import get_file_type
+
+log = logging.getLogger(__name__)
 
 
 class NoEncryptionModuleError(Exception):
@@ -88,13 +91,16 @@ class Pushbullet(object):
         """ Interpret the HTTP response headers, raise exceptions, etc. """
 
         if code in (401, 403):
-            raise InvalidKeyError()
+            err_msg = "{} Invalid API Key: {}".format(code, self.api_key)
+            log.error(err_msg)
+            raise InvalidKeyError(err_msg)
 
         elif code == 429:
             epoch = int(headers.get("X-Ratelimit-Reset", 0))
             epoch_time = datetime.datetime.fromtimestamp(epoch).strftime('%c')
-            raise PushbulletError(code, "Too Many Requests. " +
-                                  "You have been ratelimited until {}".format(epoch_time))
+            err_msg = "Too Many Requests. You have been ratelimited until {}".format(epoch_time)
+            log.error(err_msg)
+            raise PushbulletError(code, err_msg)
 
         elif code not in (200, 204):  # 200 OK, 204 Empty response (file upload)
             raise PushbulletError(code, msg)
@@ -139,7 +145,7 @@ class Pushbullet(object):
                     xfer["kwargs"]["params"].update({"cursor": msg["cursor"]})
                 else:
                     xfer["kwargs"]["params"] = {"cursor": msg["cursor"]}
-                print("PAGING FOR MORE", item_name, len(items))
+                log.info("Paging for more {} ({})".format(item_name, len(items)))
             else:
                 xfer["get_more"] = False
         msg[item_name] = items[:limit]  # Cut down to limit
@@ -197,6 +203,7 @@ class Pushbullet(object):
             if device_info.get("active"):
                 d = Device(self, device_info)
                 self.devices.append(d)
+        log.info("Active devices found: {}".format(len(self.devices)))
 
     def _load_chats(self):
         self.chats = []
@@ -206,6 +213,7 @@ class Pushbullet(object):
             if chat_info.get("active"):
                 c = Chat(self, chat_info)
                 self.chats.append(c)
+        log.info("Active chats found: {}".format(len(self.chats)))
 
     def _load_channels(self):
         self.channels = []
@@ -215,6 +223,7 @@ class Pushbullet(object):
             if channel_info.get("active"):
                 c = Channel(self, channel_info)
                 self.channels.append(c)
+        log.info("Active channels found: {}".format(len(self.channels)))
 
     def get_device(self, nickname=None, iden=None):
         if nickname:
@@ -234,7 +243,9 @@ class Pushbullet(object):
         xfer = next(gen)  # Prep http params
         data = xfer.get('data', {})
         xfer["msg"] = self._post_data(self.DEVICES_URL, data=json.dumps(data))
-        return next(gen)  # Post process response
+        resp = next(gen)  # Post process response
+        # log.info("Device created: {}".format(resp))
+        return resp
 
     def _new_device_generator(self, nickname, manufacturer=None, model=None, icon="system", func=None):
         data = {"nickname": nickname, "icon": icon}
@@ -284,7 +295,9 @@ class Pushbullet(object):
         xfer = next(gen)  # Prep http params
         data = xfer.get('data', {})
         xfer["msg"] = self._post_data(self.CHATS_URL, data=json.dumps(data))
-        return next(gen)  # Post process response
+        resp = next(gen)  # Post process response
+        # log.info("Chat created: {}".format(resp))
+        return resp
 
     def _new_chat_generator(self, email):
         data = {"email": email}
@@ -327,7 +340,9 @@ class Pushbullet(object):
         xfer = next(gen)  # Prep http params
         data = xfer.get('data', {})
         xfer["msg"] = self._get_data_with_pagination(self.PUSH_URL, "pushes", params=data)
-        return next(gen)  # Post process response
+        resp = next(gen)  # Post process response
+        # log.info("Retrieved {} pushes".format(len(resp)))
+        return resp
 
     def _get_pushes_generator(self, modified_after=None, limit=None, filter_inactive=True):
         data = {}
@@ -371,19 +386,25 @@ class Pushbullet(object):
     def push_note(self, title, body, device=None, chat=None, email=None, channel=None):
         data = {"type": "note", "title": title, "body": body}
         data.update(Pushbullet._recipient(device, chat, email, channel))
-        return self._push(data)
+        resp = self._push(data)
+        # log.info("Pushed note: {}".format(resp))
+        return resp
 
     def push_link(self, title, url, body=None, device=None, chat=None, email=None, channel=None):
         data = {"type": "link", "title": title, "url": url, "body": body}
         data.update(Pushbullet._recipient(device, chat, email, channel))
-        return self._push(data)
+        resp = self._push(data)
+        # log.info("Pushed link: {}".format(resp))
+        return resp
 
     def push_sms(self, device, number, message):
         gen = self._push_sms_generator(device, number, message)
         xfer = next(gen)  # Prep http params
         data = xfer.get("data")
         xfer["msg"] = self._post_data(self.EPHEMERALS_URL, data=json.dumps(data))
-        return next(gen)  # Post process response
+        resp = next(gen)  # Post process response
+        # log.info("Pushed sms: {}".format(resp))
+        return resp
 
     def _push_sms_generator(self, device, number, message):
         data = {

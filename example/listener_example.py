@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 import asyncio
+import logging
 from pprint import pprint
 
-__author__ = 'Igor Maculan <n3wtron@gmail.com>'
-import logging
-
-from pushbullet import Listener
 from pushbullet import AsyncPushbullet
+from pushbullet import Listener
+
+__author__ = 'Igor Maculan <n3wtron@gmail.com>'
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -14,6 +14,7 @@ API_KEY = ''  # YOUR API KEY
 HTTP_PROXY_HOST = None
 HTTP_PROXY_PORT = None
 PB = None  # type: AsyncPushbullet
+
 
 async def on_push(json_msg):
     pprint(json_msg)
