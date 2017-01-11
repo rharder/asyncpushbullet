@@ -1,15 +1,11 @@
 import asyncio
 
 import aiohttp
-import logging
 
 from .pushbullet import Pushbullet
 
 __author__ = "Robert Harder"
 __email__ = "rob@iharder.net"
-
-log = logging.getLogger(__name__)
-# log = logging.getLogger("pushbullet.AsyncPushbullet")
 
 
 class AsyncPushbullet(Pushbullet):
@@ -25,7 +21,7 @@ class AsyncPushbullet(Pushbullet):
     async def __aio__init__(self):
         headers = {"Access-Token": self.api_key}
         self._aio_session = aiohttp.ClientSession(headers=headers)
-        log.debug("Session created for aiohttp connections: {}".format(self._aio_session))
+        self.log.debug("Session created for aiohttp connections: {}".format(self._aio_session))
 
     # ################
     # IO Methods
@@ -60,28 +56,6 @@ class AsyncPushbullet(Pushbullet):
             xfer["msg"] = await self._async_get_data(url, **args)
             msg = next(gen)
         return msg
-
-    # async def _async_get_data_with_pagination_OLD(self, url, item_name, **kwargs):
-    #
-    #     msg = {}
-    #     items = []
-    #     limit = kwargs.get("params", {}).get("limit")
-    #     get_more = True
-    #     while get_more:
-    #         msg = await self._get_data(url, **kwargs)
-    #         items_this_round = msg.get(item_name, [])
-    #         items += items_this_round
-    #         if "cursor" in msg and len(items_this_round) > 0 \
-    #                 and (limit is None or len(items) < limit):
-    #             if "params" in kwargs:
-    #                 kwargs["params"].update({"cursor": msg["cursor"]})
-    #             else:
-    #                 kwargs["params"] = {"cursor": msg["cursor"]}
-    #             print("PAGING FOR MORE", item_name, len(items))
-    #         else:
-    #             get_more = False
-    #     msg[item_name] = items[:limit]
-    #     return msg
 
     async def _async_post_data(self, url, **kwargs):
         msg = await self._async_http(self._aio_session.post, url, **kwargs)

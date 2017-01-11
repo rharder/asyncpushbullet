@@ -3,11 +3,10 @@
 Demonstrates how to consume new pushes in an asyncio for loop.
 """
 import asyncio
-import os
 from pprint import pprint
 
 from pushbullet import AsyncPushbullet
-from pushbullet.listeners import PushListener, WsListener
+from pushbullet.listeners import PushListener
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
@@ -30,7 +29,6 @@ def main1():
 
     loop = asyncio.get_event_loop()
     loop.run_forever()
-
 
 
 async def push_received(p):

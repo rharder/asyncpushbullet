@@ -1,8 +1,8 @@
 import datetime
 import json
+import logging
 import os
 
-import logging
 import requests
 
 from ._compat import standard_b64encode
@@ -11,8 +11,6 @@ from .chat import Chat
 from .device import Device
 from .errors import PushbulletError, InvalidKeyError
 from .filetype import get_file_type
-
-log = logging.getLogger(__name__)
 
 
 class NoEncryptionModuleError(Exception):
@@ -32,8 +30,9 @@ class Pushbullet(object):
 
     def __init__(self, api_key, encryption_password=None, proxy=None):
         self.api_key = api_key
-        self._json_header = {'Content-Type': 'application/json'}
+        self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
+        self._json_header = {'Content-Type': 'application/json'}
         self._session = requests.Session()
         self._session.auth = (self.api_key, "")
         self._session.headers.update(self._json_header)
@@ -92,14 +91,14 @@ class Pushbullet(object):
 
         if code in (401, 403):
             err_msg = "{} Invalid API Key: {}".format(code, self.api_key)
-            log.error(err_msg)
+            self.log.error(err_msg)
             raise InvalidKeyError(err_msg)
 
         elif code == 429:
             epoch = int(headers.get("X-Ratelimit-Reset", 0))
             epoch_time = datetime.datetime.fromtimestamp(epoch).strftime('%c')
             err_msg = "Too Many Requests. You have been ratelimited until {}".format(epoch_time)
-            log.error(err_msg)
+            self.log.error(err_msg)
             raise PushbulletError(code, err_msg)
 
         elif code not in (200, 204):  # 200 OK, 204 Empty response (file upload)
@@ -145,7 +144,7 @@ class Pushbullet(object):
                     xfer["kwargs"]["params"].update({"cursor": msg["cursor"]})
                 else:
                     xfer["kwargs"]["params"] = {"cursor": msg["cursor"]}
-                log.info("Paging for more {} ({})".format(item_name, len(items)))
+                    self.log.info("Paging for more {} ({})".format(item_name, len(items)))
             else:
                 xfer["get_more"] = False
         msg[item_name] = items[:limit]  # Cut down to limit
@@ -203,7 +202,7 @@ class Pushbullet(object):
             if device_info.get("active"):
                 d = Device(self, device_info)
                 self.devices.append(d)
-        log.info("Active devices found: {}".format(len(self.devices)))
+        self.log.info("Active devices found: {}".format(len(self.devices)))
 
     def _load_chats(self):
         self.chats = []
@@ -213,7 +212,7 @@ class Pushbullet(object):
             if chat_info.get("active"):
                 c = Chat(self, chat_info)
                 self.chats.append(c)
-        log.info("Active chats found: {}".format(len(self.chats)))
+        self.log.info("Active chats found: {}".format(len(self.chats)))
 
     def _load_channels(self):
         self.channels = []
@@ -223,7 +222,7 @@ class Pushbullet(object):
             if channel_info.get("active"):
                 c = Channel(self, channel_info)
                 self.channels.append(c)
-        log.info("Active channels found: {}".format(len(self.channels)))
+        self.log.info("Active channels found: {}".format(len(self.channels)))
 
     def get_device(self, nickname=None, iden=None):
         if nickname:
@@ -458,7 +457,9 @@ class Pushbullet(object):
         file_type = msg.get("file_type")  # What PB thinks is the filetype
         yield xfer  # Conduct upload
 
-        yield {"file_type": file_type, "file_url": file_url, "file_name": file_name}
+        return_msg = {"file_type": file_type, "file_url": file_url, "file_name": file_name}
+        self.log.info("File uploaded: {}".format(return_msg))
+        yield return_msg
 
     def push_file(self, file_name, file_url, file_type, body=None, title=None, device=None, chat=None, email=None,
                   channel=None):

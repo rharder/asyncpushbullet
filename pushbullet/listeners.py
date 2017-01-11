@@ -1,24 +1,28 @@
 import asyncio
 import inspect
 import json
-
-import aiohttp
+import logging
 import time
 
-import logging
+import aiohttp
 
 from pushbullet import AsyncPushbullet
 
+__author__ = 'Robert Harder'
+__email__ = "rob@iharder.net"
+
+# https://docs.pushbullet.com/#realtime-event-stream
 
 class WsListener(object):
+    """ Listens for lowest level messages coming from the Pushbullet websocket. """
     WEBSOCKET_URL = 'wss://stream.pushbullet.com/websocket/'
-    log = logging.getLogger(__name__ + ".WsListener")
 
     def __init__(self, account):
         self._account = account
         self._ws = None  # type: aiohttp.ClientWebSocketResponse
         self.last_update = 0
         self._pushes = []
+        self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
     def start_callbacks(self, func, loop=None):
         """
@@ -28,12 +32,15 @@ class WsListener(object):
         The callback function will receive one parameter, the item that was received.
         :param func: The callback function
         """
+
         async def _listen(func):
+            """ Internal use only """
             async for x in self:
                 if inspect.iscoroutinefunction(func):
                     await func(x)
                 else:
                     func(x)
+
         asyncio.ensure_future(_listen(func), loop=loop)
 
     def __aiter__(self):
@@ -43,22 +50,24 @@ class WsListener(object):
         if self._ws is None:
             api_key = self._account.api_key
             self._ws = await self._account._aio_session.ws_connect(self.WEBSOCKET_URL + api_key)
-            WsListener.log.debug("Connected to websocket {}".format(self._ws))
+            self.log.debug("Connected to websocket {}".format(self._ws))
 
         msg = await self._ws.receive()
-        WsListener.log.debug("Websocket message received: {}".format(msg))
+        self.log.debug("Websocket message received: {}".format(msg))
 
         self.last_update = time.time()
         if msg.type == aiohttp.WSMsgType.CLOSED:
-            raise StopAsyncIteration("Websocket closed: {}".format(msg))
+            err_msg = "Websocket closed: {}".format(msg)
+            self.log.warning(err_msg)
+            raise StopAsyncIteration(err_msg)
         elif msg.type == aiohttp.WSMsgType.ERROR:
-            raise StopAsyncIteration("Websocket error: {}".format(msg))
+            err_msg = "Websocket error: {}".format(msg)
+            self.log.debug(err_msg)
+            raise StopAsyncIteration(err_msg)
         return msg
 
 
 class PushListener(WsListener):
-    log = logging.getLogger(__name__ + ".PushListener")
-
     def __init__(self, account: AsyncPushbullet, filter_inactive=True):
         WsListener.__init__(self, account)
         self._super_iter = None
@@ -71,7 +80,7 @@ class PushListener(WsListener):
 
     async def __anext__(self):
         if len(self._pushes) > 0:
-            PushListener.log.debug("__anext__ returning cached push ({} remaining)".format(len(self._pushes) - 1))
+            self.log.debug("__anext__ returning cached push ({} remaining)".format(len(self._pushes) - 1))
             return self._pushes.pop(0)
         else:
             while True:
@@ -81,7 +90,7 @@ class PushListener(WsListener):
                 if msg.type == aiohttp.WSMsgType.TEXT and data == {'type': 'tickle', 'subtype': 'push'}:
 
                     pushes = await self._account.async_get_pushes(modified_after=self._most_recent_timestamp)
-                    PushListener.log.debug("Retrieved {} pushes".format(len(pushes)))
+                    self.log.debug("Retrieved {} pushes".format(len(pushes)))
                     if len(pushes) > 0 and pushes[0].get('modified', 0) > self._most_recent_timestamp:
                         self._most_recent_timestamp = pushes[0]['modified']
 
