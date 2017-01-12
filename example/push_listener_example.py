@@ -4,7 +4,8 @@ Demonstrates how to consume new pushes in an asyncio for loop.
 """
 import asyncio
 from pprint import pprint
-
+import sys
+sys.path.append("..")
 from pushbullet import AsyncPushbullet
 from pushbullet.listeners import PushListener
 
@@ -46,4 +47,6 @@ def main2():
 
 
 if __name__ == '__main__':
+    if API_KEY == "" and len(sys.argv) > 1:
+        API_KEY = sys.argv[1]
     main2()
