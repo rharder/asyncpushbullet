@@ -7,6 +7,7 @@ import time
 import aiohttp
 
 from pushbullet import AsyncPushbullet
+from pushbullet import PushbulletError
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
@@ -35,11 +36,17 @@ class WsListener(object):
 
         async def _listen(func):
             """ Internal use only """
-            async for x in self:
-                if inspect.iscoroutinefunction(func):
-                    await func(x)
-                else:
-                    func(x)
+            while True:
+                try:
+                    async for x in self:
+                        if inspect.iscoroutinefunction(func):
+                            await func(x)
+                        else:
+                            func(x)
+                except Exception as e:
+                    self.log.warning("Ignoring exception in callback and continuing to listen...", e)
+                finally:
+                    await asyncio.sleep(1)  # Throttle control
 
         asyncio.ensure_future(_listen(func), loop=loop)
 
@@ -47,12 +54,22 @@ class WsListener(object):
         return self
 
     async def __anext__(self):
-        if self._ws is None:
-            api_key = self._account.api_key
-            self._ws = await self._account._aio_session.ws_connect(self.WEBSOCKET_URL + api_key)
-            self.log.debug("Connected to websocket {}".format(self._ws))
+        if self._ws is None or self._ws.closed:
+            self._ws = None
+            try:
+                api_key = self._account.api_key
+                self._ws = await self._account._aio_session.ws_connect(self.WEBSOCKET_URL + api_key)  # type: aiohttp.ClientWebSocketResponse
+                self.log.debug("Connected to websocket {}".format(self._ws))
+            except PushbulletError as pe:
+                self.log.error("Could not connect to websocket.", pe)
+                raise StopAsyncIteration(pe)
 
-        msg = await self._ws.receive()
+        try:
+            msg = await self._ws.receive()
+        except Exception as e:
+            err_msg = "An error occurred while waiting on websocket messages: {}".format(e)
+            self.log.error(err_msg, e)
+            raise StopAsyncIteration(e)
         self.log.debug("Websocket message received: {}".format(msg))
 
         self.last_update = time.time()

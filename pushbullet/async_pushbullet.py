@@ -2,7 +2,7 @@ import asyncio
 
 import aiohttp
 
-from .pushbullet import Pushbullet
+from .pushbullet import Pushbullet, PushbulletError
 
 __author__ = "Robert Harder"
 __email__ = "rob@iharder.net"
@@ -29,19 +29,24 @@ class AsyncPushbullet(Pushbullet):
 
     async def _async_http(self, func, url, **kwargs):
 
-        async with func(url, proxy=self._proxy, **kwargs) as resp:  # Do HTTP
+        try:
+            async with func(url, proxy=self._proxy, **kwargs) as resp:  # Do HTTP
 
-            code = resp.status
-            msg = None
-            try:
-                msg = await resp.json()
-            except:
-                pass
-            finally:
-                if msg is None:
-                    msg = resp.text  # TODO: IS THIS THE RIGHT WAY TO GET TEXT
+                code = resp.status
+                msg = None
+                try:
+                    msg = await resp.json()
+                except:
+                    pass
+                finally:
+                    if msg is None:
+                        msg = resp.text  # TODO: IS THIS THE RIGHT WAY TO GET TEXT
 
-            return self._interpret_response(code, resp.headers, msg)
+                return self._interpret_response(code, resp.headers, msg)
+        except Exception as e:
+            err_msg = "An error occurred while communicating with Pushbullet: {}".format(e)
+            self.log.error(err_msg, e)
+            raise PushbulletError(err_msg, e)
 
     async def _async_get_data(self, url, **kwargs):
         msg = await self._async_http(self._aio_session.get, url, **kwargs)

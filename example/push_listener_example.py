@@ -12,7 +12,7 @@ from pushbullet.listeners import PushListener
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
 
-API_KEY = ""  # YOUR API KEY
+API_KEY = "v1WadrAI7e0zaEefOs3dVqnXtyRxWRSuZdujzlLkPSZgq"  # YOUR API KEY
 HTTP_PROXY_HOST = None
 HTTP_PROXY_PORT = None
 
@@ -34,6 +34,8 @@ def main1():
 
 async def push_received(p):
     pprint(p)
+    pb = AsyncPushbullet(API_KEY)
+    await pb._async_get_data("https://generate.error")
 
 
 def main2():
