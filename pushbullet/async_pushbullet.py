@@ -49,6 +49,10 @@ class AsyncPushbullet(Pushbullet):
             raise PushbulletError(err_msg, e)
 
     async def _async_get_data(self, url, **kwargs):
+        if self._aio_session is None:
+            err_msg = "aiohttp session has not yet been created. Has the event loop had time to create it?"
+            self.log.error(err_msg)
+            raise PushbulletError(err_msg)
         msg = await self._async_http(self._aio_session.get, url, **kwargs)
         return msg
 
@@ -63,10 +67,18 @@ class AsyncPushbullet(Pushbullet):
         return msg
 
     async def _async_post_data(self, url, **kwargs):
+        if self._aio_session is None:
+            err_msg = "aiohttp session has not yet been created. Has the event loop had time to create it?"
+            self.log.error(err_msg)
+            raise PushbulletError(err_msg)
         msg = await self._async_http(self._aio_session.post, url, **kwargs)
         return msg
 
     async def _async_delete_data(self, url, **kwargs):
+        if self._aio_session is None:
+            err_msg = "aiohttp session has not yet been created. Has the event loop had time to create it?"
+            self.log.error(err_msg)
+            raise PushbulletError(err_msg)
         msg = await self._async_http(self._aio_session.delete, url, **kwargs)
         return msg
 

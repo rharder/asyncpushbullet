@@ -14,6 +14,9 @@ __email__ = "rob@iharder.net"
 
 # https://docs.pushbullet.com/#realtime-event-stream
 
+logging.basicConfig(level=logging.ERROR)
+logging.getLogger("pushbullet").setLevel(logging.DEBUG)
+
 class WsListener(object):
     """ Listens for lowest level messages coming from the Pushbullet websocket. """
     WEBSOCKET_URL = 'wss://stream.pushbullet.com/websocket/'
@@ -21,9 +24,21 @@ class WsListener(object):
     def __init__(self, account):
         self._account = account
         self._ws = None  # type: aiohttp.ClientWebSocketResponse
-        self.last_update = 0
+        self._last_update = 0
         self._pushes = []
+        self._closed = False
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
+
+    def close(self):
+        if self._ws is not None:
+            try:
+                self._ws.close()
+            except Exception as e:
+                err_msg = "An error occurred while closing the websocket: {}".format(e)
+                self.log.warning(err_msg)
+                self.log.debug(err_msg, e)
+        self._ws = None
+        self._closed = True
 
     def start_callbacks(self, func, loop=None):
         """
@@ -36,17 +51,18 @@ class WsListener(object):
 
         async def _listen(func):
             """ Internal use only """
-            while True:
-                try:
-                    async for x in self:
-                        if inspect.iscoroutinefunction(func):
-                            await func(x)
-                        else:
-                            func(x)
-                except Exception as e:
-                    self.log.warning("Ignoring exception in callback and continuing to listen...", e)
-                finally:
-                    await asyncio.sleep(1)  # Throttle control
+            while not self._closed:
+                # try:
+                async for x in self:
+                    if inspect.iscoroutinefunction(func):
+                        await func(x)
+                    else:
+                        func(x)
+                # except Exception as e:
+                #     self.log.warning("Ignoring exception in callback: {}".format(e))
+                #     self.log.debug("Exception caught from callback: {}".format(e), e)
+                # finally:
+                #     await asyncio.sleep(1)  # Throttle control
 
         asyncio.ensure_future(_listen(func), loop=loop)
 
@@ -54,6 +70,9 @@ class WsListener(object):
         return self
 
     async def __anext__(self):
+        if self._closed:
+            raise StopAsyncIteration("This listener has closed.")
+
         if self._ws is None or self._ws.closed:
             self._ws = None
             try:
@@ -72,7 +91,7 @@ class WsListener(object):
             raise StopAsyncIteration(e)
         self.log.debug("Websocket message received: {}".format(msg))
 
-        self.last_update = time.time()
+        self._last_update = time.time()
         if msg.type == aiohttp.WSMsgType.CLOSED:
             err_msg = "Websocket closed: {}".format(msg)
             self.log.warning(err_msg)
@@ -96,11 +115,15 @@ class PushListener(WsListener):
         return self
 
     async def __anext__(self):
+        if self._closed:
+            raise StopAsyncIteration("This listener has closed.")
+
         if len(self._pushes) > 0:
             self.log.debug("__anext__ returning cached push ({} remaining)".format(len(self._pushes) - 1))
             return self._pushes.pop(0)
+
         else:
-            while True:
+            while not self._closed:
                 msg = await super().__anext__()  # Wait for tickle
 
                 data = json.loads(msg.data)

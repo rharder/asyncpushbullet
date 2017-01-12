@@ -5,6 +5,11 @@ Demonstrates how to consume new pushes in an asyncio for loop.
 import asyncio
 from pprint import pprint
 import sys
+
+import logging
+
+from pushbullet import Pushbullet
+
 sys.path.append("..")
 from pushbullet import AsyncPushbullet
 from pushbullet.listeners import PushListener
@@ -34,8 +39,8 @@ def main1():
 
 async def push_received(p):
     pprint(p)
-    pb = AsyncPushbullet(API_KEY)
-    await pb._async_get_data("https://generate.error")
+    pb = Pushbullet(API_KEY)
+    pb._get_data("https://generate.error")
 
 
 def main2():
