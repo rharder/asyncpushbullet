@@ -3,21 +3,18 @@
 Demonstrates how to consume new pushes in an asyncio for loop.
 """
 import asyncio
-from pprint import pprint
 import sys
-
-import logging
-
-from pushbullet import Pushbullet
+from pprint import pprint
 
 sys.path.append("..")
+from pushbullet import Pushbullet
 from pushbullet import AsyncPushbullet
-from pushbullet.listeners import PushListener
+from pushbullet.async_listeners import PushListener
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
 
-API_KEY = "v1WadrAI7e0zaEefOs3dVqnXtyRxWRSuZdujzlLkPSZgq"  # YOUR API KEY
+API_KEY = ""  # YOUR API KEY
 HTTP_PROXY_HOST = None
 HTTP_PROXY_PORT = None
 
@@ -40,7 +37,7 @@ def main1():
 async def push_received(p):
     pprint(p)
     pb = Pushbullet(API_KEY)
-    pb._get_data("https://generate.error")
+    # pb._get_data("https://generate.error")
 
 
 def main2():
@@ -54,6 +51,7 @@ def main2():
 
 
 if __name__ == '__main__':
-    if API_KEY == "" and len(sys.argv) > 1:
-        API_KEY = sys.argv[1]
+    if API_KEY == "":
+        with open("../api_key.txt") as f:
+            API_KEY = f.read().strip()
     main2()

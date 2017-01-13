@@ -14,10 +14,10 @@ __email__ = "rob@iharder.net"
 
 # https://docs.pushbullet.com/#realtime-event-stream
 
-logging.basicConfig(level=logging.ERROR)
-logging.getLogger("pushbullet").setLevel(logging.DEBUG)
+# logging.basicConfig(level=logging.ERROR)
+# logging.getLogger("pushbullet").setLevel(logging.DEBUG)
 
-class WsListener(object):
+class WebsocketListener(object):
     """ Listens for lowest level messages coming from the Pushbullet websocket. """
     WEBSOCKET_URL = 'wss://stream.pushbullet.com/websocket/'
 
@@ -103,9 +103,9 @@ class WsListener(object):
         return msg
 
 
-class PushListener(WsListener):
+class PushListener(WebsocketListener):
     def __init__(self, account: AsyncPushbullet, filter_inactive=True):
-        WsListener.__init__(self, account)
+        WebsocketListener.__init__(self, account)
         self._super_iter = None
         self._most_recent_timestamp = account._most_recent_timestamp
         self._filter_inactive = filter_inactive

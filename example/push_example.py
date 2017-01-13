@@ -17,4 +17,7 @@ def main():
 
 
 if __name__ == "__main__":
+    if API_KEY == "":
+        with open("../api_key.txt") as f:
+            API_KEY = f.read().strip()
     main()
