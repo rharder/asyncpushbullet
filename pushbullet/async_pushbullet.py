@@ -9,18 +9,23 @@ __email__ = "rob@iharder.net"
 
 
 class AsyncPushbullet(Pushbullet):
-    def __init__(self, api_key, **kwargs):
+    def __init__(self, api_key, verify_ssl=None, **kwargs):
         Pushbullet.__init__(self, api_key, **kwargs)
 
         # TODO: Proxies
         self._proxy = kwargs.get("proxy")  # type: dict
         self._aio_session = None  # type: aiohttp.ClientSession
 
+        self._aio_connector = None
+        if verify_ssl is not None and verify_ssl is False:
+            self.log.info("SSL/TLS verification disabled")
+            self._aio_connector = aiohttp.TCPConnector(verify_ssl=False)
+
         asyncio.ensure_future(self.__aio__init__())  # Coroutine __init__
 
     async def __aio__init__(self):
         headers = {"Access-Token": self.api_key}
-        self._aio_session = aiohttp.ClientSession(headers=headers)
+        self._aio_session = aiohttp.ClientSession(headers=headers, connector=self._aio_connector)
         self.log.debug("Session created for aiohttp connections: {}".format(self._aio_session))
 
     # ################

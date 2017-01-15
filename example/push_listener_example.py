@@ -35,14 +35,14 @@ def main1():
 
 
 async def push_received(p):
-    pprint(p)
-    pb = Pushbullet(API_KEY)
+    print(p)
+    # pb = Pushbullet(API_KEY)
     # pb._get_data("https://generate.error")
 
 
 def main2():
     """ Uses a callback scheduled on an event loop"""
-    pb = AsyncPushbullet(API_KEY)
+    pb = AsyncPushbullet(API_KEY, verify_ssl=False)
     listener = PushListener(pb)
     listener.start_callbacks(push_received)
 
@@ -54,4 +54,8 @@ if __name__ == '__main__':
     if API_KEY == "":
         with open("../api_key.txt") as f:
             API_KEY = f.read().strip()
-    main2()
+    try:
+        main2()
+    except KeyboardInterrupt:
+        print("Quitting")
+        pass
