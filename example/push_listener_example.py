@@ -35,7 +35,12 @@ def main1():
 
 
 async def push_received(p):
-    print(p)
+    # print(p)
+    if not bool(p.get("dismissed", False)):
+        print("From: {}".format(p.get("sender_name")))
+        print("Title: {}".format(p.get("title")))
+        print("Body: {}".format(p.get("body")))
+        print()
     # pb = Pushbullet(API_KEY)
     # pb._get_data("https://generate.error")
 
