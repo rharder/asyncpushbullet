@@ -119,7 +119,7 @@ class WebsocketListener(object):
         """ Called at the beginning of an "async for" construct. """
         return self
 
-    async def __anext__(self):
+    async def __anext__(self) -> aiohttp.WSMessage:
         """ Called at each iteration of an "async for" construct. """
         if self._closed:
             raise StopAsyncIteration("This listener has closed.")
@@ -220,7 +220,7 @@ class PushListener(WebsocketListener):
         self._super_iter = super().__aiter__()
         return self
 
-    async def __anext__(self):
+    async def __anext__(self) -> dict:
         if self._closed:
             raise StopAsyncIteration("This listener has closed.")
 
