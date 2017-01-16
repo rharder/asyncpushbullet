@@ -34,11 +34,12 @@ def main1():
 
 
 async def push_received(p: dict, listener: PushListener):
-    # pprint(p)
-    print("From: {}".format(p.get("sender_name")))
-    print("Title: {}".format(p.get("title")))
-    print("Body: {}".format(p.get("body")))
-    print()
+    print("Push received:", p)
+    # # pprint(p)
+    # print("From: {}".format(p.get("sender_name")))
+    # print("Title: {}".format(p.get("title")))
+    # print("Body: {}".format(p.get("body")))
+    # print()
 
 
 async def connected(listener: PushListener):
@@ -60,7 +61,7 @@ if __name__ == '__main__':
         with open("../api_key.txt") as f:
             API_KEY = f.read().strip()
     try:
-        main2()
+        main1()
     except KeyboardInterrupt:
         print("Quitting")
         pass
