@@ -1,3 +1,8 @@
+"""
+Asynchronous listeners for connecting to Pushbullet's realtime event stream.
+
+Pushbullet's API: https://docs.pushbullet.com/#realtime-event-stream
+"""
 import asyncio
 import inspect
 import json
@@ -12,21 +17,62 @@ from pushbullet import PushbulletError
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
 
+
 # https://docs.pushbullet.com/#realtime-event-stream
 
 # logging.basicConfig(level=logging.ERROR)
-# logging.getLogger("pushbullet").setLevel(logging.DEBUG)
+# logging.getLogger(__name__).setLevel(logging.DEBUG)
+
 
 class WebsocketListener(object):
-    """ Listens for lowest level messages coming from the Pushbullet websocket. """
+    """
+    Listens for lowest level messages coming from the Pushbullet websocket,
+    either with callbacks or in an "async for" construct.
+
+    This class listens for the websocket to send a message and then passes that
+    message on through a callback or the "async for" construct.  The messages
+    are of type aiohttp.WSMessage.
+
+    Example 1:
+        async def something_happening(self):
+            async for msg in WebsocketListener(self.async_pushbullet):
+                print("New message:", msg)
+
+    Example 2:
+        def something_happening(self):
+            listener = WebsocketListener(self.async_pushbullet,
+                                         on_connect=self.connected,
+                                         on_message=self.message_received)
+
+        def connected(self, listener: WebsocketListener):
+            print("Websocket connected.")
+
+        def message_received(self, msg: aiohttp.WSMessage, async_pushbullet: AsyncPushbullet):
+            print("Message receveived:", msg)
+    """
+
     WEBSOCKET_URL = 'wss://stream.pushbullet.com/websocket/'
 
-    def __init__(self, account):
-        self._account = account
+    def __init__(self, account: AsyncPushbullet, on_message=None, on_connect=None):
+        """
+        Creates a new WebsocketListener, either as a standalone object or
+        as part of an "async for" construct.
+
+        :param account: the AsyncPushbullet to connect to
+        :param on_message: callback for when a new message is received
+        :param on_connect: callback for when the websocket is initially connected
+        """
+        self.account = account
         self._ws = None  # type: aiohttp.ClientWebSocketResponse
         self._last_update = 0
         self._pushes = []
         self._closed = False
+
+        # Callbacks
+        self._on_connect = on_connect
+        if on_message is not None:
+            self.start_callbacks(on_message)
+
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
     def close(self):
@@ -40,75 +86,135 @@ class WebsocketListener(object):
         self._ws = None
         self._closed = True
 
-    def start_callbacks(self, func, loop=None):
+    def start_callbacks(self, func, loop: asyncio.BaseEventLoop = None):
         """
         Begins callbacks to func on the given event loop or the base event loop
         if none is provided.
 
-        The callback function will receive one parameter, the item that was received.
+        The callback function will receive two parameters: the first is the
+        actual message, and the second is "this" listener.
+
         :param func: The callback function
         """
 
         async def _listen(func):
             """ Internal use only """
             while not self._closed:
-                # try:
-                async for x in self:
-                    if inspect.iscoroutinefunction(func):
-                        await func(x)
-                    else:
-                        func(x)
-                # except Exception as e:
-                #     self.log.warning("Ignoring exception in callback: {}".format(e))
-                #     self.log.debug("Exception caught from callback: {}".format(e), e)
-                # finally:
-                #     await asyncio.sleep(1)  # Throttle control
+                try:
+                    async for x in self:
+                        if inspect.iscoroutinefunction(func):
+                            await func(x, self)
+                        else:
+                            func(x, self)
+                except Exception as e:
+                    self.log.warning("Ignoring exception in callback: {}".format(e))
+                    self.log.debug("Exception caught from callback: {}".format(e), e)
+                finally:
+                    if not self._closed:
+                        await asyncio.sleep(1)  # Throttle control
 
         asyncio.ensure_future(_listen(func), loop=loop)
 
     def __aiter__(self):
+        """ Called at the beginning of an "async for" construct. """
         return self
 
     async def __anext__(self):
+        """ Called at each iteration of an "async for" construct. """
         if self._closed:
             raise StopAsyncIteration("This listener has closed.")
 
+        # Lazily connect websocket
         if self._ws is None or self._ws.closed:
             self._ws = None
             try:
-                api_key = self._account.api_key
-                self._ws = await self._account._aio_session.ws_connect(self.WEBSOCKET_URL + api_key)  # type: aiohttp.ClientWebSocketResponse
+                self.log.debug("Connecting to websocket...")
+                self._ws = await self.account._aio_session.ws_connect(
+                    self.WEBSOCKET_URL + self.account.api_key)  # type: aiohttp.ClientWebSocketResponse
                 self.log.debug("Connected to websocket {}".format(self._ws))
+
+                # Notify callback, if registered
+                if inspect.iscoroutinefunction(self._on_connect):
+                    await self._on_connect(self)
+                elif callable(self._on_connect):
+                    self._on_connect(self)
+
             except PushbulletError as pe:
                 self.log.error("Could not connect to websocket.", pe)
                 raise StopAsyncIteration(pe)
 
         try:
+            # Wait for websocket message
             msg = await self._ws.receive()
+
         except Exception as e:
             err_msg = "An error occurred while waiting on websocket messages: {}".format(e)
             self.log.error(err_msg, e)
             raise StopAsyncIteration(e)
-        self.log.debug("Websocket message received: {}".format(msg))
 
+        # Process websocket message
+        self.log.debug("Websocket message received: {}".format(msg))
         self._last_update = time.time()
+
         if msg.type == aiohttp.WSMsgType.CLOSED:
             err_msg = "Websocket closed: {}".format(msg)
             self.log.warning(err_msg)
             raise StopAsyncIteration(err_msg)
+
         elif msg.type == aiohttp.WSMsgType.ERROR:
             err_msg = "Websocket error: {}".format(msg)
             self.log.debug(err_msg)
             raise StopAsyncIteration(err_msg)
+
         return msg
 
 
 class PushListener(WebsocketListener):
-    def __init__(self, account: AsyncPushbullet, filter_inactive=True):
-        WebsocketListener.__init__(self, account)
+    """
+    Class for listening for new pushes (not ephemerals) announced over a websocket,
+    either with callbacks or in an "async for" construct.
+
+    This class listens for the websocket to send a "tickle" about new pushes, and then
+    it retrieves pushes that are new since the most recent modification date that it
+    has on record.
+
+    By default PushListener will only pass on pushes that are active and not dismissed.
+
+    Example 1:
+        async def something_happening(self):
+            async for push in PushListener(self.async_pushbullet):
+                print("New push:", push)
+
+    Example 2:
+        def something_happening(self):
+            listener = PushListener(self.async_pushbullet,
+                                    on_connect=self.connected,
+                                    on_message=self.push_received)
+
+        def connected(self, listener):
+            print("Websocket connected.")
+
+        def push_received(self, push, async_pushbullet):
+            print("Push receveived:", push)
+    """
+
+    def __init__(self, account: AsyncPushbullet, on_message=None, on_connect=None,
+                 filter_inactive: bool = True, filter_dismissed: bool = True):
+        """
+        Creates a new PushtListener, either as a standalone object or
+        as part of an "async for" construct.
+
+        :param account: the AsyncPushbullet to connect to
+        :param on_message: callback for when a new message is received
+        :param on_connect: callback for when the websocket is initially connected
+        :param filter_inactive: default is to only include pushes that are active
+        :param filter_dismissed: default is to only include pushes that are not dismissed
+        """
+        WebsocketListener.__init__(self, account, on_message=on_message, on_connect=on_connect)
         self._super_iter = None
         self._most_recent_timestamp = account._most_recent_timestamp
         self._filter_inactive = filter_inactive
+        self._filter_dismissed = filter_dismissed
 
     def __aiter__(self):
         self._super_iter = super().__aiter__()
@@ -124,17 +230,27 @@ class PushListener(WebsocketListener):
 
         else:
             while not self._closed:
-                msg = await super().__anext__()  # Wait for tickle
 
+                # Wait for websocket tickle
+                msg = await super().__anext__()
+
+                # Look for websocket message announcing new pushes
                 data = json.loads(msg.data)
                 if msg.type == aiohttp.WSMsgType.TEXT and data == {'type': 'tickle', 'subtype': 'push'}:
 
-                    pushes = await self._account.async_get_pushes(modified_after=self._most_recent_timestamp)
+                    pushes = await self.account.async_get_pushes(modified_after=self._most_recent_timestamp,
+                                                                 filter_inactive=self._filter_inactive)
                     self.log.debug("Retrieved {} pushes".format(len(pushes)))
+
+                    # Update timestamp for most recent push so we only get "new" pushes
                     if len(pushes) > 0 and pushes[0].get('modified', 0) > self._most_recent_timestamp:
                         self._most_recent_timestamp = pushes[0]['modified']
 
-                    self._pushes += pushes
+                    # Filter dismissed pushes if requested
+                    for push in pushes:
+                        if not self._filter_dismissed or not bool(push.get("dismissed")):
+                            self._pushes.append(push)
+
                     if len(self._pushes) > 0:
                         p = await self.__anext__()
                         return p

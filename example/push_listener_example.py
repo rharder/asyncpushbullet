@@ -6,8 +6,7 @@ import asyncio
 import sys
 from pprint import pprint
 
-sys.path.append("..")
-from pushbullet import Pushbullet
+sys.path.append("..")  # Since examples are buried one level into source tree
 from pushbullet import AsyncPushbullet
 from pushbullet.async_listeners import PushListener
 
@@ -19,9 +18,9 @@ HTTP_PROXY_HOST = None
 HTTP_PROXY_PORT = None
 
 
-async def co_run(pb):
+async def co_run(pb: AsyncPushbullet):
     async for p in PushListener(pb):
-        pprint(p)
+        print("Push received:", p)
 
 
 def main1():
@@ -34,22 +33,23 @@ def main1():
     loop.run_forever()
 
 
-async def push_received(p):
-    # print(p)
-    if not bool(p.get("dismissed", False)):
-        print("From: {}".format(p.get("sender_name")))
-        print("Title: {}".format(p.get("title")))
-        print("Body: {}".format(p.get("body")))
-        print()
-    # pb = Pushbullet(API_KEY)
-    # pb._get_data("https://generate.error")
+async def push_received(p: dict, listener: PushListener):
+    # pprint(p)
+    print("From: {}".format(p.get("sender_name")))
+    print("Title: {}".format(p.get("title")))
+    print("Body: {}".format(p.get("body")))
+    print()
+
+
+async def connected(listener: PushListener):
+    print("Connected to websocket")
+    await listener.account.async_push_note("Connected to websocket", "Connected to websocket")
 
 
 def main2():
     """ Uses a callback scheduled on an event loop"""
     pb = AsyncPushbullet(API_KEY, verify_ssl=False)
-    listener = PushListener(pb)
-    listener.start_callbacks(push_received)
+    listener = PushListener(pb, on_connect=connected, on_message=push_received)
 
     loop = asyncio.get_event_loop()
     loop.run_forever()

@@ -340,10 +340,10 @@ class Pushbullet(object):
         data = xfer.get('data', {})
         xfer["msg"] = self._get_data_with_pagination(self.PUSH_URL, "pushes", params=data)
         resp = next(gen)  # Post process response
-        # log.info("Retrieved {} pushes".format(len(resp)))
         return resp
 
-    def _get_pushes_generator(self, modified_after=None, limit=None, filter_inactive=True):
+    def _get_pushes_generator(self, modified_after=None, limit=None,
+                              filter_inactive=True):
         data = {}
         if modified_after is not None:
             data["modified_after"] = str(modified_after)
