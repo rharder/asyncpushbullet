@@ -14,7 +14,8 @@ if sys.argv[-1] == 'publish':
 install_reqs = [
     "requests>=1.0.0",
     "python-magic",
-    "websocket-client"
+    "websocket-client",
+    "aiohttp"
 ]
 
 
@@ -33,19 +34,19 @@ setup(
     description = ("A simple python client for pushbullet.com"),
     license = "MIT",
     keywords = "push android pushbullet notification",
-    url = "https://github.com/randomchars/pushbullet.py",
-    download_url="https://github.com/randomchars/pushbullet.py/tarball/" + version,
+    url = "https://github.com/rharder/pushbullet.py",
+    download_url="https://github.com/rharder/pushbullet.py/tarball/" + version,
     packages=['pushbullet'],
-    long_description=read('readme.md'),
+    long_description=read('readme.rst'),
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
         "Programming Language :: Python",
         "Natural Language :: English",
         "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python :: 2.7",
+        #"Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.2",
+        "Programming Language :: Python :: 3.5",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Utilities"
     ],

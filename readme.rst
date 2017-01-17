@@ -29,6 +29,23 @@ is used instead of passwords.
 Installation
 ------------
 
+**SUSPEND ORIGINAL INSTRUCTIONS**
+
+NOTE: This repository https://github.com/rharder/pushbullet.py is a fork from
+the original at https://github.com/randomchars/pushbullet.py.  This fork uses
+asyncio for connecting to the pushbullet websocket.  It requires Python v3.5+.
+Until/unless this fork can be integrating back into the randomchars version
+and the Python 2.7 support can be resolved, you cannot use ```pip install pushbullet.py```
+to install this async variant.  Instead, download this repository and install
+from its folder:
+
+::
+    git clone https://github.com/rharder/pushbullet.py.git
+    cd pushbullet.py
+    pip install -e .
+
+**RESUME ORIGINAL INSTRUCTIONS**
+
 The easiest way is to just open your favorite terminal and type
 
 ::
