@@ -365,7 +365,7 @@ Asynchronous IO
 ~~~~~~~~~~~~
 
 Many of the same methods that are available in the Pushbullet class are available in a form
-compatible with Python 3's asyncio features using AsyncPushbullet.
+compatible with Python 3's ``asyncio`` features using AsyncPushbullet.
 
 .. code:: python
 
