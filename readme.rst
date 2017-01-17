@@ -64,6 +64,7 @@ Requirements
 
 -  The wonderful requests library.
 -  The magical python-magic library.
+-  The amazing aiohttp library (for Python 3.5+ and asyncio operations)
 
 Usage
 -----
