@@ -9,19 +9,13 @@ import json
 import logging
 import time
 
-import aiohttp
+import aiohttp  # pip install aiohttp
 
 from pushbullet import AsyncPushbullet
 from pushbullet import PushbulletError
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
-
-
-# https://docs.pushbullet.com/#realtime-event-stream
-
-# logging.basicConfig(level=logging.ERROR)
-# logging.getLogger(__name__).setLevel(logging.DEBUG)
 
 
 class WebsocketListener(object):
@@ -62,6 +56,9 @@ class WebsocketListener(object):
         :param on_message: callback for when a new message is received
         :param on_connect: callback for when the websocket is initially connected
         """
+        self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
+
+        # Data
         self.account = account
         self._ws = None  # type: aiohttp.ClientWebSocketResponse
         self._last_update = 0
@@ -73,16 +70,19 @@ class WebsocketListener(object):
         if on_message is not None:
             self.start_callbacks(on_message)
 
-        self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
-
     def close(self):
+        """
+        Disconnects from websocket and marks this listener as "closed,"
+        meaning it will cease to notify callbacks or operate in an "async for"
+        construct.
+        """
         if self._ws is not None:
             try:
                 self._ws.close()
             except Exception as e:
                 err_msg = "An error occurred while closing the websocket: {}".format(e)
                 self.log.warning(err_msg)
-                self.log.debug(err_msg, e)
+                self.log.debug(err_msg, e)  # Traceback in debug mode only
         self._ws = None
         self._closed = True
 
@@ -91,10 +91,12 @@ class WebsocketListener(object):
         Begins callbacks to func on the given event loop or the base event loop
         if none is provided.
 
-        The callback function will receive two parameters: the first is the
-        actual message, and the second is "this" listener.
+        The callback function will receive two parameters:
+            1.  the actual message being passed
+            2.  "this" listener
 
-        :param func: The callback function
+        :param func: the callback function
+        :param loop: optional event loop
         """
 
         async def _listen(func):
@@ -108,10 +110,10 @@ class WebsocketListener(object):
                             func(x, self)
                 except Exception as e:
                     self.log.warning("Ignoring exception in callback: {}".format(e))
-                    self.log.debug("Exception caught from callback: {}".format(e), e)
+                    self.log.debug("Exception caught from callback: {}".format(e), e)  # Traceback in debug mode only
                 finally:
                     if not self._closed:
-                        await asyncio.sleep(1)  # Throttle control
+                        await asyncio.sleep(1)  # Throttle restarts
 
         asyncio.ensure_future(_listen(func), loop=loop)
 
@@ -124,13 +126,14 @@ class WebsocketListener(object):
         if self._closed:
             raise StopAsyncIteration("This listener has closed.")
 
-        # Lazily connect websocket
+        # Lazily connect to websocket
         if self._ws is None or self._ws.closed:
             self._ws = None
             try:
+                # Connecting...
                 self.log.debug("Connecting to websocket...")
                 self._ws = await self.account._aio_session.ws_connect(
-                    self.WEBSOCKET_URL + self.account.api_key)  # type: aiohttp.ClientWebSocketResponse
+                    self.WEBSOCKET_URL + self.account.api_key)
                 self.log.debug("Connected to websocket {}".format(self._ws))
 
                 # Notify callback, if registered
@@ -166,7 +169,8 @@ class WebsocketListener(object):
             self.log.debug(err_msg)
             raise StopAsyncIteration(err_msg)
 
-        return msg
+        else:
+            return msg  # All is well - return message to async for loop
 
 
 class PushListener(WebsocketListener):
@@ -210,8 +214,8 @@ class PushListener(WebsocketListener):
         :param filter_inactive: default is to only include pushes that are active
         :param filter_dismissed: default is to only include pushes that are not dismissed
         """
-        WebsocketListener.__init__(self, account, on_message=on_message, on_connect=on_connect)
-        self._super_iter = None
+        WebsocketListener.__init__(self, account, on_message = on_message, on_connect = on_connect)
+        self._super_iter = None  # type: WebsocketListener
         self._most_recent_timestamp = account._most_recent_timestamp
         self._filter_inactive = filter_inactive
         self._filter_dismissed = filter_dismissed
@@ -254,3 +258,5 @@ class PushListener(WebsocketListener):
                     if len(self._pushes) > 0:
                         p = await self.__anext__()
                         return p
+
+        raise StopAsyncIteration()  # Async for loop is done

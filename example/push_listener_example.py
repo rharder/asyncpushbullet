@@ -4,7 +4,6 @@ Demonstrates how to consume new pushes in an asyncio for loop.
 """
 import asyncio
 import sys
-from pprint import pprint
 
 sys.path.append("..")  # Since examples are buried one level into source tree
 from pushbullet import AsyncPushbullet
@@ -18,6 +17,10 @@ HTTP_PROXY_HOST = None
 HTTP_PROXY_PORT = None
 
 
+# ################
+# Technique 1: async for ...
+#
+
 async def co_run(pb: AsyncPushbullet):
     async for p in PushListener(pb):
         print("Push received:", p)
@@ -26,25 +29,23 @@ async def co_run(pb: AsyncPushbullet):
 def main1():
     """ Uses the listener in an asynchronous for loop. """
     pb = AsyncPushbullet(API_KEY)
-
     asyncio.ensure_future(co_run(pb))
 
     loop = asyncio.get_event_loop()
     loop.run_forever()
 
 
-async def push_received(p: dict, listener: PushListener):
-    print("Push received:", p)
-    # # pprint(p)
-    # print("From: {}".format(p.get("sender_name")))
-    # print("Title: {}".format(p.get("title")))
-    # print("Body: {}".format(p.get("body")))
-    # print()
-
+# ################
+# Technique 2: Callbacks
+#
 
 async def connected(listener: PushListener):
     print("Connected to websocket")
     await listener.account.async_push_note("Connected to websocket", "Connected to websocket")
+
+
+async def push_received(p: dict, listener: PushListener):
+    print("Push received:", p)
 
 
 def main2():
@@ -62,6 +63,7 @@ if __name__ == '__main__':
             API_KEY = f.read().strip()
     try:
         main1()
+        # main2()
     except KeyboardInterrupt:
         print("Quitting")
         pass
