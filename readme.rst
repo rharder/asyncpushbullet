@@ -375,12 +375,14 @@ compatible with Python 3's ``asyncio`` features using AsyncPushbullet.
 .. code:: python
 
     async def some_method_you_have(self):
-        await self.apb.async_new_device("SomeCoolRobot")
+        dev = await self.apb.async_new_device("SomeCoolRobot")
+        # ...
 
 .. code:: python
 
     async def some_method_you_have(self):
         pushes = await self.apb.async_get_pushes(limit=5)
+        # ...
 
 .. code:: python
 
@@ -388,6 +390,7 @@ compatible with Python 3's ``asyncio`` features using AsyncPushbullet.
 
         async for p in PushListener(self.apb):
             print("New push received:", p)
+            # ...
 
 TODO
 ----
