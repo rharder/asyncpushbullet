@@ -19,7 +19,7 @@ def maybe_decode(s):
 
 try:
     import magic
-except ImportError:
+except Exception:
     import mimetypes
     get_file_type = _guess_file_type
 else:

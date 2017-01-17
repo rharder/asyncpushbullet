@@ -38,6 +38,12 @@ from its folder:
     cd pushbullet.py
     pip install -e .
 
+You might also be able to use this form:
+
+::
+
+    pip install git+https://github.com/rharder/pushbullet.py
+
 **RESUME ORIGINAL INSTRUCTIONS**
 
 The easiest way is to just open your favorite terminal and type
