@@ -214,7 +214,7 @@ class PushListener(WebsocketListener):
         :param filter_inactive: default is to only include pushes that are active
         :param filter_dismissed: default is to only include pushes that are not dismissed
         """
-        WebsocketListener.__init__(self, account, on_message = on_message, on_connect = on_connect)
+        super().__init__(account, on_message = on_message, on_connect = on_connect)
         self._super_iter = None  # type: WebsocketListener
         self._most_recent_timestamp = account._most_recent_timestamp
         self._filter_inactive = filter_inactive

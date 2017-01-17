@@ -9,7 +9,7 @@ from pushbullet import Pushbullet
 
 logging.basicConfig(level=logging.DEBUG)
 
-API_KEY = ''  # YOUR API KEY
+API_KEY = 'o.faRUBYgIUcXmaXHSwrPakO2T3J8UHG5A'  # YOUR API KEY
 HTTP_PROXY_HOST = None
 HTTP_PROXY_PORT = None
 

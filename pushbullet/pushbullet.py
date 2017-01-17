@@ -40,7 +40,7 @@ class Pushbullet(object):
 
         if proxy:
             if "https" not in [k.lower() for k in proxy.keys()]:
-                raise ConnectionError("You can only use HTTPS proxies!")
+                raise PushbulletError("You can only use HTTPS proxies!")
             self._session.proxies.update(proxy)
 
         self.refresh()
@@ -526,4 +526,4 @@ class Pushbullet(object):
         decrypted = decryptor.update(encrypted_message) + decryptor.finalize()
         decrypted = decrypted.decode()
 
-        return (decrypted)
+        return decrypted
