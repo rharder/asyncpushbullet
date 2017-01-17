@@ -29,8 +29,8 @@ def read(fname):
 setup(
     name = "pushbullet.py",
     version = version,
-    author = "Richard Borcsik",
-    author_email = "borcsikrichard@gmail.com",
+    author = "Richard Borcsik, Robert Harder",
+    author_email = "borcsikrichard@gmail.com, rob@iharder.net",
     description = ("A simple python client for pushbullet.com"),
     license = "MIT",
     keywords = "push android pushbullet notification",
