@@ -40,10 +40,9 @@ to install this async variant.  Instead, download this repository and install
 from its folder:
 
 ::
+
     git clone https://github.com/rharder/pushbullet.py.git
-
     cd pushbullet.py
-
     pip install -e .
 
 **RESUME ORIGINAL INSTRUCTIONS**
