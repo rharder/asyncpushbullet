@@ -1,19 +1,19 @@
 pushbullet.py
 =============
 
-.. image:: https://img.shields.io/travis/randomchars/pushbullet.py.svg?style=flat-square
-:target: https://travis-ci.org/randomchars/pushbullet.py
+.. image:: https://img.shields.io/travis/rharder/pushbullet.py.svg?style=flat-square
+:target: https://travis-ci.org/rharder/pushbullet.py
 
-.. image:: https://img.shields.io/coveralls/randomchars/pushbullet.py.svg?style=flat-square
-:target: https://coveralls.io/r/randomchars/pushbullet.py
+.. image:: https://img.shields.io/coveralls/rharder/pushbullet.py.svg?style=flat-square
+:target: https://coveralls.io/r/rharder/pushbullet.py
 
-.. image:: https://img.shields.io/pypi/dm/pushbullet.py.svg?style=flat-square
-:target: https://pypi.python.org/pypi?name=pushbullet.py&:action=display
+#.. image:: https://img.shields.io/pypi/dm/pushbullet.py.svg?style=flat-square
+#:target: https://pypi.python.org/pypi?name=pushbullet.py&:action=display
 
-.. image:: https://img.shields.io/pypi/v/pushbullet.py.svg?style=flat-square
-:target: https://pypi.python.org/pypi?name=pushbullet.py&:action=display
+#.. image:: https://img.shields.io/pypi/v/pushbullet.py.svg?style=flat-square
+#:target: https://pypi.python.org/pypi?name=pushbullet.py&:action=display
 
-.. image:: https://img.shields.io/pypi/l/pushbullet.py.svg
+#.. image:: https://img.shields.io/pypi/l/pushbullet.py.svg
 
 This is a python library for the wonderful
 `Pushbullet <https://www.pushbullet.com>`__ service. It allows you to
@@ -371,6 +371,7 @@ compatible with Python 3's ``asyncio`` features using AsyncPushbullet.
 
     def __init__(self):
         self.apb = AsyncPushbullet("your api key here")
+        # ...
 
 .. code:: python
 
