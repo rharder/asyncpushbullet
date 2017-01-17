@@ -2,16 +2,16 @@ pushbullet.py
 =============
 
 .. image:: https://img.shields.io/travis/randomchars/pushbullet.py.svg?style=flat-square
-    :target: https://travis-ci.org/randomchars/pushbullet.py
+:target: https://travis-ci.org/randomchars/pushbullet.py
 
 .. image:: https://img.shields.io/coveralls/randomchars/pushbullet.py.svg?style=flat-square
-    :target: https://coveralls.io/r/randomchars/pushbullet.py
+:target: https://coveralls.io/r/randomchars/pushbullet.py
 
 .. image:: https://img.shields.io/pypi/dm/pushbullet.py.svg?style=flat-square
-    :target: https://pypi.python.org/pypi?name=pushbullet.py&:action=display
+:target: https://pypi.python.org/pypi?name=pushbullet.py&:action=display
 
 .. image:: https://img.shields.io/pypi/v/pushbullet.py.svg?style=flat-square
-    :target: https://pypi.python.org/pypi?name=pushbullet.py&:action=display
+:target: https://pypi.python.org/pypi?name=pushbullet.py&:action=display
 
 .. image:: https://img.shields.io/pypi/l/pushbullet.py.svg
 
@@ -359,6 +359,34 @@ two are both subclasses of ``PushbulletError``
 
 The `pushbullet api documetation <https://www.pushbullet.com/api>`__
 contains a list of possible status codes.
+
+Asynchronous IO
+~~~~~~~~~~~~
+
+Many of the same methods that are available in the Pushbullet class are available in a form
+compatible with Python 3's asyncio features using AsyncPushbullet.
+
+.. code:: python
+
+    def __init__(self):
+        self.apb = AsyncPushbullet("your api key here")
+
+.. code:: python
+
+    async def some_method_you_have(self):
+        await self.apb.async_new_device("SomeCoolRobot")
+
+.. code:: python
+
+    async def some_method_you_have(self):
+        pushes = await self.apb.async_get_pushes(limit=5)
+
+.. code:: python
+
+    async def some_method_you_have(self):
+
+        async for p in PushListener(self.apb):
+            print("New push received:", p)
 
 TODO
 ----
