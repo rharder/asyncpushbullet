@@ -21,6 +21,7 @@ HTTP_PROXY_PORT = None
 logging.basicConfig(level=logging.ERROR)
 logging.getLogger("pushbullet.async_listeners").setLevel(logging.DEBUG)
 
+
 # ################
 # Technique 1: async for ...
 #
@@ -51,16 +52,11 @@ async def connected(listener: PushListener):
 async def push_received(p: dict, listener: PushListener):
     print("Push received:", p)
 
-async def second_callback(p: dict, listener: PushListener):
-    print("second_callback:", p)
-
 
 def main2():
     """ Uses a callback scheduled on an event loop"""
     pb = AsyncPushbullet(API_KEY, verify_ssl=False)
-    listener = PushListener(pb, on_connect=connected)#, on_message=push_received)
-    listener.start_callbacks(push_received)
-    listener.start_callbacks(second_callback)
+    listener = PushListener(pb, on_connect=connected, on_message=push_received)
 
     loop = asyncio.get_event_loop()
     loop.run_forever()

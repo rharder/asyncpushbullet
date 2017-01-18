@@ -47,7 +47,7 @@ class WebsocketListener(object):
 
     WEBSOCKET_URL = 'wss://stream.pushbullet.com/websocket/'
 
-    def __init__(self, account: AsyncPushbullet, on_message=None, on_connect=None):
+    def __init__(self, account: AsyncPushbullet, on_message=None, on_connect=None, loop=None):
         """
         Creates a new WebsocketListener, either as a standalone object or
         as part of an "async for" construct.
@@ -66,9 +66,10 @@ class WebsocketListener(object):
         self._closed = False
 
         # Callbacks
+        self._loop = loop
         self._on_connect = on_connect
         if on_message is not None:
-            self.start_callbacks(on_message)
+            self._start_callbacks(on_message, loop)
 
     def close(self):
         """
@@ -87,7 +88,7 @@ class WebsocketListener(object):
         self._ws = None
         self._closed = True
 
-    def start_callbacks(self, func, loop: asyncio.BaseEventLoop = None):
+    def _start_callbacks(self, func, loop: asyncio.BaseEventLoop = None):
         """
         Begins callbacks to func on the given event loop or the base event loop
         if none is provided.
