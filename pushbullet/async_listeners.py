@@ -77,6 +77,7 @@ class WebsocketListener(object):
         construct.
         """
         if self._ws is not None:
+            self.log.info("Closing websocket {}".format(self._ws))
             try:
                 self._ws.close()
             except Exception as e:
@@ -119,6 +120,8 @@ class WebsocketListener(object):
 
     def __aiter__(self):
         """ Called at the beginning of an "async for" construct. """
+        self.close()
+        self._closed = False  # Reset the websocket
         return self
 
     async def __anext__(self) -> aiohttp.WSMessage:
@@ -131,10 +134,10 @@ class WebsocketListener(object):
             self._ws = None
             try:
                 # Connecting...
-                self.log.debug("Connecting to websocket...")
+                self.log.info("Connecting to websocket...")
                 self._ws = await self.account._aio_session.ws_connect(
                     self.WEBSOCKET_URL + self.account.api_key)
-                self.log.debug("Connected to websocket {}".format(self._ws))
+                self.log.info("Connected to websocket {}".format(self._ws))
 
                 # Notify callback, if registered
                 if inspect.iscoroutinefunction(self._on_connect):
