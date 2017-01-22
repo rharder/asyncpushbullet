@@ -61,6 +61,9 @@ if __name__ == '__main__':
     if API_KEY == "":
         with open("../api_key.txt") as f:
             API_KEY = f.read().strip()
+    if API_KEY == "":
+        print("USAGE: {} apikey".format(__file__))
+        sys.exit(1)
     try:
         main1()
         # main2()
