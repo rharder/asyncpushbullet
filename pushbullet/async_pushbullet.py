@@ -12,24 +12,31 @@ __email__ = "rob@iharder.net"
 
 
 class AsyncPushbullet(Pushbullet):
-    def __init__(self, api_key: str, verify_ssl: bool = None, **kwargs):
+    def __init__(self, api_key: str, verify_ssl: bool = None, loop: asyncio.BaseEventLoop = None, **kwargs):
         Pushbullet.__init__(self, api_key, **kwargs)
+        self.loop = loop or asyncio.get_event_loop()
 
         # TODO: Proxies
         self._proxy = kwargs.get("proxy")  # type: dict
-        self._aio_session = None  # type: aiohttp.ClientSession
 
-        self._aio_connector = None
+        self._aio_session = None  # type: aiohttp.ClientSession
+        self._aio_connector = None  # type: aiohttp.BaseConnector
         if verify_ssl is not None and verify_ssl is False:
             self.log.info("SSL/TLS verification disabled")
             self._aio_connector = aiohttp.TCPConnector(verify_ssl=False)
 
-        asyncio.ensure_future(self.__aio__init__())  # Coroutine __init__
+        asyncio.run_coroutine_threadsafe(self.__aio__init__(), loop=self.loop)
 
     async def __aio__init__(self):
         headers = {"Access-Token": self.api_key}
         self._aio_session = aiohttp.ClientSession(headers=headers, connector=self._aio_connector)
         self.log.debug("Session created for aiohttp connections: {}".format(self._aio_session))
+
+    def close(self):
+        super().close()
+        async def _close():
+            self._aio_session.close()
+        asyncio.run_coroutine_threadsafe(_close(), loop=self.loop)
 
     # ################
     # IO Methods
@@ -99,7 +106,7 @@ class AsyncPushbullet(Pushbullet):
     #
 
     async def async_new_device(self, nickname: str, manufacturer: str = None,
-                               model: str = None, icon: str = "system", func=None) -> dict:
+                               model: str = None, icon: str = "system") -> dict:
         gen = self._new_device_generator(nickname, manufacturer=manufacturer, model=model, icon=icon)
         xfer = next(gen)  # Prep http params
         data = xfer["data"]
@@ -159,14 +166,14 @@ class AsyncPushbullet(Pushbullet):
                                              limit=limit, filter_inactive=filter_inactive)
         return pushes
 
-    async def async_dismiss_push(self, iden: str) -> dict:
+    async def async_dismiss_push(self, iden) -> dict:
         if type(iden) is dict and "iden" in iden:
             iden = iden["iden"]  # In case user passes entire push
         data = {"dismissed": "true"}
         msg = await self._async_post_data("{}/{}".format(self.PUSH_URL, iden), data=data)
         return msg
 
-    async def async_delete_push(self, iden: str) -> dict:
+    async def async_delete_push(self, iden) -> dict:
         if type(iden) is dict and "iden" in iden:
             iden = iden["iden"]  # In case user passes entire push
         msg = await self._async_delete_data("{}/{}".format(self.PUSH_URL, iden))

@@ -43,7 +43,13 @@ class Pushbullet(object):
                 raise PushbulletError("You can only use HTTPS proxies!")
             self._session.proxies.update(proxy)
 
-        self.refresh()
+        self._user_info = None  # type: dict
+        self._devices = None  # type: [Device]
+        self._chats = None  # type: [Chat]
+        self._channels = None  # type: [Channel]
+
+        # self.refresh()
+        self.get_pushes(limit=1)  # Find timestamp of most recent push
 
         self._encryption_key = None
         if encryption_password:
@@ -62,6 +68,10 @@ class Pushbullet(object):
                 backend=default_backend()
             )
             self._encryption_key = kdf.derive(encryption_password.encode("UTF-8"))
+
+    def close(self):
+        if self._session is not None:
+            self._session.close()
 
     # ################
     # IO Methods
@@ -191,38 +201,66 @@ class Pushbullet(object):
         self._load_channels()
         self.get_pushes(limit=1)
 
+    @property
+    def user_info(self):
+        """ :rtype: dict """
+        if self._user_info is None:
+            self._load_user_info()
+        return self._user_info
+
     def _load_user_info(self):
-        self.user_info = self._get_data(self.ME_URL)
+        self._user_info = self._get_data(self.ME_URL)
+
+    @property
+    def devices(self):
+        """ :rtype: [Device] """
+        if self._devices is None:
+            self._load_devices()
+        return self._devices
 
     def _load_devices(self):
-        self.devices = []
+        self._devices = []
         msg = self._get_data_with_pagination(self.DEVICES_URL, "devices", params={"active": "true"})
         device_list = msg.get('devices', [])
         for device_info in device_list:
             if device_info.get("active"):
                 d = Device(self, device_info)
                 self.devices.append(d)
-        self.log.info("Active devices found: {}".format(len(self.devices)))
+        self.log.info("Active devices found: {}".format(len(self._devices)))
+
+    @property
+    def chats(self):
+        """ :rtype: [Chat] """
+        if self._chats is None:
+            self._load_chats()
+        return self._chats
 
     def _load_chats(self):
-        self.chats = []
+        self._chats = []
         msg = self._get_data_with_pagination(self.CHATS_URL, "chats", params={"active": "true"})
         chat_list = msg.get('chats', [])
         for chat_info in chat_list:
             if chat_info.get("active"):
                 c = Chat(self, chat_info)
                 self.chats.append(c)
-        self.log.info("Active chats found: {}".format(len(self.chats)))
+        self.log.info("Active chats found: {}".format(len(self._chats)))
+
+    @property
+    def channels(self):
+        """ :rtype: [Channel] """
+        if self._channels is None:
+            self._load_channels()
+        return self._channels
 
     def _load_channels(self):
-        self.channels = []
+        self._channels = []
         msg = self._get_data_with_pagination(self.CHANNELS_URL, "channels", params={"active": "true"})
         channel_list = msg.get('channels', [])
         for channel_info in channel_list:
             if channel_info.get("active"):
                 c = Channel(self, channel_info)
                 self.channels.append(c)
-        self.log.info("Active channels found: {}".format(len(self.channels)))
+        self.log.info("Active channels found: {}".format(len(self._channels)))
 
     def get_device(self, nickname=None, iden=None):
         if nickname:
@@ -237,7 +275,7 @@ class Pushbullet(object):
     # Device
     #
 
-    def new_device(self, nickname, manufacturer=None, model=None, icon="system", func=None):
+    def new_device(self, nickname, manufacturer=None, model=None, icon="system"):
         gen = self._new_device_generator(nickname, manufacturer=manufacturer, model=model, icon=icon)
         xfer = next(gen)  # Prep http params
         data = xfer.get('data', {})
@@ -246,7 +284,7 @@ class Pushbullet(object):
         # log.info("Device created: {}".format(resp))
         return resp
 
-    def _new_device_generator(self, nickname, manufacturer=None, model=None, icon="system", func=None):
+    def _new_device_generator(self, nickname, manufacturer=None, model=None, icon="system"):
         data = {"nickname": nickname, "icon": icon}
         data.update({k: v for k, v in
                      (("model", model), ("manufacturer", manufacturer)) if v is not None})

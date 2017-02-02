@@ -47,7 +47,7 @@ class WebsocketListener(object):
 
     WEBSOCKET_URL = 'wss://stream.pushbullet.com/websocket/'
 
-    def __init__(self, account: AsyncPushbullet, on_message=None, on_connect=None, loop=None):
+    def __init__(self, account: AsyncPushbullet, on_message=None, on_connect=None, loop: asyncio.BaseEventLoop = None):
         """
         Creates a new WebsocketListener, either as a standalone object or
         as part of an "async for" construct.
@@ -64,12 +64,12 @@ class WebsocketListener(object):
         self._last_update = 0
         self._pushes = []
         self._closed = False
+        self.loop = loop or asyncio.get_event_loop()
 
         # Callbacks
-        self._loop = loop
         self._on_connect = on_connect
         if on_message is not None:
-            self._start_callbacks(on_message, loop)
+            self._start_callbacks(on_message)
 
     def close(self):
         """
@@ -88,7 +88,7 @@ class WebsocketListener(object):
         self._ws = None
         self._closed = True
 
-    def _start_callbacks(self, func, loop: asyncio.BaseEventLoop = None):
+    def _start_callbacks(self, func):
         """
         Begins callbacks to func on the given event loop or the base event loop
         if none is provided.
@@ -117,7 +117,7 @@ class WebsocketListener(object):
                     if not self._closed:
                         await asyncio.sleep(1)  # Throttle restarts
 
-        asyncio.ensure_future(_listen(func), loop=loop)
+        asyncio.run_coroutine_threadsafe(_listen(func), loop=self.loop)
 
     def __aiter__(self):
         """ Called at the beginning of an "async for" construct. """
@@ -148,6 +148,7 @@ class WebsocketListener(object):
 
             except PushbulletError as pe:
                 self.log.error("Could not connect to websocket.", pe)
+                self.close()
                 raise StopAsyncIteration(pe)
 
         try:
@@ -157,6 +158,7 @@ class WebsocketListener(object):
         except Exception as e:
             err_msg = "An error occurred while waiting on websocket messages: {}".format(e)
             self.log.error(err_msg, e)
+            self.close()
             raise StopAsyncIteration(e)
 
         # Process websocket message
@@ -207,7 +209,8 @@ class PushListener(WebsocketListener):
     """
 
     def __init__(self, account: AsyncPushbullet, on_message=None, on_connect=None,
-                 filter_inactive: bool = True, filter_dismissed: bool = True):
+                 filter_inactive: bool = True, filter_dismissed: bool = True,
+                 loop: asyncio.BaseEventLoop = None):
         """
         Creates a new PushtListener, either as a standalone object or
         as part of an "async for" construct.
@@ -218,11 +221,12 @@ class PushListener(WebsocketListener):
         :param filter_inactive: default is to only include pushes that are active
         :param filter_dismissed: default is to only include pushes that are not dismissed
         """
-        super().__init__(account, on_message = on_message, on_connect = on_connect)
+        super().__init__(account, on_message=on_message, on_connect=on_connect, loop=loop)
         self._super_iter = None  # type: WebsocketListener
         self._most_recent_timestamp = account._most_recent_timestamp
         self._filter_inactive = filter_inactive
         self._filter_dismissed = filter_dismissed
+
 
     def __aiter__(self):
         self._super_iter = super().__aiter__()
@@ -263,4 +267,5 @@ class PushListener(WebsocketListener):
                         p = await self.__anext__()
                         return p
 
+        self.close()
         raise StopAsyncIteration()  # Async for loop is done
