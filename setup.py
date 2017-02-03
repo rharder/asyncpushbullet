@@ -7,8 +7,16 @@ from setuptools import setup
 with open("./asyncpushbullet/__version__.py") as version_file:
     version = version_file.read().split("\"")[1]
 
+if sys.argv[-1] == 'test':
+    print("TEST")
+    os.system('python3 setup.py register -r pypitest')
+    os.system('python3 setup.py sdist upload -r pypitest')
+    sys.exit()
+
 if sys.argv[-1] == 'publish':
-    os.system('python setup.py sdist upload')
+    print("PUBLISH")
+    os.system('python3 setup.py register -r pypi')
+    os.system('python3 setup.py sdist upload -r pypi')
     sys.exit()
 
 install_reqs = [
@@ -30,12 +38,12 @@ setup(
     version = version,
     author = "Robert Harder, Richard Borcsik",
     author_email = "rob@iharder.net, borcsikrichard@gmail.com",
-    description = ("An asyncio-based python client for pushbullet.com"),
+    description = ("An asyncio-based client for pushbullet.com"),
     license = "MIT",
     keywords = "push android pushbullet notification",
     url = "https://github.com/rharder/asyncpushbullet",
     download_url="https://github.com/rharder/asyncpushbullet/tarball/" + version,
-    packages=['pushbullet'],
+    packages=['asyncpushbullet'],
     long_description=read('readme.rst'),
     classifiers=[
         "Development Status :: 4 - Beta",

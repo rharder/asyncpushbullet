@@ -1,12 +1,15 @@
 asyncpushbullet
 ===============
 
+.. image:: https://img.shields.io/pypi/pyversions/asyncpushbullet.svg
+    :target: https://pypi.python.org/pypi/asyncpushbullet
+    :alt: Python versions supported
+.. image:: https://img.shields.io/pypi/v/asyncpushbullet.svg
+    :target: https://pypi.python.org/pypi/asyncpushbullet
+    :alt: current version on PyPI
 .. image:: https://img.shields.io/travis/rharder/asyncpushbullet.svg?style=flat-square
     :target: https://travis-ci.org/rharder/asyncpushbullet
-
-.. image:: https://img.shields.io/coveralls/rharder/asyncpushbullet.svg?style=flat-square
-    :target: https://coveralls.io/r/rharder/asyncpushbullet
-
+    :alt: build status
 
 This is a python library for the wonderful
 `Pushbullet <https://www.pushbullet.com>`__ service. It allows you to
