@@ -4,7 +4,7 @@ import sys
 
 from setuptools import setup
 
-with open("./pushbullet/__version__.py") as version_file:
+with open("./asyncpushbullet/__version__.py") as version_file:
     version = version_file.read().split("\"")[1]
 
 if sys.argv[-1] == 'publish':
@@ -14,7 +14,6 @@ if sys.argv[-1] == 'publish':
 install_reqs = [
     "requests>=1.0.0",
     "python-magic",
-    "websocket-client",
     "aiohttp"
 ]
 
@@ -27,15 +26,15 @@ def read(fname):
         return ""
 
 setup(
-    name = "pushbullet.py",
+    name = "asyncpushbullet",
     version = version,
-    author = "Richard Borcsik, Robert Harder",
-    author_email = "borcsikrichard@gmail.com, rob@iharder.net",
-    description = ("A simple python client for pushbullet.com"),
+    author = "Robert Harder, Richard Borcsik",
+    author_email = "rob@iharder.net, borcsikrichard@gmail.com",
+    description = ("An asyncio-based python client for pushbullet.com"),
     license = "MIT",
     keywords = "push android pushbullet notification",
-    url = "https://github.com/rharder/pushbullet.py",
-    download_url="https://github.com/rharder/pushbullet.py/tarball/" + version,
+    url = "https://github.com/rharder/asyncpushbullet",
+    download_url="https://github.com/rharder/asyncpushbullet/tarball/" + version,
     packages=['pushbullet'],
     long_description=read('readme.rst'),
     classifiers=[
@@ -44,9 +43,9 @@ setup(
         "Programming Language :: Python",
         "Natural Language :: English",
         "License :: OSI Approved :: MIT License",
-        #"Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.6",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Utilities"
     ],

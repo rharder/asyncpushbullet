@@ -11,8 +11,8 @@ import time
 
 import aiohttp  # pip install aiohttp
 
-from pushbullet import AsyncPushbullet
-from pushbullet import PushbulletError
+from .async_pushbullet import AsyncPushbullet
+from .pushbullet import PushbulletError
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
@@ -226,7 +226,6 @@ class PushListener(WebsocketListener):
         self._most_recent_timestamp = account._most_recent_timestamp
         self._filter_inactive = filter_inactive
         self._filter_dismissed = filter_dismissed
-
 
     def __aiter__(self):
         self._super_iter = super().__aiter__()

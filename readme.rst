@@ -1,11 +1,11 @@
-pushbullet.py
-=============
+asyncpushbullet
+===============
 
-.. image:: https://img.shields.io/travis/rharder/pushbullet.py.svg?style=flat-square
-    :target: https://travis-ci.org/rharder/pushbullet.py
+.. image:: https://img.shields.io/travis/rharder/asyncpushbullet.svg?style=flat-square
+    :target: https://travis-ci.org/rharder/asyncpushbullet
 
-.. image:: https://img.shields.io/coveralls/rharder/pushbullet.py.svg?style=flat-square
-    :target: https://coveralls.io/r/rharder/pushbullet.py
+.. image:: https://img.shields.io/coveralls/rharder/asyncpushbullet.svg?style=flat-square
+    :target: https://coveralls.io/r/rharder/asyncpushbullet
 
 
 This is a python library for the wonderful
@@ -19,42 +19,18 @@ In order to use the API you need an API key that can be obtained
 `here <https://www.pushbullet.com/account>`__. This is user specific and
 is used instead of passwords.
 
+This is a fork of the synchronous-only `
+pushbullet.py <https://github.com/randomchars/pushbullet.py>`__ project from randomchars,
+which uses the ``pushbullet`` namespace.  This project uses ``asyncpushbullet``.
+
 Installation
 ------------
 
-**SUSPEND ORIGINAL INSTRUCTIONS**
+The easiest way is to just open your favorite terminal and type ::
 
-NOTE: This repository https://github.com/rharder/pushbullet.py is a fork from
-the original at https://github.com/randomchars/pushbullet.py.  This fork uses
-asyncio for connecting to the pushbullet websocket.  It requires Python v3.5+.
-Until/unless this fork can be integrating back into the randomchars version
-and the Python 2.7 support can be resolved, you cannot use ```pip install pushbullet.py```
-to install this async variant.  Instead, download this repository and install
-from its folder:
+    pip install asyncpushbullet
 
-::
-
-    git clone https://github.com/rharder/pushbullet.py.git
-    cd pushbullet.py
-    pip install -e .
-
-You might also be able to use this form:
-
-::
-
-    pip install git+https://github.com/rharder/pushbullet.py
-
-**RESUME ORIGINAL INSTRUCTIONS**
-
-The easiest way is to just open your favorite terminal and type
-
-::
-
-    pip install pushbullet.py
-
-Alternatively you can clone this repo and install it with
-
-::
+Alternatively you can clone this repo and install it with ::
 
     python setup.py install
 
@@ -63,7 +39,7 @@ Requirements
 
 -  The wonderful requests library.
 -  The magical python-magic library.
--  The amazing aiohttp library (for Python 3.5+ and asyncio operations)
+-  The amazing aiohttp library
 
 Usage
 -----
@@ -71,24 +47,34 @@ Usage
 Authentication
 ~~~~~~~~~~~~~~
 
-.. code:: python
+To create an ``AsyncPushbullet`` object: ::
 
-    from pushbullet import Pushbullet
-
-    pb = Pushbullet(api_key)
+    from asyncpushbullet import AsyncPushbullet
+    pb = AsyncPushbullet(api_key)
 
 If your key is invalid (that is, the Pushbullet API returns a ``401``), an ``InvalidKeyError`` is raised.
 
+``AsyncPushbullet`` will work on the current event loop ``asyncio.get_event_loop()`` if one is not
+specified in the constructor: ::
+
+    from asyncpushbullet import AsyncPushbullet
+    ioloop = asyncio.new_event_loop()
+    pb = AsyncPushbullet(api_key, loop=ioloop)
+
+
 Using a proxy
 ^^^^^^^^^^^^^
-When specified, all requests to the API will be made through the proxy. Note that the use of SOCKS proxies
-requires the ``requests[socks]`` package (``pip install requests[socks]`` to install), however HTTP proxies (w/ Basic Auth) work fine without the ``requests[socks]`` package. 
+When specified, all requests to the API will be made through the proxy.
+Note that the use of SOCKS proxies requires the ``requests[socks]`` package
+(``pip install requests[socks]`` to install), however HTTP proxies (w/ Basic Auth)
+work fine without the ``requests[socks]`` package.
 
-.. code:: python
+**Proxy support is untested in the new async version**
 
-    from pushbullet import Pushbullet
+::
 
-    pb = Pushbullet(api_key, proxy={"https": "https://user:pass@10.10.1.10:3128/"})
+    from asyncpushbullet import AsyncPushbullet
+    pb = AsyncPushbullet(api_key, proxy={"https": "https://user:pass@10.10.1.10:3128/"})
 
 Note that only HTTPS proxies work with Pushbullet.
 
@@ -98,88 +84,77 @@ Pushing things
 Pushing a text note
 ^^^^^^^^^^^^^^^^^^^
 
-.. code:: python
+::
 
-    push = pb.push_note("This is the title", "This is the body")
+    push = await pb.async_push_note("This is the title", "This is the body")
 
 ``push`` is a dictionary containing the data returned by the Pushbullet API.
 
 Pushing an address
 ^^^^^^^^^^^^^^^^^^
 
-.. code:: python
-
-    address = " 25 E 85th St, 10028 New York, NY"
-    push = pb.push_address("home", address)
+Pushing addresses is no longer supported by pushbullet.com and has been dropped in ``asyncpushbullet``.
 
 Pushing a list
 ^^^^^^^^^^^^^^
 
-.. code:: python
-
-    to_buy = ["milk", "bread", "cider"]
-    push = pb.push_list("Shopping list", to_buy)
+Pushing lists is no longer supported by pushbullet.com and has been dropped in ``asyncpushbullet``.
 
 Pushing a link
 ^^^^^^^^^^^^^^
 
-.. code:: python
+::
 
-    push = pb.push_link("Cool site", "https://github.com")
+    push = await pb.async_push_link("Cool site", "https://github.com")
 
 Pushing a file
 ^^^^^^^^^^^^^^
 
-Pushing files is a two part process. First you need to upload the file, and after that you can push it like you would anything else.
+Pushing files is a two part process.  First you need to upload the file, and after that
+you can push it like you would anything else.
 
-.. code:: python
+::
 
-    with open("my_cool_picture.jpg", "rb") as pic:
-        file_data = pb.upload_file(pic, "picture.jpg")
+    async def upload_my_file(pb: AsyncPushbullet, filename: str):
+        info = await pb.async_upload_file(filename)
 
-    push = pb.push_file(**file_data)
+        # Push as a file:
+        await pb.async_push_file(info["file_name"], info["file_url"], info["file_type"],
+                                 title="File Arrived!", body="Please enjoy your file")
 
-``upload_file`` returns a dictionary containing  ``file_type``, ``file_url`` and ``file_name`` keys. These are the same parameters that ``push_file`` take.
+        # or Push as a link:
+        await pb.async_push_link("Link to File Arrived!", info["file_url"], body="Please enjoy your file")
 
-
-The advantage of this is that if you already have a file uploaded somewhere, you can use that instead of uploading again. For example:
-
-
-.. code:: python
-
-    push = pb.push_file(file_url="https://i.imgur.com/IAYZ20i.jpg", file_name="cat.jpg", file_type="image/jpeg")
+``async_upload_file()`` returns a dictionary containing  ``file_type``, ``file_url`` and ``file_name`` keys,
+which are the same parameters that ``async_push_file()`` requires.
 
 Working with pushes
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
-You can also view all previous pushes:
+You can also view all previous pushes: ::
 
-.. code:: python
+    pushes = await pb.async_get_pushes()
 
-    pushes = pb.get_pushes()
-
-Pushes is a list containing dictionaries that have push data. You can use this data to dismiss notifications or delete pushes.
-
-.. code:: python
+Pushes is a list containing dictionaries that have push data.
+You can use this data to dismiss notifications or delete pushes. ::
 
     latest = pushes[0]
 
     # We already read it, so let's dismiss it
-    pb.dismiss_push(latest.get("iden"))
+    await pb.async_dismiss_push(latest.get("iden"))
 
-    # Now delete it
-    pb.delete_push(latest.get("iden"))
+    # And you can delete it
+    await pb.async_delete_push(latest.get("iden"))
 
 Both of these raise ``PushbulletError`` if there's an error.
 
-You can also delete all of your pushes:
+You can also delete all of your pushes (**be careful**): ::
 
-.. code:: python
+    await pb.async_delete_pushes()
 
-    pushes = pb.delete_pushes()
 
 Pushing to specific devices
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 So far all our pushes went to all connected devices, but there's a way to limit that.
 
@@ -303,14 +278,14 @@ Now we can use the chat objects like we did with `pb` or with the devices.:
 
 
 Adding new chats
-^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^
 
 .. code:: python
 
     bob = pb.new_chat("Bob", "bob@gmail.com")
 
 Editing chats
-^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^
 
 You can change the name of any chat:
 
@@ -319,7 +294,7 @@ You can change the name of any chat:
     bob = pb.edit_chat(bob, "bobby")
 
 Deleting chats
-^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^
 
 .. code:: python
 
@@ -361,7 +336,7 @@ The `pushbullet api documetation <https://www.pushbullet.com/api>`__
 contains a list of possible status codes.
 
 Asynchronous IO
-~~~~~~~~~~~~
+~~~~~~~~~~~~~~~
 
 Many of the same methods that are available in the Pushbullet class are available in a form
 compatible with Python 3's ``asyncio`` features using AsyncPushbullet.

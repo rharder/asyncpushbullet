@@ -2,9 +2,9 @@ import asyncio
 
 import aiohttp
 
-from pushbullet import Device
-from pushbullet.channel import Channel
-from pushbullet.chat import Chat
+from asyncpushbullet import Device
+from asyncpushbullet.channel import Channel
+from asyncpushbullet.chat import Chat
 from .pushbullet import Pushbullet, PushbulletError
 
 __author__ = "Robert Harder"
@@ -12,7 +12,7 @@ __email__ = "rob@iharder.net"
 
 
 class AsyncPushbullet(Pushbullet):
-    def __init__(self, api_key: str, verify_ssl: bool = None, loop: asyncio.BaseEventLoop = None, **kwargs):
+    def __init__(self, api_key: str, verify_ssl: bool = None, loop: asyncio.AbstractEventLoop = None, **kwargs):
         Pushbullet.__init__(self, api_key, **kwargs)
         self.loop = loop or asyncio.get_event_loop()
 
@@ -25,18 +25,18 @@ class AsyncPushbullet(Pushbullet):
             self.log.info("SSL/TLS verification disabled")
             self._aio_connector = aiohttp.TCPConnector(verify_ssl=False)
 
-        asyncio.run_coroutine_threadsafe(self.__aio__init__(), loop=self.loop)
+    async def aio_session(self) -> aiohttp.ClientSession:
+        if self._aio_session is None:
+            headers = {"Access-Token": self.api_key}
+            self._aio_session = aiohttp.ClientSession(headers=headers, connector=self._aio_connector)
+            self.log.debug("Session created for aiohttp connections: {}".format(self._aio_session))
+        return self._aio_session
 
-    async def __aio__init__(self):
-        headers = {"Access-Token": self.api_key}
-        self._aio_session = aiohttp.ClientSession(headers=headers, connector=self._aio_connector)
-        self.log.debug("Session created for aiohttp connections: {}".format(self._aio_session))
-
-    def close(self):
+    async def close(self):
         super().close()
-        async def _close():
-            self._aio_session.close()
-        asyncio.run_coroutine_threadsafe(_close(), loop=self.loop)
+        session = await self.aio_session()
+        session.close()
+        # asyncio.run_coroutine_threadsafe(_close(), loop=self.loop)
 
     # ################
     # IO Methods
@@ -50,12 +50,13 @@ class AsyncPushbullet(Pushbullet):
                 code = resp.status
                 msg = None
                 try:
-                    msg = await resp.json()
+                    if code != 204:  # No content
+                        msg = await resp.json()
                 except:
                     pass
                 finally:
                     if msg is None:
-                        msg = resp.text  # TODO: IS THIS THE RIGHT WAY TO GET TEXT
+                        msg = resp.text()
 
                 return self._interpret_response(code, resp.headers, msg)
         except Exception as e:
@@ -64,11 +65,8 @@ class AsyncPushbullet(Pushbullet):
             raise PushbulletError(err_msg, e)
 
     async def _async_get_data(self, url: str, **kwargs) -> dict:
-        if self._aio_session is None:
-            err_msg = "aiohttp session has not yet been created. Has the event loop had time to create it?"
-            self.log.error(err_msg)
-            raise PushbulletError(err_msg)
-        msg = await self._async_http(self._aio_session.get, url, **kwargs)
+        session = await self.aio_session()
+        msg = await self._async_http(session.get, url, **kwargs)
         return msg
 
     async def _async_get_data_with_pagination(self, url: str, item_name: str, **kwargs) -> dict:
@@ -82,19 +80,14 @@ class AsyncPushbullet(Pushbullet):
         return msg
 
     async def _async_post_data(self, url: str, **kwargs) -> dict:
-        if self._aio_session is None:
-            err_msg = "aiohttp session has not yet been created. Has the event loop had time to create it?"
-            self.log.error(err_msg)
-            raise PushbulletError(err_msg)
-        msg = await self._async_http(self._aio_session.post, url, **kwargs)
+        session = await self.aio_session()
+        msg = await self._async_http(session.post, url, **kwargs)
         return msg
 
     async def _async_delete_data(self, url: str, **kwargs) -> dict:
-        if self._aio_session is None:
-            err_msg = "aiohttp session has not yet been created. Has the event loop had time to create it?"
-            self.log.error(err_msg)
-            raise PushbulletError(err_msg)
-        msg = await self._async_http(self._aio_session.delete, url, **kwargs)
+        session = await self.aio_session()
+        msg = await self._async_http(session.delete, url, **kwargs)
+
         return msg
 
     async def _async_push(self, data: dict) -> dict:
@@ -210,6 +203,16 @@ class AsyncPushbullet(Pushbullet):
     #
 
     async def async_upload_file(self, file_path: str, file_type: str = None) -> dict:
+        """
+        Uploads a file to pushbullet storage and returns a dict with information
+        about how the uploaded file:
+
+        {"file_type": file_type, "file_url": file_url, "file_name": file_name}
+
+        :param file_path:
+        :param file_type:
+        :return:
+        """
         gen = self._upload_file_generator(file_path, file_type=file_type)
 
         xfer = next(gen)  # Prep request params
