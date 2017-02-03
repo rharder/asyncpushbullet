@@ -3,7 +3,7 @@ from __future__ import print_function
 import mock
 import time
 
-from pushbullet import chat
+from asyncpushbullet import chat
 
 
 class TestChats(object):

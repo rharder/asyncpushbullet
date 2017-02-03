@@ -3,7 +3,7 @@ from __future__ import print_function
 import mock
 import time
 
-from pushbullet import device
+from asyncpushbullet import device
 
 
 class TestDevices(object):

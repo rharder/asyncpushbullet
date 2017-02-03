@@ -3,7 +3,7 @@ from __future__ import print_function
 import mock
 import time
 
-from pushbullet import channel
+from asyncpushbullet import channel
 
 
 class TestChannels(object):

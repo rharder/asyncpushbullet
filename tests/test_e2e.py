@@ -1,7 +1,7 @@
 import os
 
 import pytest
-import pushbullet
+import asyncpushbullet
 from binascii import a2b_base64
 
 API_KEY = os.environ["PUSHBULLET_API_KEY"]

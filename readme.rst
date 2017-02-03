@@ -1,12 +1,16 @@
 asyncpushbullet
 ===============
 
+.. http://rst.ninjs.org/ Online reStructuredText editor
+
 .. image:: https://img.shields.io/pypi/pyversions/asyncpushbullet.svg
     :target: https://pypi.python.org/pypi/asyncpushbullet
     :alt: Python versions supported
+
 .. image:: https://img.shields.io/pypi/v/asyncpushbullet.svg
     :target: https://pypi.python.org/pypi/asyncpushbullet
     :alt: current version on PyPI
+
 .. image:: https://img.shields.io/travis/rharder/asyncpushbullet.svg?style=flat-square
     :target: https://travis-ci.org/rharder/asyncpushbullet
     :alt: build status

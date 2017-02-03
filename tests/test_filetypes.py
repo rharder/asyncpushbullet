@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from pushbullet import filetype
+from asyncpushbullet import filetype
 
 
 class TestFiletypes(object):
