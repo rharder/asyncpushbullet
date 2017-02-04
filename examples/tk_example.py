@@ -8,8 +8,8 @@ import sys
 from tkinter_tools import BindableTextArea
 
 sys.path.append("..")  # Since examples are buried one level into source tree
-from pushbullet import AsyncPushbullet
-from pushbullet.async_listeners import PushListener
+from asyncpushbullet import AsyncPushbullet
+from asyncpushbullet.async_listeners import PushListener
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
@@ -29,8 +29,6 @@ class PushApp():
         self.pushbullet = None  # type: AsyncPushbullet
         self.pushbullet_listener = None  # type: PushListener
         self.key_var = tk.StringVar()  # API key
-        # self.subject_var = tk.StringVar()
-        # self.message_var = tk.StringVar()
         self.pushes_var = tk.StringVar()
 
         # View / Control
@@ -38,8 +36,6 @@ class PushApp():
 
         # Connections
         self.key_var.set(API_KEY)
-        # self.subject_var.set("hello world")
-        # self.message_var.set("So long and thanks for all the fish.")
 
     def create_widgets(self):
         """
