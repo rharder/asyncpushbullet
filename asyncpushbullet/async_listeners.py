@@ -115,7 +115,7 @@ class WebsocketListener(object):
                     self.log.debug("Exception caught from callback: {}".format(e), e)  # Traceback in debug mode only
                 finally:
                     if not self._closed:
-                        await asyncio.sleep(1)  # Throttle restarts
+                        await asyncio.sleep(3)  # Throttle restarts
 
         asyncio.run_coroutine_threadsafe(_listen(func), loop=self.loop)
 
@@ -136,7 +136,8 @@ class WebsocketListener(object):
             try:
                 # Connecting...
                 self.log.info("Connecting to websocket...")
-                self._ws = await self.account._aio_session.ws_connect(
+                session = await self.account.aio_session()
+                self._ws = await session.ws_connect(
                     self.WEBSOCKET_URL + self.account.api_key)
                 self.log.info("Connected to websocket {}".format(self._ws))
 

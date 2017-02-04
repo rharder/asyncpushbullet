@@ -74,7 +74,7 @@ class PushApp():
         t.daemon = True
         t.start()
 
-        self.pushbullet = AsyncPushbullet(self.key_var.get(), loop=loop)
+        self.pushbullet = AsyncPushbullet(self.key_var.get(), loop=loop, verify_ssl=False)
         self.pushbullet_listener = PushListener(self.pushbullet,
                                                 on_connect=self.connected,
                                                 on_message=self.push_received,

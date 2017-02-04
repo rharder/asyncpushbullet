@@ -8,8 +8,8 @@ import sys
 import logging
 
 sys.path.append("..")  # Since examples are buried one level into source tree
-from pushbullet import AsyncPushbullet
-from pushbullet.async_listeners import PushListener
+from asyncpushbullet import AsyncPushbullet
+from asyncpushbullet.async_listeners import PushListener
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
@@ -33,7 +33,7 @@ async def co_run(pb: AsyncPushbullet):
 
 def main1():
     """ Uses the listener in an asynchronous for loop. """
-    pb = AsyncPushbullet(API_KEY)
+    pb = AsyncPushbullet(API_KEY, verify_ssl=False)
     asyncio.ensure_future(co_run(pb))
 
     loop = asyncio.get_event_loop()
@@ -67,8 +67,8 @@ if __name__ == '__main__':
         with open("../api_key.txt") as f:
             API_KEY = f.read().strip()
     try:
-        # main1()
-        main2()
+        main1()
+        # main2()
     except KeyboardInterrupt:
         print("Quitting")
         pass
