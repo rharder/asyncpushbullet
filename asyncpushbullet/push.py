@@ -13,6 +13,8 @@ from pprint import pprint
 
 import io
 
+from asyncpushbullet.filetype import get_file_type
+
 sys.path.append("..")
 from asyncpushbullet import Pushbullet, PushbulletError
 
@@ -21,6 +23,7 @@ API_KEY = ""  # YOUR API KEY
 
 # sys.argv.append("--list-devices")
 sys.argv += ["--file", __file__]
+sys.argv.append("--transfer.sh")
 
 
 # sys.argv.append("--quiet")
@@ -62,23 +65,37 @@ def do_main(args):
             print("File not found:", args.file, file=sys.stderr)
             sys.exit(3)
 
-        if not args.quiet:
-            print("Uploading file ... {}".format(args.file))
-        stats = pb.upload_file(args.file)
 
-        if not args.quiet:
-            print("Pushing file ... {}".format(stats["file_url"]))
-        dev = None
-        if args.device:
-            dev = pb.get_device(args.device)
-            if dev is None:
-                print("Could not find device named {}".format(args.device))
-                sys.exit(3)
-        resp = pb.push_file(file_name=stats["file_name"], file_type=stats["file_type"], file_url=stats["file_url"],
-                            title=args.title, body=args.body, device=dev)
 
-        if not args.quiet:
+        if args.transfer_sh:
+            if not args.quiet:
+                print("Uploading file via transfer.sh ... {}".format(args.file))
+            with open(args.file, "rb") as f:
+                file_name = os.path.basename(args.file)
+                resp = pb._post_data("https://transfer.sh/", files={file_name: f})
+                file_url = resp["raw"].strip()
+                file_type = get_file_type(f, args.file)
+                resp = pb.push_file(file_type=file_type, file_name=file_name,
+                                    file_url=file_url, title=args.title,
+                                    body=args.body)
             print(resp)
+
+        else:
+            if not args.quiet:
+                print("Uploading file to Pushbullet ... {}".format(args.file))
+            stats = pb.upload_file(args.file)
+            if not args.quiet:
+                print("Pushing file ... {}".format(stats["file_url"]))
+            dev = None
+            if args.device:
+                dev = pb.get_device(args.device)
+                if dev is None:
+                    print("Could not find device named {}".format(args.device))
+                    sys.exit(3)
+            resp = pb.push_file(file_name=stats["file_name"], file_type=stats["file_type"], file_url=stats["file_url"],
+                                title=args.title, body=args.body, device=dev)
+            if not args.quiet:
+                print(resp)
 
     # Push note
     else:
@@ -97,6 +114,7 @@ def parse_args():
     parser.add_argument("-b", "--body", help="Body of your push")
     parser.add_argument("-d", "--device", help="Destination device name")
     parser.add_argument("-f", "--file", help="Pathname to file to push")
+    parser.add_argument("--transfer.sh", dest="transfer_sh", action="store_true", help="Use transfer.sh website for uploading files (use with --file)")
     parser.add_argument("--list-devices", action="store_true", help="List registered device names")
     parser.add_argument("-q", "--quiet", action="store_true", help="Suppress all output")
 
