@@ -21,24 +21,29 @@ API_KEY = ""  # YOUR API KEY
 
 # sys.argv.append("--list-devices")
 sys.argv += ["--file", __file__]
+
+
 # sys.argv.append("--quiet")
 
 def main():
     args = parse_args()
     do_main(args)
 
+
 def do_main(args):
     global API_KEY
-
 
     # Key
     if args.key:
         API_KEY = args.key
     if API_KEY == "":
-        print("You must specify an API key, either at the command line or with the PUSHBULLET_API_KEY environment variable.", file=sys.stderr)
+        print(
+            "You must specify an API key, either at the command line or with the PUSHBULLET_API_KEY environment variable.",
+            file=sys.stderr)
         sys.exit(1)
 
     # Make connection
+    pb = None  # type: Pushbullet
     try:
         pb = Pushbullet(API_KEY)
     except PushbulletError as exc:
@@ -49,7 +54,7 @@ def do_main(args):
     if args.list_devices:
         print("Devices:")
         for dev in pb.devices:
-            print("\t",dev.nickname)
+            print("\t", dev.nickname)
 
     # Transfer file?
     elif args.file:
@@ -63,8 +68,14 @@ def do_main(args):
 
         if not args.quiet:
             print("Pushing file ... {}".format(stats["file_url"]))
+        dev = None
+        if args.device:
+            dev = pb.get_device(args.device)
+            if dev is None:
+                print("Could not find device named {}".format(args.device))
+                sys.exit(3)
         resp = pb.push_file(file_name=stats["file_name"], file_type=stats["file_type"], file_url=stats["file_url"],
-                            title=args.title, body=args.body)
+                            title=args.title, body=args.body, device=dev)
 
         if not args.quiet:
             print(resp)
@@ -78,17 +89,20 @@ def do_main(args):
         if not args.quiet:
             print(resp)
 
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-k", "--key", help="Your Pushbullet.com API key")
     parser.add_argument("-t", "--title", help="Title of your push")
     parser.add_argument("-b", "--body", help="Body of your push")
+    parser.add_argument("-d", "--device", help="Destination device name")
     parser.add_argument("-f", "--file", help="Pathname to file to push")
     parser.add_argument("--list-devices", action="store_true", help="List registered device names")
     parser.add_argument("-q", "--quiet", action="store_true", help="Suppress all output")
 
     args = parser.parse_args()
     return args
+
 
 @contextlib.contextmanager
 def nostdout():
@@ -97,13 +111,13 @@ def nostdout():
     yield
     sys.stdout = save_stdout
 
+
 if __name__ == "__main__":
     if API_KEY == "":
-        if "PUSHBULLET_API_KEY ZZZ" in os.environ:
+        if "PUSHBULLET_API_KEY" in os.environ:
             API_KEY = os.environ["PUSHBULLET_API_KEY"]
         else:
             api_file = os.path.join(os.path.dirname(__file__), "../api_key.txt")
             with open(api_file) as f:
                 API_KEY = f.read().strip()
     main()
-
