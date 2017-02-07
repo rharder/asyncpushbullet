@@ -223,7 +223,6 @@ class AsyncPushbullet(Pushbullet):
 
         data = xfer["data"]
         xfer["msg"] = await self._async_post_data(self.UPLOAD_REQUEST_URL, data=data)
-
         next(gen)  # Prep upload params
 
         data = xfer["data"]

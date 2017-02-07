@@ -89,10 +89,16 @@ class Pushbullet(object):
         finally:
             self._session.headers.update(self._json_header)  # Put JSON header back
 
+        code = resp.status_code
+        msg = None
         try:
-            msg = resp.json()
+            if code != 204:  # No content
+                msg = resp.json()
         except:
-            msg = resp.text
+            pass
+        finally:
+            if msg is None:
+                msg = resp.text
 
         return self._interpret_response(resp.status_code, resp.headers, msg)
 
@@ -471,12 +477,14 @@ class Pushbullet(object):
         gen = self._upload_file_generator(file_path, file_type=file_type)
         xfer = next(gen)  # Prep request params
 
-        data = json.dumps(xfer["data"])
+        # data = json.dumps(xfer["data"])
+        data = xfer["data"]
         xfer["msg"] = self._post_data(self.UPLOAD_REQUEST_URL, data=json.dumps(data))
         next(gen)  # Prep upload params
 
         with open(file_path, "rb") as f:
             xfer["msg"] = self._post_data(xfer["upload_url"], files={"file": f})
+
         return next(gen)  # Post process response
 
     def _upload_file_generator(self, file_path, file_type=None):
@@ -505,7 +513,7 @@ class Pushbullet(object):
                                         device=device, chat=chat, email=email, channel=channel)
         xfer = next(gen)  # Prep http params
         data = xfer.get("data")
-        xfer["msg"] = self._push(json.dumps(data))
+        xfer["msg"] = self._push(data)
         return next(gen)  # Post process response
 
     def _push_file_generator(self, file_name, file_url, file_type, body=None, title=None, device=None, chat=None,
