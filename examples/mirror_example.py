@@ -9,7 +9,7 @@ import subprocess
 import os, sys
 import time
 
-from pushbullet import PushBullet, Listener
+from asyncpushbullet import PushBullet, Listener
 
 class Mirrorer(object):
 

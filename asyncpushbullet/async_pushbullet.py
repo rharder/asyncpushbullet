@@ -19,22 +19,27 @@ class AsyncPushbullet(Pushbullet):
         # TODO: Proxies
         self._proxy = kwargs.get("proxy")  # type: dict
 
-
-        self._aio_session = None  # type: aiohttp.ClientSession
+        # self._aio_session = None  # type: aiohttp.ClientSession
+        self._aio_session = {}  # type: {asyncio.AbstractEventLoop:aiohttp.ClientSession}
         self._aio_connector = None  # type: aiohttp.BaseConnector
         if verify_ssl is not None and verify_ssl is False:
             self.log.info("SSL/TLS verification disabled")
             self._aio_connector = aiohttp.TCPConnector(verify_ssl=False)
 
     async def aio_session(self) -> aiohttp.ClientSession:
-        if self._aio_session is None:
+        loop = asyncio.get_event_loop()
+        session = None  # type: aiohttp.ClientSession
+
+        if self._aio_session.get(loop) is None:
             headers = {"Access-Token": self.api_key}
-            self._aio_session = aiohttp.ClientSession(headers=headers, connector=self._aio_connector)
-            self.log.debug("Session created for aiohttp connections: {}".format(self._aio_session))
+            session = aiohttp.ClientSession(headers=headers, connector=self._aio_connector, loop=loop)
+            self.log.debug("Session created for aiohttp connections: {}".format(session))
+            self._aio_session[loop] = session
 
             if self._most_recent_timestamp == 0:
                 await self.async_get_pushes(limit=1)
-        return self._aio_session
+
+        return session
 
     async def close(self):
         super().close()

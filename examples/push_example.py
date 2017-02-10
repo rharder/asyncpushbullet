@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from pushbullet import Pushbullet
+from asyncpushbullet import Pushbullet
 
 __author__ = "Robert Harder"
 __email__ = "rob@iharder.net"
