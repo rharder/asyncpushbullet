@@ -11,7 +11,7 @@ from functools import partial
 
 sys.path.append("..")  # Since examples are buried one level into source tree
 from asyncpushbullet import AsyncPushbullet
-from asyncpushbullet.async_listeners import PushListener
+from asyncpushbullet.async_listeners import WebsocketListener
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
@@ -29,8 +29,8 @@ logging.getLogger("pushbullet.async_listeners").setLevel(logging.DEBUG)
 #
 
 async def co_run(pb: AsyncPushbullet):
-    async for p in PushListener(pb):
-        print("Push received:", p)
+    async for ws_msg in WebsocketListener(pb):
+        print("ws msg received:", ws_msg)
 
 
 def main1():
@@ -46,49 +46,49 @@ def main1():
 # Technique 2: Callbacks
 #
 
-async def connected(listener: PushListener):
+async def connected(listener: WebsocketListener):
     print("Connected to websocket")
-    await listener.account.async_push_note("Connected to websocket", "Connected to websocket")
+    # await listener.account.async_push_note("Connected to websocket", "Connected to websocket")
 
 
-async def push_received(p: dict, listener: PushListener):
-    print("Push received:", p)
+async def ws_msg_received(ws_msg, listener: WebsocketListener):
+    print("ws_msg_received:", ws_msg)
 
 
 def main2():
     """ Uses a callback scheduled on an event loop"""
     pb = AsyncPushbullet(API_KEY, verify_ssl=False)
-    listener = PushListener(pb, on_connect=connected, on_message=push_received)
+    listener = WebsocketListener(pb, on_connect=connected, on_message=ws_msg_received)
 
     loop = asyncio.get_event_loop()
     loop.run_forever()
 
-
-def main3():
-
-    async def _print(*kargs, **kwargs):
-        loop = asyncio.get_event_loop()
-        print("[loop {}]".format(id(loop)), *kargs, **kwargs)
-
-    def _run(loop):
-        asyncio.set_event_loop(loop)
-        print("starting io loop", id(loop))
-        loop.run_forever()
-
-    ioloop = asyncio.new_event_loop()
-    ioloop.create_task(_print("I am ioloop"))
-    t = threading.Thread(target=partial(_run, ioloop))
-    t.daemon = True
-    t.start()
-
-
-    pb = AsyncPushbullet(API_KEY, verify_ssl=False, loop=ioloop)
-    listener = PushListener(pb, on_connect=connected, on_message=push_received)
-
-    loop = asyncio.get_event_loop()
-    loop.create_task(_print("i am main loop"))
-    print("starting main loop", id(loop))
-    loop.run_forever()
+#
+# def main3():
+#
+#     async def _print(*kargs, **kwargs):
+#         loop = asyncio.get_event_loop()
+#         print("[loop {}]".format(id(loop)), *kargs, **kwargs)
+#
+#     def _run(loop):
+#         asyncio.set_event_loop(loop)
+#         print("starting io loop", id(loop))
+#         loop.run_forever()
+#
+#     ioloop = asyncio.new_event_loop()
+#     ioloop.create_task(_print("I am ioloop"))
+#     t = threading.Thread(target=partial(_run, ioloop))
+#     t.daemon = True
+#     t.start()
+#
+#
+#     pb = AsyncPushbullet(API_KEY, verify_ssl=False, loop=ioloop)
+#     listener = PushListener(pb, on_connect=connected, on_message=ws_msg_received)
+#
+#     loop = asyncio.get_event_loop()
+#     loop.create_task(_print("i am main loop"))
+#     print("starting main loop", id(loop))
+#     loop.run_forever()
 
 
 if __name__ == '__main__':
@@ -97,8 +97,8 @@ if __name__ == '__main__':
             API_KEY = f.read().strip()
     try:
         # main1()
-        # main2()
-        main3()
+        main2()
+        # main3()
     except KeyboardInterrupt:
         print("Quitting")
         pass

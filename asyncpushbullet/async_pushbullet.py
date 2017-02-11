@@ -22,16 +22,22 @@ class AsyncPushbullet(Pushbullet):
         # self._aio_session = None  # type: aiohttp.ClientSession
         self._aio_session = {}  # type: {asyncio.AbstractEventLoop:aiohttp.ClientSession}
         self._aio_connector = None  # type: aiohttp.BaseConnector
-        if verify_ssl is not None and verify_ssl is False:
-            self.log.info("SSL/TLS verification disabled")
-            self._aio_connector = aiohttp.TCPConnector(verify_ssl=False)
+        self.verify_ssl = verify_ssl
 
     async def aio_session(self) -> aiohttp.ClientSession:
+        # Moving these functions toward the ability to operate
+        # on multiple event loops...
         loop = asyncio.get_event_loop()
-        session = None  # type: aiohttp.ClientSession
+        session = self._aio_session.get(loop)  # type: aiohttp.ClientSession
 
-        if self._aio_session.get(loop) is None:
+        if session is None:
             headers = {"Access-Token": self.api_key}
+
+            if self.verify_ssl is not None and self.verify_ssl is False:
+                self.log.info("SSL/TLS verification disabled")
+                self._aio_connector = aiohttp.TCPConnector(verify_ssl=False, loop=loop)
+
+            self.log.debug("Creating aiohttp session on loop {}".format(id(loop)))
             session = aiohttp.ClientSession(headers=headers, connector=self._aio_connector, loop=loop)
             self.log.debug("Session created for aiohttp connections: {}".format(session))
             self._aio_session[loop] = session
@@ -39,6 +45,7 @@ class AsyncPushbullet(Pushbullet):
             if self._most_recent_timestamp == 0:
                 await self.async_get_pushes(limit=1)
 
+        print("ZZZ session {} created on loop {}".format(id(session), id(loop)))
         return session
 
     async def close(self):

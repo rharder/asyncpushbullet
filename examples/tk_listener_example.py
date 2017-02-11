@@ -9,6 +9,8 @@ import asyncio
 import logging
 
 import sys
+from functools import partial
+
 from tkinter_tools import BindableTextArea
 
 sys.path.append("..")  # Since examples are buried one level into source tree
@@ -73,20 +75,25 @@ class PushApp():
         if self.pushbullet_listener is not None:
             self.pushbullet_listener.close()
 
-        loop = asyncio.new_event_loop()
-        t = threading.Thread(target=lambda: loop.run_forever())
+        def _run(loop):
+            asyncio.set_event_loop(loop)
+            loop.run_forever()
+        ioloop = asyncio.new_event_loop()
+        t = threading.Thread(target=partial(_run, ioloop))
         t.daemon = True
         t.start()
+        print("main loop", id(asyncio.get_event_loop()))
+        print("ioloop", id(ioloop))
 
-        self.pushbullet = AsyncPushbullet(self.key_var.get(), loop=loop, verify_ssl=False)
+        self.pushbullet = AsyncPushbullet(self.key_var.get(), loop=ioloop, verify_ssl=False)
         self.pushbullet_listener = PushListener(self.pushbullet,
                                                 on_connect=self.connected,
-                                                on_message=self.push_received,
-                                                loop=loop)
+                                                on_message=self.push_received)
 
 
     async def connected(self, listener: PushListener):
-        await listener.account.async_push_note("Connected to websocket", "Connected to websocket")
+        print("Connected to websocket")
+        # await listener.account.async_push_note("Connected to websocket", "Connected to websocket")
 
     async def push_received(self, p: dict, listener: PushListener):
         print("Push received:", p)

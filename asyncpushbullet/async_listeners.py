@@ -133,7 +133,8 @@ class WebsocketListener(object):
         # Lazily connect to websocket
         if self._ws is None or self._ws.closed:
             self._ws = None
-            try:
+            # try:
+            if True:
                 # Connecting...
                 self.log.info("Connecting to websocket...")
                 session = await self.account.aio_session()
@@ -146,10 +147,10 @@ class WebsocketListener(object):
                 elif callable(self._on_connect):
                     self._on_connect(self)
 
-            except PushbulletError as pe:
-                self.log.error("Could not connect to websocket.", pe)
-                self.close()
-                raise StopAsyncIteration(pe)
+            # except PushbulletError as pe:
+            #     self.log.error("Could not connect to websocket.", pe)
+            #     self.close()
+            #     raise StopAsyncIteration(pe)
 
         try:
             # Wait for websocket message
@@ -209,8 +210,7 @@ class PushListener(object):
     """
 
     def __init__(self, account: AsyncPushbullet, on_message=None, on_connect=None,
-                 filter_inactive: bool = True, filter_dismissed: bool = True,
-                 loop: asyncio.BaseEventLoop = None):
+                 filter_inactive: bool = True, filter_dismissed: bool = True):
         """
         Creates a new PushtListener, either as a standalone object or
         as part of an "async for" construct.
@@ -228,10 +228,9 @@ class PushListener(object):
         self._filter_inactive = filter_inactive
         self._filter_dismissed = filter_dismissed
         self._pushes = []
-        self.ws_listener = WebsocketListener(account=account, loop=loop)
+        # self.ws_listener = WebsocketListener(account=account, loop=self.account.loop)
 
         self._closed = False
-        self.loop = loop or asyncio.get_event_loop()
 
         # Callbacks
         self._on_connect = on_connect
@@ -252,7 +251,7 @@ class PushListener(object):
         else:
             while not self._closed:
 
-                async for ws_msg in self.ws_listener:  # Get tickle from websocket
+                async for ws_msg in WebsocketListener(self.account):  # Get tickle from websocket
 
                     # Look for websocket message announcing new pushes
                     data = json.loads(ws_msg.data)
@@ -294,20 +293,21 @@ class PushListener(object):
         async def _listen(func):
             """ Internal use only """
             while not self._closed:
-                try:
-                    async for ws_msg in self:
-                        if inspect.iscoroutinefunction(func):
-                            await func(ws_msg, self)
-                        else:
-                            func(ws_msg, self)
-                except Exception as e:
-                    self.log.warning("Ignoring exception in callback: {}".format(e))
-                    self.log.debug("Exception caught from callback: {}".format(e), e)  # Traceback in debug mode only
-                finally:
-                    if not self._closed:
-                        await asyncio.sleep(3)  # Throttle restarts
+                # try:
+                async for push in self:
+                    if inspect.iscoroutinefunction(func):
+                        await func(push, self)
+                    else:
+                        func(push, self)
+                # except Exception as e:
+                #     self.log.warning("Ignoring exception in callback: {}".format(e))
+                #     self.log.debug("Exception caught from callback: {}".format(e), e)  # Traceback in debug mode only
+                # finally:
+                print("ZZZ finally")
+                if not self._closed:
+                    await asyncio.sleep(3)  # Throttle restarts
 
-        asyncio.run_coroutine_threadsafe(_listen(func), loop=self.loop)
+        asyncio.run_coroutine_threadsafe(_listen(func), loop=self.account.loop)
 
     def close(self):
         """

@@ -42,6 +42,7 @@ class PushApp():
 
         # Connections
         self.key_var.set(API_KEY)
+        self.filename_var.set(__file__)
 
     def create_widgets(self):
         """
