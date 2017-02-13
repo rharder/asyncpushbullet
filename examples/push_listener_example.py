@@ -96,9 +96,9 @@ if __name__ == '__main__':
         with open("../api_key.txt") as f:
             API_KEY = f.read().strip()
     try:
-        # main1()
+        main1()
         # main2()
-        main3()
+        # main3()
     except KeyboardInterrupt:
         print("Quitting")
         pass

@@ -34,7 +34,7 @@ class Pushbullet(object):
 
         self.__session = None  # type: requests.Session
         self._json_header = {'Content-Type': 'application/json'}
-        self._most_recent_timestamp = 0
+        self.most_recent_timestamp = 0.0  # type: float
 
         if proxy:
             if "https" not in [k.lower() for k in proxy.keys()]:
@@ -410,13 +410,13 @@ class Pushbullet(object):
 
         msg = xfer.get('msg', {})
         pushes_list = msg.get("pushes", [])
-        if len(pushes_list) > 0 and pushes_list[0].get('modified', 0) > self._most_recent_timestamp:
-            self._most_recent_timestamp = pushes_list[0]['modified']
+        if len(pushes_list) > 0 and pushes_list[0].get('modified', 0) > self.most_recent_timestamp:
+            self.most_recent_timestamp = pushes_list[0]['modified']
 
         yield pushes_list
 
     def get_new_pushes(self, limit=None, filter_inactive=True):
-        return self.get_pushes(modified_after=self._most_recent_timestamp,
+        return self.get_pushes(modified_after=self.most_recent_timestamp,
                                limit=limit, filter_inactive=filter_inactive)
 
     def dismiss_push(self, iden):

@@ -37,13 +37,16 @@ class AsyncPushbullet(Pushbullet):
                 self.log.info("SSL/TLS verification disabled")
                 aio_connector = aiohttp.TCPConnector(verify_ssl=False, loop=loop)
 
-            self.log.debug("Creating aiohttp session on loop {}".format(id(loop)))
+            # self.log.debug("Creating aiohttp session on loop {}".format(id(loop)))
             session = aiohttp.ClientSession(headers=headers, connector=aio_connector)#, loop=loop)
-            self.log.debug("aiohttp session created on loop {}".format(id(loop)))
+            self.log.debug("Created aiohttp session {} on loop {}".format(id(session), id(loop)))
             self._aio_session[loop] = session  # Save session for this loop
 
-            if self._most_recent_timestamp == 0:
-                await self.async_get_pushes(limit=1)
+            if self.most_recent_timestamp == 0:
+                await self.async_get_pushes(limit=1)  # May throw invalid key error here
+
+            else:
+                self.log.debug("Retrieved aiohttp session {} on loop {}".format(id(session), id(loop)))
 
         return session
 
@@ -179,7 +182,7 @@ class AsyncPushbullet(Pushbullet):
         return next(gen)  # Post process response
 
     async def async_get_new_pushes(self, limit: int = None, filter_inactive: bool = True) -> [dict]:
-        pushes = await self.async_get_pushes(modified_after=self._most_recent_timestamp,
+        pushes = await self.async_get_pushes(modified_after=self.most_recent_timestamp,
                                              limit=limit, filter_inactive=filter_inactive)
         return pushes
 

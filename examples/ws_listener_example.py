@@ -20,7 +20,7 @@ API_KEY = ""  # YOUR API KEY
 HTTP_PROXY_HOST = None
 HTTP_PROXY_PORT = None
 
-# logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
 # logging.getLogger("pushbullet.async_listeners").setLevel(logging.DEBUG)
 
 
@@ -37,6 +37,11 @@ def main1():
     """ Uses the listener in an asynchronous for loop. """
     pb = AsyncPushbullet(API_KEY, verify_ssl=False)
     asyncio.ensure_future(co_run(pb))
+
+    # async def _timeout():
+    #     await asyncio.sleep(2)
+    #     pb.close()
+    # asyncio.ensure_future(_timeout())
 
     loop = asyncio.get_event_loop()
     loop.run_forever()
@@ -59,6 +64,12 @@ def main2():
     """ Uses a callback scheduled on an event loop"""
     pb = AsyncPushbullet(API_KEY, verify_ssl=False)
     listener = WebsocketListener(pb, on_connect=connected, on_message=ws_msg_received)
+
+    async def _timeout():
+        await asyncio.sleep(2)
+        print("ZZZ _timeout() listener.close()...")
+        listener.close()
+    asyncio.ensure_future(_timeout())
 
     loop = asyncio.get_event_loop()
     loop.run_forever()
