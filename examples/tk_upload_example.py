@@ -10,6 +10,9 @@ import asyncio
 import logging
 
 import sys
+from functools import partial
+from tkinter import filedialog
+
 from tkinter_tools import BindableTextArea
 
 sys.path.append("..")  # Since examples are buried one level into source tree
@@ -31,11 +34,13 @@ class PushApp():
         self.log = logging.getLogger(__name__)
 
         # Data
+        self.ioloop = None  # type: asyncio.AbstractEventLoop
         self.pushbullet = None  # type: AsyncPushbullet
         self.pushbullet_listener = None  # type: PushListener
         self.key_var = tk.StringVar()  # API key
         self.pushes_var = tk.StringVar()
         self.filename_var = tk.StringVar()
+        self.btn_upload = None  # type: tk.Button
 
         # View / Control
         self.create_widgets()
@@ -77,12 +82,13 @@ class PushApp():
 
         # <Browse>  <Upload>
         button_frame = tk.Frame(self.window)
-        button_frame.grid(row=row,column=0, columnspan=2, sticky=tk.W + tk.E)
+        button_frame.grid(row=row, column=0, columnspan=2, sticky=tk.W + tk.E)
         row += 1
         btn_browse = tk.Button(button_frame, text="Browse...", command=self.browse_button_clicked)
         btn_browse.grid(row=0, column=0, sticky=tk.E)
-        btn_upload = tk.Button(button_frame, text="Upload and Push", command=self.upload_button_clicked)
-        btn_upload.grid(row=0, column=1, sticky=tk.W)
+        self.btn_upload = tk.Button(button_frame, text="Upload and Push", command=self.upload_button_clicked,
+                               state=tk.DISABLED)
+        self.btn_upload.grid(row=0, column=1, sticky=tk.W)
 
         # Incoming pushes
         # +------------+
@@ -94,37 +100,60 @@ class PushApp():
         txt_data = BindableTextArea(self.window, textvariable=self.pushes_var, width=80, height=10)
         txt_data.grid(row=row, column=0, columnspan=2)
 
-
-
     def connect_button_clicked(self):
+        self.pushes_var.set("Connecting...")
+
         if self.pushbullet is not None:
             self.pushbullet.close()
             self.pushbullet = None
         if self.pushbullet_listener is not None:
             self.pushbullet_listener.close()
+            self.pushbullet_listener = None
 
-        loop = asyncio.new_event_loop()
-        def _run():
+        def _run(loop):
             asyncio.set_event_loop(loop)
             loop.run_forever()
-        t = threading.Thread(target=_run)
+
+        self.ioloop = asyncio.new_event_loop()
+        t = threading.Thread(target=partial(_run, self.ioloop))
         t.daemon = True
         t.start()
 
-        self.pushbullet = AsyncPushbullet(self.key_var.get(), loop=loop, verify_ssl=False)
+
+        self.pushbullet = AsyncPushbullet(self.key_var.get(), loop=self.ioloop, verify_ssl=False)
         self.pushbullet_listener = PushListener(self.pushbullet,
                                                 on_connect=self.connected,
-                                                on_message=self.push_received,
-                                                loop=loop)
+                                                on_message=self.push_received)
 
     def browse_button_clicked(self):
         print("browse_button_clicked")
+        resp = filedialog.askopenfilename(parent=self.window, title="Open a File to Push")
+        if resp != "":
+            self.filename_var.set(resp)
 
     def upload_button_clicked(self):
-        print("upload_button_clicked")
+        self.pushes_var.set(self.pushes_var.get() + "Uploading...")
+        self.btn_upload["state"] = tk.DISABLED
+        filename = self.filename_var.get()
+        asyncio.run_coroutine_threadsafe(self.upload_file(filename), loop=self.ioloop)
+
+
+    async def upload_file(self, filename: str):
+        info = await self.pushbullet.async_upload_file(filename)
+
+        # Push as a file:
+        await self.pushbullet.async_push_file(info["file_name"], info["file_url"], info["file_type"],
+                                 title="File Arrived!", body="Please enjoy your file")
+
+        # Push as a link:
+        await self.pushbullet.async_push_link("Link to File Arrived!", info["file_url"], body="Please enjoy your file")
+        self.btn_upload["state"] = tk.NORMAL
+        self.pushes_var.set(self.pushes_var.get() + "Uploaded\n")
+
 
     async def connected(self, listener: PushListener):
-        await listener.account.async_push_note("Connected to websocket", "Connected to websocket")
+        self.btn_upload["state"] = tk.NORMAL
+        self.pushes_var.set(self.pushes_var.get() + "Connected\n")
 
     async def push_received(self, p: dict, listener: PushListener):
         print("Push received:", p)
