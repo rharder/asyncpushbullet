@@ -8,6 +8,7 @@ API_KEY = os.environ["PUSHBULLET_API_KEY"]
 def test_auth_fail():
     with pytest.raises(asyncpushbullet.InvalidKeyError) as exinfo:
         pb = asyncpushbullet.Pushbullet("faultykey")
+        pb.session  # Triggers a connection
 
 
 def test_auth_success():
