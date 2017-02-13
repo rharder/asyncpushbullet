@@ -32,24 +32,19 @@ class Pushbullet(object):
         self.api_key = api_key
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
+        self.__session = None  # type: requests.Session
         self._json_header = {'Content-Type': 'application/json'}
-        self._session = requests.Session()
-        self._session.auth = (self.api_key, "")
-        self._session.headers.update(self._json_header)
         self._most_recent_timestamp = 0
 
         if proxy:
             if "https" not in [k.lower() for k in proxy.keys()]:
                 raise PushbulletError("You can only use HTTPS proxies!")
-            self._session.proxies.update(proxy)
+            self.session.proxies.update(proxy)
 
         self._user_info = None  # type: dict
         self._devices = None  # type: [Device]
         self._chats = None  # type: [Chat]
         self._channels = None  # type: [Channel]
-
-        # self.refresh()
-        self.get_pushes(limit=1)  # Find timestamp of most recent push
 
         self._encryption_key = None
         if encryption_password:
@@ -70,8 +65,23 @@ class Pushbullet(object):
             self._encryption_key = kdf.derive(encryption_password.encode("UTF-8"))
 
     def close(self):
-        if self._session is not None:
-            self._session.close()
+        if self.session is not None:
+            self.session.close()
+
+    @property
+    def session(self):
+        """ Creates the http session upon first use. """
+
+        if self.__session is None:
+            # Set up session
+            self.__session = requests.Session()
+            self.__session.auth = (self.api_key, "")
+            self.__session.headers.update(self._json_header)
+
+            # Find most recent push's timestamp
+            self.get_pushes(limit=1)  # Find timestamp of most recent push
+
+        return self.__session
 
     # ################
     # IO Methods
@@ -82,12 +92,12 @@ class Pushbullet(object):
 
         # If uploading a file, temporarily remove JSON header
         if "files" in kwargs:
-            del self._session.headers["Content-Type"]
+            del self.session.headers["Content-Type"]
         # Do HTTP
         try:
             resp = func(url, **kwargs)
         finally:
-            self._session.headers.update(self._json_header)  # Put JSON header back
+            self.session.headers.update(self._json_header)  # Put JSON header back
 
         code = resp.status_code
         msg = None
@@ -127,7 +137,7 @@ class Pushbullet(object):
 
     def _get_data(self, url, **kwargs):
         """ HTTP GET """
-        msg = self._http(self._session.get, url, **kwargs)
+        msg = self._http(self.session.get, url, **kwargs)
         return msg
 
     def _get_data_with_pagination(self, url, item_name, **kwargs):
@@ -168,12 +178,12 @@ class Pushbullet(object):
 
     def _post_data(self, url, **kwargs):
         """ HTTP POST """
-        msg = self._http(self._session.post, url, **kwargs)
+        msg = self._http(self.session.post, url, **kwargs)
         return msg
 
     def _delete_data(self, url, **kwargs):
         """ HTTP DELETE """
-        msg = self._http(self._session.delete, url, **kwargs)
+        msg = self._http(self.session.delete, url, **kwargs)
         return msg
 
     def _push(self, data):
