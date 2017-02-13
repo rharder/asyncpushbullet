@@ -78,6 +78,7 @@ class PushApp():
         def _run(loop):
             asyncio.set_event_loop(loop)
             loop.run_forever()
+
         ioloop = asyncio.new_event_loop()
         t = threading.Thread(target=partial(_run, ioloop))
         t.daemon = True
@@ -90,10 +91,8 @@ class PushApp():
                                                 on_connect=self.connected,
                                                 on_message=self.push_received)
 
-
     async def connected(self, listener: PushListener):
         print("Connected to websocket")
-        # await listener.account.async_push_note("Connected to websocket", "Connected to websocket")
 
     async def push_received(self, p: dict, listener: PushListener):
         print("Push received:", p)
@@ -105,9 +104,6 @@ class PushApp():
 def main():
     tk1 = tk.Tk()
     program1 = PushApp(tk1)
-
-    # tk2 = tk.Toplevel()
-    # program2 = PushApp(tk2)
 
     tk1.mainloop()
 

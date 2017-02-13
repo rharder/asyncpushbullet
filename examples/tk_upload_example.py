@@ -24,7 +24,8 @@ __email__ = "rob@iharder.net"
 
 API_KEY = ""  # YOUR API KEY
 
-logging.basicConfig(level=logging.DEBUG)
+
+# logging.basicConfig(level=logging.DEBUG)
 
 
 class PushApp():
@@ -87,7 +88,7 @@ class PushApp():
         btn_browse = tk.Button(button_frame, text="Browse...", command=self.browse_button_clicked)
         btn_browse.grid(row=0, column=0, sticky=tk.E)
         self.btn_upload = tk.Button(button_frame, text="Upload and Push", command=self.upload_button_clicked,
-                               state=tk.DISABLED)
+                                    state=tk.DISABLED)
         self.btn_upload.grid(row=0, column=1, sticky=tk.W)
 
         # Incoming pushes
@@ -119,7 +120,6 @@ class PushApp():
         t.daemon = True
         t.start()
 
-
         self.pushbullet = AsyncPushbullet(self.key_var.get(), loop=self.ioloop, verify_ssl=False)
         self.pushbullet_listener = PushListener(self.pushbullet,
                                                 on_connect=self.connected,
@@ -137,19 +137,17 @@ class PushApp():
         filename = self.filename_var.get()
         asyncio.run_coroutine_threadsafe(self.upload_file(filename), loop=self.ioloop)
 
-
     async def upload_file(self, filename: str):
         info = await self.pushbullet.async_upload_file(filename)
 
         # Push as a file:
         await self.pushbullet.async_push_file(info["file_name"], info["file_url"], info["file_type"],
-                                 title="File Arrived!", body="Please enjoy your file")
+                                              title="File Arrived!", body="Please enjoy your file")
 
         # Push as a link:
         await self.pushbullet.async_push_link("Link to File Arrived!", info["file_url"], body="Please enjoy your file")
         self.btn_upload["state"] = tk.NORMAL
         self.pushes_var.set(self.pushes_var.get() + "Uploaded\n")
-
 
     async def connected(self, listener: PushListener):
         self.btn_upload["state"] = tk.NORMAL
@@ -165,9 +163,6 @@ class PushApp():
 def main():
     tk1 = tk.Tk()
     program1 = PushApp(tk1)
-
-    # tk2 = tk.Toplevel()
-    # program2 = PushApp(tk2)
 
     tk1.mainloop()
 
