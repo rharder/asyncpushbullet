@@ -29,7 +29,7 @@ logging.basicConfig(level=logging.DEBUG)
 #
 
 async def co_run(pb: AsyncPushbullet):
-    async for ws_msg in WebsocketListener(pb):
+    async for ws_msg in WebsocketListener(pb):  # type: dict
         print("ws msg received:", ws_msg)
 
 
@@ -56,7 +56,7 @@ async def connected(listener: WebsocketListener):
     # await listener.account.async_push_note("Connected to websocket", "Connected to websocket")
 
 
-async def ws_msg_received(ws_msg, listener: WebsocketListener):
+async def ws_msg_received(ws_msg:dict, listener: WebsocketListener):
     print("ws_msg_received:", ws_msg)
 
 
