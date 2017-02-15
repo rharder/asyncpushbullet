@@ -8,9 +8,11 @@ import json
 import logging
 import os
 import sys
+import textwrap
 import time
 
 from asyncpushbullet import PushListener
+from asyncpushbullet import PushbulletError
 
 sys.path.append("..")
 from asyncpushbullet import AsyncPushbullet
@@ -19,21 +21,12 @@ __author__ = "Robert Harder"
 __email__ = "rob@iHarder.net"
 __encoding__ = "utf-8"
 
-API_KEY = ""  # YOUR API KEY
+# sys.argv.append("-h")
+# sys.argv += ["-k", "badkey"]
+# sys.argv += ["--key-file", "../api_key.txt"]
 
-# logging.basicConfig(level=logging.DEBUG)
-
-# sys.argv.append("--list-devices")
-# sys.argv += ["--file", __file__]
-# sys.argv.append("--transfer.sh")
-
-# sys.argv += ["--exec", "c:\\windows\\system32\\calc.exe"]
-# sys.argv += ["--exec", r"c:\python35\python.exe",
-#              r"C:\Users\Robert.Harder\Documents\GitHub\asyncpushbullet\asyncpushbullet\scratch.py"]
-
-
-# sys.argv.append("--debug")
-# sys.argv.append("--verbose")
+DEFAULT_THROTTLE_COUNT = 10
+DEFAULT_THROTTLE_SECONDS = 10
 
 
 def main():
@@ -44,9 +37,47 @@ def main():
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-k", "--key", help="Your Pushbullet.com API key")
+    parser.add_argument("-f", "--key-file", help="Text file containing your Pushbullet.com API key")
     parser.add_argument("-e", "--echo", help="ACTION: Echo push as json to stdout (default)")
     parser.add_argument("-x", "--exec", nargs="+", action="append",
-                        help="ACTION: Execute a script to receive push as json via stdin")
+                        help=textwrap.dedent("""
+                        ACTION: Execute a script to receive push as json via stdin.
+                        Your script can write json to stdout to send pushes back.
+
+        {
+            "pushes" :
+                [
+                    {
+                        "title" = "Fish Food Served",
+                        "body" = "Your automated fish feeding gadget has fed your fish. "
+                     }
+                ]
+        }
+
+    Or simpler form for a single push:
+
+        { "title" = "title here", "body" = "body here"}
+                        """))
+    parser.add_argument("-s", "--exec-simple", nargs="+", action="append",
+                        help=textwrap.dedent("""
+                        ACTION: Execute a script to receive push as json via stdin.
+                        Your script can write lines back to stdout to send a single
+                        push back.  The first line of stdout will be the title, and
+                        subsequent lines will be the body.
+                        """))
+
+    parser.add_argument("--throttle-count", type=int, default=DEFAULT_THROTTLE_COUNT,
+                        help=textwrap.dedent("""
+                        Pushes will be throttled to this many pushes (default {})
+                        in a certain number of seconds (default {})"""
+                                             .format(DEFAULT_THROTTLE_COUNT,
+                                                     DEFAULT_THROTTLE_SECONDS)))
+    parser.add_argument("--throttle-seconds", type=int, default=DEFAULT_THROTTLE_SECONDS,
+                        help=textwrap.dedent("""
+                        Pushes will be throttled to a certain number of pushes (default {})
+                        in this many seconds (default {})"""
+                                             .format(DEFAULT_THROTTLE_COUNT,
+                                                     DEFAULT_THROTTLE_SECONDS)))
 
     parser.add_argument("-d", "--debug", action="store_true", help="Turn on debug logging")
     parser.add_argument("-v", "--verbose", action="store_true", help="Turn on verbose logging (INFO messages)")
@@ -56,13 +87,19 @@ def parse_args():
 
 
 def do_main(args):
-    global API_KEY
-
     # Key
+    api_key = ""
+    if "PUSHBULLET_API_KEY" in os.environ:
+        api_key = os.environ["PUSHBULLET_API_KEY"].strip()
+
     if args.key:
-        API_KEY = args.key
-    API_KEY = API_KEY.strip()
-    if API_KEY == "":
+        api_key = args.key.strip()
+
+    if args.key_file:
+        with open(args.key_file) as f:
+            api_key = f.read().strip()
+
+    if api_key == "":
         print(
             "You must specify an API key, either at the command line or with the PUSHBULLET_API_KEY environment variable.",
             file=sys.stderr)
@@ -70,6 +107,7 @@ def do_main(args):
 
     # Verbose?
     if args.verbose:
+        print("Log level: INFO")
         logging.basicConfig(level=logging.INFO)
 
     # Debug?
@@ -77,8 +115,14 @@ def do_main(args):
         print("Log level: DEBUG")
         logging.basicConfig(level=logging.DEBUG)
 
+    # Throttle
+    throttle_count = args.throttle_count
+    throttle_seconds = args.throttle_seconds
+
     # Create ListenApp
-    listen_app = ListenApp(API_KEY)
+    listen_app = ListenApp(api_key,
+                           throttle_count=throttle_count,
+                           throttle_seconds=throttle_seconds)
 
     # Add actions from command line arguments
     if args.exec:
@@ -87,14 +131,6 @@ def do_main(args):
             cmd_args = cmd_opts[1:]
             action = ExecutableAction(cmd_path, cmd_args)
             listen_app.add_action(action)
-
-    # listen_app.add_action(ExecutableAction(r"c:\python35\python.exe", [
-    #     r"C:\Users\Robert.Harder\Documents\GitHub\asyncpushbullet\asyncpushbullet\scratch.py"]))
-
-    # listen_app.add_action(ExecutableActionSimplified(r"c:\python35\python.exe", [
-    #     r"C:\Users\Robert.Harder\Documents\GitHub\asyncpushbullet\asyncpushbullet\scratch.py"]))
-
-    # listen_app.add_action(ExecutableAction("c:\\windows\\system32\\calc.exe"))
 
     # Default action if none specified
     if len(listen_app.actions) == 0 or args.echo:
@@ -105,22 +141,21 @@ def do_main(args):
         loop = asyncio.ProactorEventLoop()
         asyncio.set_event_loop(loop)
 
-    # Run loop indefinitely
-    loop = asyncio.get_event_loop()
+    # async def _timeout():
+    #     await asyncio.sleep(2)
+    #     await listen_app.close()
 
-    async def _timeout():
-        await asyncio.sleep(2)
-        await listen_app.close()
     # loop.create_task(_timeout())
 
 
+    loop = asyncio.get_event_loop()
     try:
         loop.run_until_complete(listen_app.run())
     except KeyboardInterrupt as e:
         print("Caught keyboard interrupt")
     finally:
         loop.run_until_complete(listen_app.close())
-    # END OF PROGRAM
+        # END OF PROGRAM
 
 
 class Action:
@@ -159,6 +194,10 @@ class ExecutableAction(Action):
                      }
                 ]
         }
+
+    Or simpler form for a single push:
+
+        { "title" = "title here", "body" = "body here"}
     """
 
     class _ProcessProtocol(asyncio.SubprocessProtocol):
@@ -236,10 +275,22 @@ class ExecutableAction(Action):
             except json.decoder.JSONDecodeError as e:
                 print(e)
 
-            for push in resp.get("pushes", []):  # type: dict
-                title = push.get("title", "no title")
-                body = push.get("body", "no body")
+            # Single push
+            if "title" in resp or "body" in resp:
+                title = str(resp.get("title"))
+                body = str(resp.get("body"))
                 await pb.async_push_note(title=title, body=body)
+
+            # Multiple pushes
+            pushes = resp.get("pushes", [])
+            if type(pushes) == list:
+                for push in pushes:  # type: dict
+                    if type(push) == dict:
+                        title = push.get("title", "no title")
+                        body = push.get("body", "no body")
+                        await pb.async_push_note(title=title, body=body)
+                    else:
+                        self.log.error("A push response was received but was not in dictionary form: {}".format(resp))
 
 
 class ExecutableActionSimplified(ExecutableAction):
@@ -269,7 +320,9 @@ class ExecutableActionSimplified(ExecutableAction):
 
 
 class ListenApp:
-    def __init__(self, api_key: str, throttle_count: float = 10, throttle_seconds: float = 10):
+    def __init__(self, api_key: str,
+                 throttle_count: int = DEFAULT_THROTTLE_COUNT,
+                 throttle_seconds: float = DEFAULT_THROTTLE_SECONDS):
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
         self.pb = AsyncPushbullet(api_key=api_key)
@@ -284,9 +337,9 @@ class ListenApp:
         self.log.info("Action added: {}".format(repr(action)))
 
     async def close(self):
-        await self._listener.close()
+        if self._listener is not None:
+            await self._listener.close()
         await self.pb.close()
-
 
     async def _throttle(self):
         """ Makes one tick and stalls if necessary """
@@ -305,10 +358,17 @@ class ListenApp:
             await asyncio.sleep(stall)
 
     async def run(self):
-        self.log.info("Awaiting pushes ...".format(str(self)))
         loop = asyncio.get_event_loop()
 
+        try:
+            await self.pb.verify_key()
+        except Exception as e:
+            print(type(e).__name__, e, file=sys.stderr)
+            await self.pb.close()
+            return
+
         self._listener = PushListener(self.pb)
+        self.log.info("Awaiting pushes ...".format(str(self)))
         async for push in self._listener:  # type: dict
             self.log.info("Received push {}".format(push))
             await self._throttle()
@@ -321,11 +381,4 @@ class ListenApp:
 
 
 if __name__ == "__main__":
-    if API_KEY == "":
-        if "PUSHBULLET_API_KEY" in os.environ:
-            API_KEY = os.environ["PUSHBULLET_API_KEY"]
-        else:
-            api_file = os.path.join(os.path.dirname(__file__), "../api_key.txt")
-            with open(api_file) as f:
-                API_KEY = f.read().strip()
     main()

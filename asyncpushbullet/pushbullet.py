@@ -65,8 +65,8 @@ class Pushbullet(object):
             self._encryption_key = kdf.derive(encryption_password.encode("UTF-8"))
 
     def close(self):
-        if self.session is not None:
-            self.session.close()
+        if self.__session is not None:
+            self.__session.close()
 
     @property
     def session(self):
@@ -117,7 +117,7 @@ class Pushbullet(object):
 
         if code in (401, 403):
             err_msg = "{} Invalid API Key: {}".format(code, self.api_key)
-            self.log.error(err_msg)
+            # self.log.error(err_msg)
             raise InvalidKeyError(err_msg)
 
         elif code == 429:

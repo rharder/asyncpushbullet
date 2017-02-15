@@ -22,6 +22,9 @@ class AsyncPushbullet(Pushbullet):
         self._aio_sessions = {}  # type: {asyncio.AbstractEventLoop:aiohttp.ClientSession}
         self.verify_ssl = verify_ssl
 
+    async def verify_key(self):
+        await self.aio_session()
+
     async def aio_session(self):  # , loop: asyncio.AbstractEventLoop = None) -> aiohttp.ClientSession:
 
         # Sessions are created/handled on a per-loop basis
@@ -67,25 +70,26 @@ class AsyncPushbullet(Pushbullet):
 
     async def _async_http(self, func, url: str, **kwargs) -> dict:
 
-        try:
-            async with func(url, proxy=self._proxy, **kwargs) as resp:  # Do HTTP
+        # try:
+        async with func(url, proxy=self._proxy, **kwargs) as resp:  # Do HTTP
 
-                code = resp.status
-                msg = None
-                try:
-                    if code != 204:  # No content
-                        msg = await resp.json()
-                except:
-                    pass
-                finally:
-                    if msg is None:
-                        msg = resp.text()
+            code = resp.status
+            msg = None
+            try:
+                if code != 204:  # No content
+                    msg = await resp.json()
+            except:
+                pass
+            finally:
+                if msg is None:
+                    msg = resp.text()
 
-                return self._interpret_response(code, resp.headers, msg)
-        except Exception as e:
-            err_msg = "An error occurred while communicating with Pushbullet: {}".format(e)
-            self.log.error(err_msg, e)
-            raise PushbulletError(err_msg, e)
+            return self._interpret_response(code, resp.headers, msg)
+        # except Exception as e:
+        #     err_msg = "An error occurred while communicating with Pushbullet: {}".format(e)
+        #     self.log.error(err_msg)
+        #     raise e
+            # raise PushbulletError(err_msg, e)
 
     async def _async_get_data(self, url: str, **kwargs) -> dict:
         session = await self.aio_session()

@@ -26,9 +26,10 @@ In order to use the API you need an API key that can be obtained
 `here <https://www.pushbullet.com/account>`__. This is user specific and
 is used instead of passwords.
 
-This is a fork of the synchronous-only `
-pushbullet.py <https://github.com/randomchars/pushbullet.py>`__ project from randomchars,
-which uses the ``pushbullet`` namespace.  This project uses ``asyncpushbullet``.
+This is a fork of the synchronous-only
+`pushbullet.py <https://github.com/randomchars/pushbullet.py>`__
+project from randomchars, which uses the ``pushbullet`` namespace.
+This project uses ``asyncpushbullet``.
 
 Installation
 ------------
@@ -51,22 +52,62 @@ Requirements
 Usage
 -----
 
-Authentication
+Command Line
+~~~~~~~~~~~~
+
+The ```asyncpushbullet``` package has some scripts that can be run from the
+command line.  One is for sending pushes.  One is for listening for and
+responding to pushes.
+
+There are three ways to authenticate your Pushbullet.com API key when using
+the command line:
+
+    1. Set the ``PUSHBULLET_API_KEY`` environment variable.
+    2. Use the ``--key`` command line option and include the key as an argument.
+    3. Use the ``--key-file`` command line option and point to a text file
+       containing the API key.
+
+
+Pushing a Note from the Command Line
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+You can push a note from the command line and specify a title and body. ::
+
+    $ python3 -m asyncpushbullet.push --title "Hello World" --body "nothing to see"
+
+Uploading and Pushing a File from the Command Line
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+You can upload and push a file as well. ::
+
+    $ python3 -m asyncpushbullet.push --file homework.txt --title "Homework" --body "Avoid the dog."
+
+
+Developer Docs
 ~~~~~~~~~~~~~~
+
+The following instructions relate to using ``asyncpushbullet`` within
+your own Python code.
+
+Authentication
+^^^^^^^^^^^^^^
 
 To create an ``AsyncPushbullet`` object: ::
 
     from asyncpushbullet import AsyncPushbullet
     pb = AsyncPushbullet(api_key)
 
-If your key is invalid (that is, the Pushbullet API returns a ``401``), an ``InvalidKeyError`` is raised.
+If your key is invalid (that is, the Pushbullet API returns a ``401``),
+an ``InvalidKeyError`` is raised.
 
-``AsyncPushbullet`` will work on the current event loop ``asyncio.get_event_loop()`` if one is not
-specified in the constructor: ::
 
-    from asyncpushbullet import AsyncPushbullet
-    ioloop = asyncio.new_event_loop()
-    pb = AsyncPushbullet(api_key, loop=ioloop)
+Event Loops
+^^^^^^^^^^^
+
+``AsyncPushbullet`` coroutines will work on whichever event loop they
+are called from.  If you call from multiple event loops, you may need
+to use the ``close_all()`` function when your program shuts down to
+shutdown gracefully on all event loops.
 
 
 Using a proxy
@@ -76,7 +117,7 @@ Note that the use of SOCKS proxies requires the ``requests[socks]`` package
 (``pip install requests[socks]`` to install), however HTTP proxies (w/ Basic Auth)
 work fine without the ``requests[socks]`` package.
 
-**Proxy support is untested in the new async version**
+**Proxy support is untested in this new async version**
 
 ::
 
@@ -85,8 +126,6 @@ work fine without the ``requests[socks]`` package.
 
 Note that only HTTPS proxies work with Pushbullet.
 
-Pushing things
-~~~~~~~~~~~~~~
 
 Pushing a text note
 ^^^^^^^^^^^^^^^^^^^
@@ -136,7 +175,7 @@ you can push it like you would anything else.
 which are the same parameters that ``async_push_file()`` requires.
 
 Working with pushes
-~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^
 
 You can also view all previous pushes: ::
 
@@ -161,7 +200,7 @@ You can also delete all of your pushes (**be careful**): ::
 
 
 Pushing to specific devices
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 So far all our pushes went to all connected devices, but there's a way to limit that.
 
@@ -228,7 +267,7 @@ Of course, you can also delete devices, even those not added by you.
 A ``PushbulletError`` is raised on error.
 
 Channels
-~~~~~~~~~~~~
+^^^^^^^^
 
 You can also send pushes to channels. First, create a channel on the Pushbullet
 website (also make sure to subscribe to that channel). All channels which
@@ -262,7 +301,7 @@ user.
 
 
 Contacts
-~~~~~~~~~~~~
+^^^^^^^^
 
 Contacts, which are known as "Chats" in Pushbullet's terminilogy, work just like devices:
 
@@ -309,7 +348,7 @@ Deleting chats
 
 
 Sending SMS messages
-~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^
 
 .. code:: python
 
@@ -333,7 +372,7 @@ Note that Pushbullet supportes End-To-End encryption only in SMS, notification m
 
 
 Error checking
-~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^
 
 If the Pushbullet api returns an error code a ``PushError`` an __
 ``InvalidKeyError`` or a ``PushbulletError`` is raised. The first __
@@ -343,7 +382,7 @@ The `pushbullet api documetation <https://www.pushbullet.com/api>`__
 contains a list of possible status codes.
 
 Asynchronous IO
-~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^
 
 Many of the same methods that are available in the Pushbullet class are available in a form
 compatible with Python 3's ``asyncio`` features using AsyncPushbullet.
