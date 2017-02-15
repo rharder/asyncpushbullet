@@ -29,7 +29,15 @@ logging.basicConfig(level=logging.DEBUG)
 #
 
 async def co_run(pb: AsyncPushbullet):
-    async for p in PushListener(pb):
+    pl = PushListener(pb)
+    async def _timeout():
+        await asyncio.sleep(3)
+        pl.close()
+
+    asyncio.get_event_loop().create_task(_timeout())
+
+    # async for p in PushListener(pb):
+    async for p in pl:
         print("Push received:", p)
 
 
@@ -49,6 +57,10 @@ def main1():
 async def connected(listener: PushListener):
     print("Connected to websocket")
     await listener.account.async_push_note("Connected to websocket", "Connected to websocket")
+
+async def on_close(listener: PushListener):
+    print("PushListener closed")
+
 
 
 async def push_received(p: dict, listener: PushListener):

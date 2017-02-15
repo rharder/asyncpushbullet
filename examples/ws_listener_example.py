@@ -51,7 +51,7 @@ def main1():
 # Technique 2: Callbacks
 #
 
-async def connected(listener: WebsocketListener):
+async def ws_connected(listener: WebsocketListener):
     print("Connected to websocket")
     # await listener.account.async_push_note("Connected to websocket", "Connected to websocket")
 
@@ -59,18 +59,20 @@ async def connected(listener: WebsocketListener):
 async def ws_msg_received(ws_msg:dict, listener: WebsocketListener):
     print("ws_msg_received:", ws_msg)
 
+async def ws_closed(listener: WebsocketListener):
+    print("ws_closed")
 
 def main2():
     """ Uses a callback scheduled on an event loop"""
-    pb = AsyncPushbullet(API_KEY, verify_ssl=False)
-    listener = WebsocketListener(pb, on_connect=connected, on_message=ws_msg_received)
+    pb = AsyncPushbullet(API_KEY)#, verify_ssl=False)
+    listener = WebsocketListener(pb, on_connect=ws_connected, on_message=ws_msg_received, on_close=ws_closed)
 
-    async def _timeout():
-        await asyncio.sleep(2)
-        listener.close()
-    asyncio.ensure_future(_timeout())
+    # loop = asyncio.get_event_loop()
+    # async def _timeout():
+    #     await asyncio.sleep(2)
+    #     listener.close()
+    # loop.create_task(_timeout())
 
-    loop = asyncio.get_event_loop()
     loop.run_forever()
 
 
