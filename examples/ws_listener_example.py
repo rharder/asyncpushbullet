@@ -67,39 +67,11 @@ def main2():
 
     async def _timeout():
         await asyncio.sleep(2)
-        print("ZZZ _timeout() listener.close()...")
         listener.close()
     asyncio.ensure_future(_timeout())
 
     loop = asyncio.get_event_loop()
     loop.run_forever()
-
-#
-# def main3():
-#
-#     async def _print(*kargs, **kwargs):
-#         loop = asyncio.get_event_loop()
-#         print("[loop {}]".format(id(loop)), *kargs, **kwargs)
-#
-#     def _run(loop):
-#         asyncio.set_event_loop(loop)
-#         print("starting io loop", id(loop))
-#         loop.run_forever()
-#
-#     ioloop = asyncio.new_event_loop()
-#     ioloop.create_task(_print("I am ioloop"))
-#     t = threading.Thread(target=partial(_run, ioloop))
-#     t.daemon = True
-#     t.start()
-#
-#
-#     pb = AsyncPushbullet(API_KEY, verify_ssl=False, loop=ioloop)
-#     listener = PushListener(pb, on_connect=connected, on_message=ws_msg_received)
-#
-#     loop = asyncio.get_event_loop()
-#     loop.create_task(_print("i am main loop"))
-#     print("starting main loop", id(loop))
-#     loop.run_forever()
 
 
 if __name__ == '__main__':
@@ -109,7 +81,6 @@ if __name__ == '__main__':
     try:
         # main1()
         main2()
-        # main3()
     except KeyboardInterrupt:
         print("Quitting")
         pass
