@@ -32,7 +32,8 @@ API_KEY = ""  # YOUR API KEY
 #              r"C:\Users\Robert.Harder\Documents\GitHub\asyncpushbullet\asyncpushbullet\scratch.py"]
 
 
-sys.argv.append("--debug")
+# sys.argv.append("--debug")
+# sys.argv.append("--verbose")
 
 
 def main():
@@ -47,15 +48,8 @@ def parse_args():
     parser.add_argument("-x", "--exec", nargs="+", action="append",
                         help="ACTION: Execute a script to receive push as json via stdin")
 
-    # parser.add_argument("-t", "--title", help="Title of your push")
-    # parser.add_argument("-b", "--body", help="Body of your push")
-    # parser.add_argument("-d", "--device", help="Destination device name")
-    # parser.add_argument("-f", "--file", help="Pathname to file to push")
-    # parser.add_argument("--transfer.sh", dest="transfer_sh", action="store_true", help="Use transfer.sh website for uploading files (use with --file)")
-    # parser.add_argument("--list-devices", action="store_true", help="List registered device names")
     parser.add_argument("-d", "--debug", action="store_true", help="Turn on debug logging")
     parser.add_argument("-v", "--verbose", action="store_true", help="Turn on verbose logging (INFO messages)")
-    # parser.add_argument("-q", "--quiet", action="store_true", help="Suppress all output")
 
     args = parser.parse_args()
     return args
@@ -116,27 +110,17 @@ def do_main(args):
 
     async def _timeout():
         await asyncio.sleep(2)
-        listen_app.close()
-    loop.create_task(_timeout())
+        await listen_app.close()
+    # loop.create_task(_timeout())
 
-    loop.create_task(listen_app.run())
 
     try:
-        # loop.run_until_complete(listen_app.run())
-        # loop.run_until_complete(tasks)
-        print("Starting loop first time")
-        loop.run_forever()
+        loop.run_until_complete(listen_app.run())
     except KeyboardInterrupt as e:
         print("Caught keyboard interrupt")
-        listen_app.close()
-        # tasks.cancel()
-        print('run forever to clean up')
-        loop.run_forever()
-        # tasks.exception()
     finally:
-        print('closing loop')
-        loop.close()
-        # END OF PROGRAM
+        loop.run_until_complete(listen_app.close())
+    # END OF PROGRAM
 
 
 class Action:
@@ -299,8 +283,10 @@ class ListenApp:
         self.actions.append(action)
         self.log.info("Action added: {}".format(repr(action)))
 
-    def close(self):
-        self._listener.close()
+    async def close(self):
+        await self._listener.close()
+        await self.pb.close()
+
 
     async def _throttle(self):
         """ Makes one tick and stalls if necessary """

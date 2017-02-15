@@ -48,7 +48,7 @@ class WebsocketListener(object):
         if on_message is not None:
             self._start_callbacks(on_message)
 
-    def close(self):
+    async def close(self):
         """
         Disconnects from websocket and marks this listener as "closed,"
         meaning it will cease to notify callbacks or operate in an "async for"
@@ -56,7 +56,8 @@ class WebsocketListener(object):
         """
         if self._ws is not None:
             self.log.info("Closing websocket {}".format(id(self._ws)))
-            asyncio.run_coroutine_threadsafe(self._ws.close(), self.loop)
+            # asyncio.run_coroutine_threadsafe(self._ws.close(), self.loop)
+            await self._ws.close()
 
     async def __aiter__(self):
         """ Called at the beginning of an "async for" construct. """
@@ -97,7 +98,7 @@ class WebsocketListener(object):
             self._ws = None
             stop_msg = StopAsyncIteration("Connection closed")
             self.log.debug("Adding to websocket message queue: {}".format(stop_msg))
-            self._queue.put(stop_msg)
+            await self._queue.put(stop_msg)
             # self.log.debug("Exiting async def _ws_loop() on loop {}".format(id(asyncio.get_event_loop())))
 
         loop = asyncio.get_event_loop()
@@ -114,6 +115,7 @@ class WebsocketListener(object):
             self.log.debug("Raising StopAsyncIteration on loop {}".format(id(asyncio.get_event_loop())))
             raise StopAsyncIteration("This listener has closed.")
 
+        self.log.debug("Awaiting websocket message queue...")
         msg = await self._queue.get()  # type: aiohttp.WSMessage
         self.log.debug("Retrieved from websocket message queue: {}".format(msg))
 
@@ -316,7 +318,7 @@ class PushListener(object):
 
         asyncio.run_coroutine_threadsafe(_listen(func), loop=self.account.loop)
 
-    def close(self):
+    async def close(self):
         """
         Disconnects from websocket and marks this listener as "closed,"
         meaning it will cease to notify callbacks or operate in an "async for"
@@ -324,4 +326,5 @@ class PushListener(object):
         """
         if self.ws_listener is not None:
             self.log.info("Closing PushListener {}".format(id(self.ws_listener)))
-            self.ws_listener.close()
+            # self.ws_listener.close()
+            await self.ws_listener.close()

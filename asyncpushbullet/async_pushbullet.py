@@ -19,15 +19,14 @@ class AsyncPushbullet(Pushbullet):
         # TODO: Proxies
         self._proxy = kwargs.get("proxy")  # type: dict
 
-        self._aio_session = {}  # type: {asyncio.AbstractEventLoop:aiohttp.ClientSession}
-        # self._aio_connector = None  # type: aiohttp.BaseConnector
+        self._aio_sessions = {}  # type: {asyncio.AbstractEventLoop:aiohttp.ClientSession}
         self.verify_ssl = verify_ssl
 
-    async def aio_session(self):#, loop: asyncio.AbstractEventLoop = None) -> aiohttp.ClientSession:
+    async def aio_session(self):  # , loop: asyncio.AbstractEventLoop = None) -> aiohttp.ClientSession:
 
         # Sessions are created/handled on a per-loop basis
         loop = asyncio.get_event_loop()
-        session = self._aio_session.get(loop)  # type: aiohttp.ClientSession
+        session = self._aio_sessions.get(loop)  # type: aiohttp.ClientSession
 
         if session is None:
             headers = {"Access-Token": self.api_key}
@@ -38,9 +37,9 @@ class AsyncPushbullet(Pushbullet):
                 aio_connector = aiohttp.TCPConnector(verify_ssl=False, loop=loop)
 
             # self.log.debug("Creating aiohttp session on loop {}".format(id(loop)))
-            session = aiohttp.ClientSession(headers=headers, connector=aio_connector)#, loop=loop)
+            session = aiohttp.ClientSession(headers=headers, connector=aio_connector)  # , loop=loop)
             self.log.debug("Created aiohttp session {} on loop {}".format(id(session), id(loop)))
-            self._aio_session[loop] = session  # Save session for this loop
+            self._aio_sessions[loop] = session  # Save session for this loop
 
             if self.most_recent_timestamp == 0:
                 await self.async_get_pushes(limit=1)  # May throw invalid key error here
@@ -50,20 +49,17 @@ class AsyncPushbullet(Pushbullet):
 
         return session
 
-    def close(self):
+    async def close(self):
         super().close()
 
-        async def _close():
-            # Close session on current loop
-            loop = asyncio.get_event_loop()
-            if loop is not None:
-                session = self._aio_session.get(loop)
-                session.close()
-                del self._aio_session[loop]
+        loop = asyncio.get_event_loop()
+        if loop in self._aio_sessions:
+            self._aio_sessions[loop].close()
+            del self._aio_sessions[loop]
 
-        # Close session on other loops
-        for loop in self._aio_session.keys():
-            asyncio.run_coroutine_threadsafe(_close(), loop=loop)
+    def close_all(self):
+        for loop in self._aio_sessions.keys():
+            asyncio.run_coroutine_threadsafe(self.close(), loop=loop)
 
     # ################
     # IO Methods
