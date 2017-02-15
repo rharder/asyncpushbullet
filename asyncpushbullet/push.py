@@ -65,8 +65,6 @@ def do_main(args):
             print("File not found:", args.file, file=sys.stderr)
             sys.exit(3)
 
-
-
         if args.transfer_sh:
             if not args.quiet:
                 print("Uploading file via transfer.sh ... {}".format(args.file))
@@ -114,7 +112,8 @@ def parse_args():
     parser.add_argument("-b", "--body", help="Body of your push")
     parser.add_argument("-d", "--device", help="Destination device name")
     parser.add_argument("-f", "--file", help="Pathname to file to push")
-    parser.add_argument("--transfer.sh", dest="transfer_sh", action="store_true", help="Use transfer.sh website for uploading files (use with --file)")
+    parser.add_argument("--transfer.sh", dest="transfer_sh", action="store_true",
+                        help="Use transfer.sh website for uploading files (use with --file)")
     parser.add_argument("--list-devices", action="store_true", help="List registered device names")
     parser.add_argument("-q", "--quiet", action="store_true", help="Suppress all output")
 
