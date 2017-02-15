@@ -64,6 +64,9 @@ class Pushbullet(object):
             )
             self._encryption_key = kdf.derive(encryption_password.encode("UTF-8"))
 
+    def verify_key(self):
+        x = self.session  # triggers a check
+
     def close(self):
         if self.__session is not None:
             self.__session.close()

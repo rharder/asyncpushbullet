@@ -55,7 +55,7 @@ Usage
 Command Line
 ~~~~~~~~~~~~
 
-The ```asyncpushbullet``` package has some scripts that can be run from the
+The ``asyncpushbullet`` package has some scripts that can be run from the
 command line.  One is for sending pushes.  One is for listening for and
 responding to pushes.
 
@@ -98,7 +98,29 @@ To create an ``AsyncPushbullet`` object: ::
     pb = AsyncPushbullet(api_key)
 
 If your key is invalid (that is, the Pushbullet API returns a ``401``),
-an ``InvalidKeyError`` is raised.
+an ``InvalidKeyError`` is raised the first time communication is made.
+To check right away for the validity of your key, you can use the
+``verify_key()`` or ``async_verify_key()`` functions,
+in synchronous or asynchronous mode as appropriate. ::
+
+
+    from asyncpushbullet import AsyncPushbullet
+    pb = AsyncPushbullet(api_key)
+    pb.verify_key()
+
+or ::
+
+
+    from asyncpushbullet import AsyncPushbullet
+    pb = AsyncPushbullet(api_key)
+
+    ...
+
+    async def _run():
+        await pb.verify_key()
+        # do whatever
+
+    loop.create_task(_run())
 
 
 Event Loops

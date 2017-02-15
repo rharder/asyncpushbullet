@@ -33,15 +33,16 @@ def read(fname):
     except IOError:
         return ""
 
+
 setup(
-    name = "asyncpushbullet",
-    version = version,
-    author = "Robert Harder, Richard Borcsik",
-    author_email = "rob@iharder.net, borcsikrichard@gmail.com",
-    description = ("An asyncio-based client for pushbullet.com"),
-    license = "MIT",
-    keywords = "push android pushbullet notification",
-    url = "https://github.com/rharder/asyncpushbullet",
+    name="asyncpushbullet",
+    version=version,
+    author="Robert Harder, Richard Borcsik",
+    author_email="rob@iharder.net, borcsikrichard@gmail.com",
+    description=("An asyncio-based client for pushbullet.com"),
+    license="MIT",
+    keywords="push android pushbullet notification",
+    url="https://github.com/rharder/asyncpushbullet",
     download_url="https://github.com/rharder/asyncpushbullet/tarball/" + version,
     packages=['asyncpushbullet'],
     long_description=read('readme.rst'),

@@ -361,7 +361,7 @@ class ListenApp:
         loop = asyncio.get_event_loop()
 
         try:
-            await self.pb.verify_key()
+            await self.pb.async_verify_key()
         except Exception as e:
             print(type(e).__name__, e, file=sys.stderr)
             await self.pb.close()

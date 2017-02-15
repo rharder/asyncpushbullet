@@ -22,7 +22,7 @@ class AsyncPushbullet(Pushbullet):
         self._aio_sessions = {}  # type: {asyncio.AbstractEventLoop:aiohttp.ClientSession}
         self.verify_ssl = verify_ssl
 
-    async def verify_key(self):
+    async def async_verify_key(self):
         await self.aio_session()
 
     async def aio_session(self):  # , loop: asyncio.AbstractEventLoop = None) -> aiohttp.ClientSession:
