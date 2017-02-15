@@ -68,10 +68,9 @@ class AsyncPushbullet(Pushbullet):
     # IO Methods
     #
 
-    async def _async_http(self, func, url: str, **kwargs) -> dict:
+    async def _async_http(self, aiohttp_func, url: str, **kwargs) -> dict:
 
-        # try:
-        async with func(url, proxy=self._proxy, **kwargs) as resp:  # Do HTTP
+        async with aiohttp_func(url, proxy=self._proxy, **kwargs) as resp:  # Do HTTP
 
             code = resp.status
             msg = None
@@ -85,11 +84,6 @@ class AsyncPushbullet(Pushbullet):
                     msg = resp.text()
 
             return self._interpret_response(code, resp.headers, msg)
-        # except Exception as e:
-        #     err_msg = "An error occurred while communicating with Pushbullet: {}".format(e)
-        #     self.log.error(err_msg)
-        #     raise e
-            # raise PushbulletError(err_msg, e)
 
     async def _async_get_data(self, url: str, **kwargs) -> dict:
         session = await self.aio_session()
