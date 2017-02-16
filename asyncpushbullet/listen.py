@@ -60,7 +60,9 @@ def parse_args():
                         """))
     parser.add_argument("-s", "--exec-simple", nargs="+", action="append",
                         help=textwrap.dedent("""
-                        ACTION: Execute a script to receive push as json via stdin.
+                        ACTION: Execute a script to receive push in simplified form
+                        via stdin.  The first line of stdin will be the title, and
+                        subsequent lines will be the body.
                         Your script can write lines back to stdout to send a single
                         push back.  The first line of stdout will be the title, and
                         subsequent lines will be the body.
@@ -246,8 +248,8 @@ class ExecutableAction(Action):
         else:
 
             # Pass the incoming push via stdin (json form)
-            json_push = json.dumps(push)
-            input_bytes = json_push.encode(__encoding__)
+            input_bytes = self.transform_push_to_stdin_data(push)
+
             try:
                 stdout_data, stderr_data = await asyncio.wait_for(proc.communicate(input=input_bytes),
                                                                   timeout=self.timeout)
@@ -257,6 +259,11 @@ class ExecutableAction(Action):
             else:
                 # Process response from subprocess
                 await self.handle_process_response(stdout_data, stderr_data, pb)
+
+    def transform_push_to_stdin_data(self, push: dict) -> bytes:
+        json_push = json.dumps(push)
+        input_bytes = json_push.encode(__encoding__)
+        return input_bytes
 
     async def handle_process_response(self, stdout_data: bytes, stderr_data: bytes, pb: AsyncPushbullet):
 
@@ -303,6 +310,13 @@ class ExecutableActionSimplified(ExecutableAction):
         Your automated fish feeding gadget has fed your fish.
 
     """
+
+    def transform_push_to_stdin_data(self, push: dict) -> bytes:
+        title = str(push.get("title", "")).strip().replace("\n", " ")
+        body = str(push.get("body", ""))
+        output = "{}\n{}".format(title, body)
+        output_bytes = output.encode(__encoding__)
+        return output_bytes
 
     async def handle_process_response(self, stdout_data: bytes, stderr_data: bytes, pb: AsyncPushbullet):
 
