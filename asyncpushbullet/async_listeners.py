@@ -58,6 +58,8 @@ class WebsocketListener(object):
             self.log.info("Closing websocket {}".format(id(self._ws)))
             # asyncio.run_coroutine_threadsafe(self._ws.close(), self.loop)
             await self._ws.close()
+            self._closed = True
+            self._ws = None
 
     async def __aiter__(self):
         """ Called at the beginning of an "async for" construct. """
@@ -68,38 +70,48 @@ class WebsocketListener(object):
         async def _ws_loop():
             # self.log.debug("Starting async def _ws_loop() on loop {}".format(id(asyncio.get_event_loop())))
 
-            # Connecting...
-            session = await self.account.aio_session()
+            try:
+                # Connecting...
+                session = await self.account.aio_session()
 
-            async with session.ws_connect(self.WEBSOCKET_URL + self.account.api_key) as ws:
-                self._ws = ws
-                self.log.info("Connected to websocket {}".format(id(ws)))
+                async with session.ws_connect(self.WEBSOCKET_URL + self.account.api_key) as ws:
+                    self._ws = ws
+                    self.log.info("Connected to websocket {}".format(id(ws)))
 
-                # Notify callback on_connect, if registered
-                if inspect.iscoroutinefunction(self._on_connect):
-                    await self._on_connect(self)
-                elif callable(self._on_connect):
-                    self._on_connect(self)
+                    # Notify callback on_connect, if registered
+                    if inspect.iscoroutinefunction(self._on_connect):
+                        await self._on_connect(self)
+                    elif callable(self._on_connect):
+                        self._on_connect(self)
 
-                # Get messages.  Spends most of its time here.
-                async for msg in ws:  # type: aiohttp.WSMessage
-                    self.log.debug("Adding to websocket message queue: {}".format(msg))
-                    await self._queue.put(msg)
+                    # Get messages.  Spends most of its time here.
+                    async for msg in ws:  # type: aiohttp.WSMessage
+                        self.log.debug("Adding to websocket message queue: {}".format(msg))
+                        await self._queue.put(msg)
 
-            self.log.info("Websocket {} closed".format(id(ws)))
+                self.log.info("Websocket {} closed".format(id(ws)))
 
-            # Notify callback of socket closed, if registered
-            if inspect.iscoroutinefunction(self._on_close):
-                await self._on_close(self)
-            elif callable(self._on_close):
-                self._on_close(self)
+                # Notify callback of socket closed, if registered
+                if inspect.iscoroutinefunction(self._on_close):
+                    await self._on_close(self)
+                elif callable(self._on_close):
+                    self._on_close(self)
+            except asyncio.TimeoutError as e:
+                self.log.warning("TimeoutError. Connection closing. {}".format(e))
+            else:
+                pass
+                stop_msg = StopAsyncIteration("Connection closed")
+                self.log.debug("Adding to websocket message queue: {}".format(stop_msg))
+                await self._queue.put(stop_msg)
 
-            self._closed = True
-            self._ws = None
-            stop_msg = StopAsyncIteration("Connection closed")
-            self.log.debug("Adding to websocket message queue: {}".format(stop_msg))
-            await self._queue.put(stop_msg)
-            # self.log.debug("Exiting async def _ws_loop() on loop {}".format(id(asyncio.get_event_loop())))
+
+            finally:
+
+                await self.close()
+                self._closed = True
+                self._ws = None
+
+                # self.log.debug("Exiting async def _ws_loop() on loop {}".format(id(asyncio.get_event_loop())))
 
         loop = asyncio.get_event_loop()
         loop.create_task(_ws_loop())
@@ -116,7 +128,10 @@ class WebsocketListener(object):
             raise StopAsyncIteration("This listener has closed.")
 
         self.log.debug("Awaiting websocket message queue...")
-        msg = await self._queue.get()  # type: aiohttp.WSMessage
+        try:
+            msg = await self._queue.get()  # type: aiohttp.WSMessage
+        except Exception as e:
+            raise StopAsyncIteration(e)
         self.log.debug("Retrieved from websocket message queue: {}".format(msg))
 
         if type(msg) == StopAsyncIteration:
@@ -164,18 +179,18 @@ class WebsocketListener(object):
             # self.log.debug("Starting async def _listen() on loop {}".format(id(asyncio.get_event_loop())))
 
             while not self._closed:
-                try:
-                    async for msg in self:  # type: dict
-                        if inspect.iscoroutinefunction(func):
-                            await func(msg, self)
-                        else:
-                            func(msg, self)
-                except Exception as e:
-                    self.log.warning("Ignoring exception in callback: {}".format(e))
-                    self.log.debug("Exception caught from callback: {}".format(e), e)  # Traceback in debug mode only
-                finally:
-                    if not self._closed:
-                        await asyncio.sleep(3)  # Throttle restarts
+                # try:
+                async for msg in self:  # type: dict
+                    if inspect.iscoroutinefunction(func):
+                        await func(msg, self)
+                    else:
+                        func(msg, self)
+                # except Exception as e:
+                #     self.log.warning("Ignoring exception in callback: {}".format(e))
+                #     self.log.debug("Exception caught from callback: {}".format(e), e)  # Traceback in debug mode only
+                # finally:
+                if not self._closed:
+                    await asyncio.sleep(3)  # Throttle restarts
 
             # self.log.debug("Exiting async def _listen() on loop {}".format(id(asyncio.get_event_loop())))
 
@@ -302,18 +317,18 @@ class PushListener(object):
             """ Internal use only """
             # self.log.debug("Starting async def _listen() on loop {}".format(id(asyncio.get_event_loop())))
             while not self._closed:
-                try:
-                    async for push in self:
-                        if inspect.iscoroutinefunction(func):
-                            await func(push, self)
-                        else:
-                            func(push, self)
-                except Exception as e:
-                    self.log.warning("Ignoring exception in callback: {}".format(e))
-                    self.log.debug("Exception caught from callback: {}".format(e), e)  # Traceback in debug mode only
-                finally:
-                    if not self._closed:
-                        await asyncio.sleep(3)  # Throttle restarts
+                # try:
+                async for push in self:
+                    if inspect.iscoroutinefunction(func):
+                        await func(push, self)
+                    else:
+                        func(push, self)
+                # except Exception as e:
+                #     self.log.warning("Ignoring exception in callback: {}".format(e))
+                #     self.log.debug("Exception caught from callback: {}".format(e), e)  # Traceback in debug mode only
+                # finally:
+                if not self._closed:
+                    await asyncio.sleep(3)  # Throttle restarts
             # self.log.debug("Exiting async def _listen()")
 
         asyncio.run_coroutine_threadsafe(_listen(func), loop=self.account.loop)
