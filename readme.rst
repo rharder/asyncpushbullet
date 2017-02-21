@@ -52,8 +52,8 @@ Requirements
 Usage
 -----
 
-Command Line
-~~~~~~~~~~~~
+Command Line (optional)
+~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``asyncpushbullet`` package has some scripts that can be run from the
 command line.  One is for sending pushes.  One is for listening for and
@@ -82,6 +82,48 @@ You can upload and push a file as well. ::
 
     $ python3 -m asyncpushbullet.push --file homework.txt --title "Homework" --body "Avoid the dog."
 
+
+Listening for and Responding to Pushes
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+You can listen for pushes and respond.  To simply echo pushes to the console: ::
+
+    $ python3 -m asyncpushbullet.listen --echo
+
+You can have a script called whenever a push arrives.  The ``--exec`` flag takes its following
+arguments as a script to call and any parameters to pass that script.  The script will be
+called with those parameters and with the push (json encoded) sent via ``stdin``. ::
+
+    $ python3 -m asyncpushbullet.listen --exec handle_new_push.sh
+
+You can even have multiple actions listed at one time: ::
+
+    $ python3 -m asyncpushbullet.listen --exec handle_new_push.sh  --exec record_in_log.sh
+
+Your script can respond via its ``stdout`` in order to send push(es) back.  An example response: ::
+
+    {
+        "pushes" :
+            [
+                {
+                    "title" = "Fish Food Served",
+                    "body" = "Your automated fish feeding gadget has fed your fish. "
+                 }
+            ]
+    }
+
+Or if you only want to send one push, there is a simpler form for your response: ::
+
+    { "title" = "title here", "body" = "body here"}
+
+Finally instead of ``--exec``, you can use ``--exec-simple`` to skip json altogether.
+Your script will receive the push via ``stdin`` except that the first line will be the
+title of the push, and the subsequent lines will be the body. ::
+
+    $ python3 -m asyncpushbullet.listen --exec-simple handle_new_push.sh
+
+You can throttle how many pushes are received in a period of time using
+the ``--throttle-count`` and ``--throttle-seconds`` flags.
 
 Developer Docs
 ~~~~~~~~~~~~~~

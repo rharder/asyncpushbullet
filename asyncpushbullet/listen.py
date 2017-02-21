@@ -11,8 +11,8 @@ import sys
 import textwrap
 import time
 
+from asyncpushbullet import Device
 from asyncpushbullet import PushListener
-from asyncpushbullet import PushbulletError
 
 sys.path.append("..")
 from asyncpushbullet import AsyncPushbullet
@@ -37,8 +37,8 @@ def main():
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-k", "--key", help="Your Pushbullet.com API key")
-    parser.add_argument("-f", "--key-file", help="Text file containing your Pushbullet.com API key")
-    parser.add_argument("-e", "--echo", help="ACTION: Echo push as json to stdout (default)")
+    parser.add_argument("--key-file", help="Text file containing your Pushbullet.com API key")
+    parser.add_argument("-e", "--echo", action="store_true", help="ACTION: Echo push as json to stdout (default)")
     parser.add_argument("-x", "--exec", nargs="+", action="append",
                         help=textwrap.dedent("""
                         ACTION: Execute a script to receive push as json via stdin.
@@ -81,6 +81,10 @@ def parse_args():
                                              .format(DEFAULT_THROTTLE_COUNT,
                                                      DEFAULT_THROTTLE_SECONDS)))
 
+    parser.add_argument("--device",
+                        help=textwrap.dedent("""
+                        Registers a device name (if not already registered),and only notifies
+                        actions if pushes are addressed to this device name."""))
     parser.add_argument("-d", "--debug", action="store_true", help="Turn on debug logging")
     parser.add_argument("-v", "--verbose", action="store_true", help="Turn on verbose logging (INFO messages)")
 
@@ -121,10 +125,14 @@ def do_main(args):
     throttle_count = args.throttle_count
     throttle_seconds = args.throttle_seconds
 
+    # Device
+    device = args.device
+
     # Create ListenApp
     listen_app = ListenApp(api_key,
                            throttle_count=throttle_count,
-                           throttle_seconds=throttle_seconds)
+                           throttle_seconds=throttle_seconds,
+                           device=device)
 
     # Add actions from command line arguments
     if args.exec:
@@ -336,12 +344,14 @@ class ExecutableActionSimplified(ExecutableAction):
 class ListenApp:
     def __init__(self, api_key: str,
                  throttle_count: int = DEFAULT_THROTTLE_COUNT,
-                 throttle_seconds: float = DEFAULT_THROTTLE_SECONDS):
+                 throttle_seconds: float = DEFAULT_THROTTLE_SECONDS,
+                 device: str = None):
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
         self.pb = AsyncPushbullet(api_key=api_key)
         self.throttle_max_count = throttle_count
         self.throttle_max_seconds = throttle_seconds
+        self.device_name = device
         self._throttle_timestamps = []  # type: [float]
         self.actions = []  # type: [Action]
         self._listener = None  # type: PushListener
@@ -368,7 +378,7 @@ class ListenApp:
         if len(self._throttle_timestamps) >= self.throttle_max_count and span < self.throttle_max_seconds:
             future_time = self._throttle_timestamps[1] + self.throttle_max_seconds
             stall = future_time - time.time()
-            self.log.info("Throttling pushes that are coming too fast. Stalling {:0.1f} seconds ...".format(stall))
+            self.log.warning("Throttling pushes that are coming too fast. Stalling {:0.1f} seconds ...".format(stall))
             await asyncio.sleep(stall)
 
     async def run(self):
@@ -381,10 +391,30 @@ class ListenApp:
             await self.pb.close()
             return
 
+        # Need to register a device?
+        dest_dev = None  # type: Device
+        if self.device_name is not None:
+            if self.pb._devices is None:
+                await self.pb._async_load_devices()
+            dest_dev = self.pb.get_device(self.device_name)
+            if dest_dev is None:
+                dest_dev = await self.pb.async_new_device(nickname=self.device_name)
+                self.log.info("Registered new device with nickname={}".format(self.device_name))
+            else:
+                self.log.info("Found existing device with nickname={}".format(self.device_name))
+
         self._listener = PushListener(self.pb)
         self.log.info("Awaiting pushes ...".format(str(self)))
         async for push in self._listener:  # type: dict
             self.log.info("Received push {}".format(push))
+
+            # If we are filtering based on device, then only let pushes continue if
+            # they are for the device specified.
+            # If we are not filtering, then let all pushes pass.
+            if dest_dev is not None:  # We are filtering
+                if push.get("target_device_iden", "") != dest_dev.device_iden:  # Wrong device
+                    continue  # back to top of for loop
+
             await self._throttle()
 
             for action in self.actions:  # type: Action

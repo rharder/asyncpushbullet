@@ -244,7 +244,7 @@ class Pushbullet(object):
         for device_info in device_list:
             if device_info.get("active"):
                 d = Device(self, device_info)
-                self.devices.append(d)
+                self._devices.append(d)
         self.log.info("Active devices found: {}".format(len(self._devices)))
 
     @property

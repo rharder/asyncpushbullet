@@ -18,13 +18,16 @@ from asyncpushbullet.filetype import get_file_type
 sys.path.append("..")
 from asyncpushbullet import Pushbullet, PushbulletError
 
-API_KEY = ""  # YOUR API KEY
+
+# API_KEY = ""  # YOUR API KEY
 # logging.basicConfig(logging.ERROR)
 
 # sys.argv.append("--list-devices")
-sys.argv += ["--file", __file__]
-sys.argv.append("--transfer.sh")
+# sys.argv += ["--file", __file__]
+# sys.argv.append("--transfer.sh")
 
+# sys.argv += ["-t", "foo"]
+# sys.argv += ["--key-file", "../api_key.txt"]
 
 # sys.argv.append("--quiet")
 
@@ -34,12 +37,22 @@ def main():
 
 
 def do_main(args):
-    global API_KEY
+    # global API_KEY
 
     # Key
+    api_key = ""
+    if "PUSHBULLET_API_KEY" in os.environ:
+        api_key = os.environ["PUSHBULLET_API_KEY"].strip()
+
     if args.key:
-        API_KEY = args.key
-    if API_KEY == "":
+        api_key = args.key.strip()
+
+    if args.key_file:
+        with open(args.key_file) as f:
+            api_key = f.read().strip()
+        print("Read API key from file {}".format(args.key_file))
+
+    if api_key == "":
         print(
             "You must specify an API key, either at the command line or with the PUSHBULLET_API_KEY environment variable.",
             file=sys.stderr)
@@ -48,7 +61,7 @@ def do_main(args):
     # Make connection
     pb = None  # type: Pushbullet
     try:
-        pb = Pushbullet(API_KEY)
+        pb = Pushbullet(api_key)
     except PushbulletError as exc:
         print(exc)
         sys.exit(2)
@@ -67,7 +80,7 @@ def do_main(args):
 
         if args.transfer_sh:
             if not args.quiet:
-                print("Uploading file via transfer.sh ... {}".format(args.file))
+                print("Uploading file to transfer.sh ... {}".format(args.file))
             with open(args.file, "rb") as f:
                 file_name = os.path.basename(args.file)
                 resp = pb._post_data("https://transfer.sh/", files={file_name: f})
@@ -96,21 +109,32 @@ def do_main(args):
                 print(resp)
 
     # Push note
-    else:
+    elif args.title or args.body:
         title = args.title
         body = args.body
-        resp = pb.push_note(title, body)
+        if body is not None and body == "-":
+            body = sys.stdin.read()
+        url = args.url
+        if url is None:
+            resp = pb.push_note(title=title, body=body)
+        else:
+            resp = pb.push_link(title=title, url=url, body=body)
 
         if not args.quiet:
             print(resp)
+    else:
+        print("Nothing to do.")
+        sys.exit(4)
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-k", "--key", help="Your Pushbullet.com API key")
+    parser.add_argument("--key-file", help="Text file containing your Pushbullet.com API key")
     parser.add_argument("-t", "--title", help="Title of your push")
-    parser.add_argument("-b", "--body", help="Body of your push")
-    parser.add_argument("-d", "--device", help="Destination device name")
+    parser.add_argument("-b", "--body", help="Body of your push (- means read from stdin)")
+    # parser.add_argument("-d", "--device", help="Destination device name")
+    parser.add_argument("-u", "--url", help="URL of link being pushed")
     parser.add_argument("-f", "--file", help="Pathname to file to push")
     parser.add_argument("--transfer.sh", dest="transfer_sh", action="store_true",
                         help="Use transfer.sh website for uploading files (use with --file)")
@@ -118,6 +142,11 @@ def parse_args():
     parser.add_argument("-q", "--quiet", action="store_true", help="Suppress all output")
 
     args = parser.parse_args()
+
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(5)
+
     return args
 
 
@@ -130,11 +159,11 @@ def nostdout():
 
 
 if __name__ == "__main__":
-    if API_KEY == "":
-        if "PUSHBULLET_API_KEY" in os.environ:
-            API_KEY = os.environ["PUSHBULLET_API_KEY"]
-        else:
-            api_file = os.path.join(os.path.dirname(__file__), "../api_key.txt")
-            with open(api_file) as f:
-                API_KEY = f.read().strip()
+    # if API_KEY == "":
+    #     if "PUSHBULLET_API_KEY" in os.environ:
+    #         API_KEY = os.environ["PUSHBULLET_API_KEY"]
+    # else:
+    #     api_file = os.path.join(os.path.dirname(__file__), "../api_key.txt")
+    #     with open(api_file) as f:
+    #         API_KEY = f.read().strip()
     main()

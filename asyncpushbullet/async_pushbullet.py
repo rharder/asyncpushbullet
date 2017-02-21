@@ -119,6 +119,17 @@ class AsyncPushbullet(Pushbullet):
     # Device
     #
 
+    async def _async_load_devices(self):
+        self._devices = []
+        msg = await self._async_get_data_with_pagination(self.DEVICES_URL, "devices", params={"active": "true"})
+        device_list = msg.get('devices', [])
+        for device_info in device_list:
+            if device_info.get("active"):
+                d = Device(self, device_info)
+                self._devices.append(d)
+        self.log.info("Active devices found: {}".format(len(self._devices)))
+
+
     async def async_new_device(self, nickname: str, manufacturer: str = None,
                                model: str = None, icon: str = "system") -> dict:
         gen = self._new_device_generator(nickname, manufacturer=manufacturer, model=model, icon=icon)
