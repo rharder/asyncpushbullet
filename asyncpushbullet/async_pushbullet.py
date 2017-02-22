@@ -189,7 +189,7 @@ class AsyncPushbullet(Pushbullet):
             if chat_info.get("active"):
                 c = Chat(self, chat_info)
                 self.chats.append(c)
-        self.log.info("Active chats found: {}".format(len(self._chats)))
+        self.log.info("Found {} active chats".format(len(self._chats)))
 
     async def async_get_chat(self, email: str) -> Chat:
 
@@ -236,7 +236,7 @@ class AsyncPushbullet(Pushbullet):
             if channel_info.get("active"):
                 c = Channel(self, channel_info)
                 self.channels.append(c)
-        self.log.info("Active channels found: {}".format(len(self._channels)))
+        self.log.info("Found {} active channels".format(len(self._channels)))
 
     async def async_get_channel(self, channel_tag):
         if self._channels is None:
