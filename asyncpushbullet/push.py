@@ -1,27 +1,39 @@
 #!/usr/bin/env python3
 """
-A command line script for sending pushes
-"""
-import contextlib
-import os
-import argparse
+A command line script for sending pushes.
 
+usage: push.py [-h] [-k KEY] [--key-file KEY_FILE] [-t TITLE] [-b BODY]
+               [-u URL] [-f FILE] [--transfer.sh] [--list-devices] [-q]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -k KEY, --key KEY     Your Pushbullet.com API key
+  --key-file KEY_FILE   Text file containing your Pushbullet.com API key
+  -t TITLE, --title TITLE
+                        Title of your push
+  -b BODY, --body BODY  Body of your push (- means read from stdin)
+  -u URL, --url URL     URL of link being pushed
+  -f FILE, --file FILE  Pathname to file to push
+  --transfer.sh         Use transfer.sh website for uploading files (use with
+                        --file)
+  --list-devices        List registered device names
+  -q, --quiet           Suppress all output
+
+"""
+import argparse
+import contextlib
+import io
+import os
 import sys
 
-import logging
-from pprint import pprint
-
-import io
-
+sys.path.append("..")  # To help when running examples direct from the source repository
 from asyncpushbullet.filetype import get_file_type
-
-sys.path.append("..")
 from asyncpushbullet import Pushbullet, PushbulletError
 
 
-# API_KEY = ""  # YOUR API KEY
 # logging.basicConfig(logging.ERROR)
 
+# sys.argv.append("--help")
 # sys.argv.append("--list-devices")
 # sys.argv += ["--file", __file__]
 # sys.argv.append("--transfer.sh")
@@ -159,11 +171,4 @@ def nostdout():
 
 
 if __name__ == "__main__":
-    # if API_KEY == "":
-    #     if "PUSHBULLET_API_KEY" in os.environ:
-    #         API_KEY = os.environ["PUSHBULLET_API_KEY"]
-    # else:
-    #     api_file = os.path.join(os.path.dirname(__file__), "../api_key.txt")
-    #     with open(api_file) as f:
-    #         API_KEY = f.read().strip()
     main()
