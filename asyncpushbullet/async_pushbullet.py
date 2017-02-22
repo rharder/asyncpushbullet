@@ -119,6 +119,15 @@ class AsyncPushbullet(Pushbullet):
     # Device
     #
 
+    async def async_get_device(self, nickname=None, iden=None) -> Device:
+        if self._devices is None:
+            await self._async_load_devices()
+
+        if nickname:
+            return next((device for device in self.devices if device.nickname == nickname), None)
+        elif iden:
+            return next((device for device in self.devices if device.device_iden == iden), None)
+
     async def _async_load_devices(self):
         self._devices = []
         msg = await self._async_get_data_with_pagination(self.DEVICES_URL, "devices", params={"active": "true"})
