@@ -143,9 +143,9 @@ class AsyncPushbullet(Pushbullet):
 
         def _get():
             if nickname:
-                return next((x for x in self.devices if x.nickname == nickname), None)
+                return next((x for x in self._devices if x.nickname == nickname), None)
             elif iden:
-                return next((x for x in self.devices if x.device_iden == iden), None)
+                return next((x for x in self._devices if x.device_iden == iden), None)
 
         x = _get()
         if x is None:
@@ -243,7 +243,7 @@ class AsyncPushbullet(Pushbullet):
             self._channels = []
 
         def _get():
-            return next((x for x in self.channels if x.channel_tag == channel_tag), None)
+            return next((x for x in self._channels if x.channel_tag == channel_tag), None)
 
         x = _get()
         if x is None:

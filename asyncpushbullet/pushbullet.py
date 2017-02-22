@@ -215,9 +215,9 @@ class Pushbullet(object):
 
     def refresh(self):
         self._load_user_info()
-        self._load_devices()
-        self._load_chats()
-        self._load_channels()
+        # self._load_devices()
+        # self._load_chats()
+        # self._load_channels()
         self.get_pushes(limit=1)
 
     @property
