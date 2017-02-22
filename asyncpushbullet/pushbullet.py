@@ -230,6 +230,10 @@ class Pushbullet(object):
     def _load_user_info(self):
         self._user_info = self._get_data(self.ME_URL)
 
+    # ################
+    # Device
+    #
+
     @property
     def devices(self):
         """ :rtype: [Device] """
@@ -247,40 +251,6 @@ class Pushbullet(object):
                 self._devices.append(d)
         self.log.info("Found {} active devices".format(len(self._devices)))
 
-    @property
-    def chats(self):
-        """ :rtype: [Chat] """
-        if self._chats is None:
-            self._load_chats()
-        return self._chats
-
-    def _load_chats(self):
-        self._chats = []
-        msg = self._get_data_with_pagination(self.CHATS_URL, "chats", params={"active": "true"})
-        chat_list = msg.get('chats', [])
-        for chat_info in chat_list:
-            if chat_info.get("active"):
-                c = Chat(self, chat_info)
-                self.chats.append(c)
-        self.log.info("Active chats found: {}".format(len(self._chats)))
-
-    @property
-    def channels(self):
-        """ :rtype: [Channel] """
-        if self._channels is None:
-            self._load_channels()
-        return self._channels
-
-    def _load_channels(self):
-        self._channels = []
-        msg = self._get_data_with_pagination(self.CHANNELS_URL, "channels", params={"active": "true"})
-        channel_list = msg.get('channels', [])
-        for channel_info in channel_list:
-            if channel_info.get("active"):
-                c = Channel(self, channel_info)
-                self.channels.append(c)
-        self.log.info("Active channels found: {}".format(len(self._channels)))
-
     def get_device(self, nickname=None, iden=None) -> Device:
         """
         Attempts to retrieve a device based on the given nickname or iden.
@@ -293,24 +263,16 @@ class Pushbullet(object):
 
         def _get():
             if nickname:
-                return next((device for device in self.devices if device.nickname == nickname), None)
+                return next((x for x in self._devices if x.nickname == nickname), None)
             elif iden:
-                return next((device for device in self.devices if device.device_iden == iden), None)
+                return next((x for x in self._devices if x.device_iden == iden), None)
 
-        dev = _get()
-        if dev is None:
+        x = _get()
+        if x is None:
             self.log.debug("Device {} not found in cache.  Refreshing.".format(nickname or iden))
             self._load_devices()  # Refresh cache once
-        dev = _get()
-        return dev
-
-    def get_channel(self, channel_tag):
-        # TODO: improve cache handling like get_device
-        return next((channel for channel in self.channels if channel.channel_tag == channel_tag), None)
-
-    # ################
-    # Device
-    #
+        x = _get()
+        return x
 
     def new_device(self, nickname, manufacturer=None, model=None, icon="system"):
         gen = self._new_device_generator(nickname, manufacturer=manufacturer, model=model, icon=icon)
@@ -364,6 +326,38 @@ class Pushbullet(object):
     # Chat
     #
 
+    @property
+    def chats(self):
+        """ :rtype: [Chat] """
+        if self._chats is None:
+            self._load_chats()
+        return self._chats
+
+    def _load_chats(self):
+        self._chats = []
+        msg = self._get_data_with_pagination(self.CHATS_URL, "chats", params={"active": "true"})
+        chat_list = msg.get('chats', [])
+        for chat_info in chat_list:
+            if chat_info.get("active"):
+                c = Chat(self, chat_info)
+                self.chats.append(c)
+        self.log.info("Active chats found: {}".format(len(self._chats)))
+
+    def get_chat(self, email: str) -> Chat:
+
+        if self._chats is None:
+            self._chats = []
+
+        def _get():
+            return next((x for x in self._chats if x.email == email), None)
+
+        x = _get()
+        if x is None:
+            self.log.debug("Chat {} not found in cache.  Refreshing.".format(email))
+            self._load_chats()  # Refresh cache once
+        x = _get()
+        return x
+
     def new_chat(self, email):
         gen = self._new_chat_generator(email)
         xfer = next(gen)  # Prep http params
@@ -403,6 +397,43 @@ class Pushbullet(object):
     def remove_chat(self, chat):
         msg = self._delete_data("{}/{}".format(self.CHATS_URL, chat.iden))
         return msg
+
+    # ################
+    # Channel
+    #
+
+
+    @property
+    def channels(self):
+        """ :rtype: [Channel] """
+        if self._channels is None:
+            self._load_channels()
+        return self._channels
+
+    def _load_channels(self):
+        self._channels = []
+        msg = self._get_data_with_pagination(self.CHANNELS_URL, "channels", params={"active": "true"})
+        channel_list = msg.get('channels', [])
+        for channel_info in channel_list:
+            if channel_info.get("active"):
+                c = Channel(self, channel_info)
+                self.channels.append(c)
+        self.log.info("Active channels found: {}".format(len(self._channels)))
+
+    def get_channel(self, channel_tag: str) -> Channel:
+
+        if self._channels is None:
+            self._channels = []
+
+        def _get():
+            return next((x for x in self._channels if x.channel_tag == channel_tag), None)
+
+        x = _get()
+        if x is None:
+            self.log.debug("Channel {} not found in cache.  Refreshing.".format(channel_tag))
+            self._load_channels()  # Refresh cache once
+        x = _get()
+        return x
 
     # ################
     # Pushes

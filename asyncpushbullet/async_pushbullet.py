@@ -143,17 +143,16 @@ class AsyncPushbullet(Pushbullet):
 
         def _get():
             if nickname:
-                return next((device for device in self.devices if device.nickname == nickname), None)
+                return next((x for x in self.devices if x.nickname == nickname), None)
             elif iden:
-                return next((device for device in self.devices if device.device_iden == iden), None)
+                return next((x for x in self.devices if x.device_iden == iden), None)
 
-        dev = _get()
-        if dev is None:
+        x = _get()
+        if x is None:
             self.log.debug("Device {} not found in cache.  Refreshing.".format(nickname or iden))
             await self._async_load_devices()  # Refresh cache once
-        dev = _get()
-        return dev
-
+        x = _get()
+        return x
 
     async def async_new_device(self, nickname: str, manufacturer: str = None,
                                model: str = None, icon: str = "system") -> dict:
@@ -181,6 +180,31 @@ class AsyncPushbullet(Pushbullet):
     # Chat
     #
 
+    async def _async_load_chats(self):
+        self._chats = []
+        msg = await self._async_get_data_with_pagination(self.CHATS_URL, "chats", params={"active": "true"})
+        chat_list = msg.get('chats', [])
+        for chat_info in chat_list:
+            if chat_info.get("active"):
+                c = Chat(self, chat_info)
+                self.chats.append(c)
+        self.log.info("Active chats found: {}".format(len(self._chats)))
+
+    async def async_get_chat(self, email: str) -> Chat:
+
+        if self._chats is None:
+            self._chats = []
+
+        def _get():
+            return next((x for x in self._chats if x.email == email), None)
+
+        x = _get()
+        if x is None:
+            self.log.debug("Chat {} not found in cache.  Refreshing.".format(email))
+            await self._async_load_chats()  # Refresh cache once
+        x = _get()
+        return x
+
     async def async_new_chat(self, email: str) -> dict:
         gen = self._new_chat_generator(email)
         xfer = next(gen)
@@ -197,6 +221,34 @@ class AsyncPushbullet(Pushbullet):
     async def async_remove_chat(self, chat: Chat) -> dict:
         msg = await self._async_delete_data("{}/{}".format(self.CHATS_URL, chat.iden))
         return msg
+
+    # ################
+    # Channel
+    #
+
+    async def _async_load_channels(self):
+        self._channels = []
+        msg = await self._async_get_data_with_pagination(self.CHANNELS_URL, "channels", params={"active": "true"})
+        channel_list = msg.get('channels', [])
+        for channel_info in channel_list:
+            if channel_info.get("active"):
+                c = Channel(self, channel_info)
+                self.channels.append(c)
+        self.log.info("Active channels found: {}".format(len(self._channels)))
+
+    async def async_get_channel(self, channel_tag):
+        if self._channels is None:
+            self._channels = []
+
+        def _get():
+            return next((x for x in self.channels if x.channel_tag == channel_tag), None)
+
+        x = _get()
+        if x is None:
+            self.log.debug("Channel {} not found in cache.  Refreshing.".format(channel_tag))
+            await self._async_load_channels()  # Refresh cache once
+        x = _get()
+        return x
 
     # ################
     # Pushes
