@@ -151,16 +151,17 @@ class AsyncPushbullet(Pushbullet):
         if x is None:
             self.log.debug("Device {} not found in cache.  Refreshing.".format(nickname or iden))
             await self._async_load_devices()  # Refresh cache once
-        x = _get()
+            x = _get()
         return x
 
     async def async_new_device(self, nickname: str, manufacturer: str = None,
                                model: str = None, icon: str = "system") -> dict:
         gen = self._new_device_generator(nickname, manufacturer=manufacturer, model=model, icon=icon)
         xfer = next(gen)  # Prep http params
-        data = xfer["data"]
+        data = xfer.get('data', {})
         xfer["msg"] = await self._async_post_data(self.DEVICES_URL, data=data)
-        return next(gen)  # Post process response
+        resp = next(gen)  # Post process response
+        return resp
 
     async def async_edit_device(self, device: Device, nickname: str = None,
                                 model: str = None, manufacturer: str = None,
@@ -202,14 +203,15 @@ class AsyncPushbullet(Pushbullet):
         if x is None:
             self.log.debug("Chat {} not found in cache.  Refreshing.".format(email))
             await self._async_load_chats()  # Refresh cache once
-        x = _get()
+            x = _get()
         return x
 
     async def async_new_chat(self, email: str) -> dict:
         gen = self._new_chat_generator(email)
-        xfer = next(gen)
-        xfer["msg"] = await self._async_post_data(self.CHATS_URL, data=xfer.get("data", {}))
-        return next(gen)
+        xfer = next(gen)  # Prep http params
+        data = xfer.get("data", {})
+        xfer["msg"] = await self._async_post_data(self.CHATS_URL, data=data)
+        return next(gen)  # Post process response
 
     async def async_edit_chat(self, chat: Chat, muted: bool = False) -> dict:
         gen = self._edit_chat_generator(chat, muted)
@@ -247,7 +249,7 @@ class AsyncPushbullet(Pushbullet):
         if x is None:
             self.log.debug("Channel {} not found in cache.  Refreshing.".format(channel_tag))
             await self._async_load_channels()  # Refresh cache once
-        x = _get()
+            x = _get()
         return x
 
     # ################

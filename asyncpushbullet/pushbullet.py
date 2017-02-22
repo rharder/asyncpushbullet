@@ -271,16 +271,16 @@ class Pushbullet(object):
         if x is None:
             self.log.debug("Device {} not found in cache.  Refreshing.".format(nickname or iden))
             self._load_devices()  # Refresh cache once
-        x = _get()
+            x = _get()
         return x
 
-    def new_device(self, nickname, manufacturer=None, model=None, icon="system"):
+    def new_device(self, nickname: str, manufacturer: str = None,
+                   model: str = None, icon: str = "system") -> dict:
         gen = self._new_device_generator(nickname, manufacturer=manufacturer, model=model, icon=icon)
         xfer = next(gen)  # Prep http params
         data = xfer.get('data', {})
         xfer["msg"] = self._post_data(self.DEVICES_URL, data=json.dumps(data))
         resp = next(gen)  # Post process response
-        # log.info("Device created: {}".format(resp))
         return resp
 
     def _new_device_generator(self, nickname, manufacturer=None, model=None, icon="system"):
@@ -295,7 +295,9 @@ class Pushbullet(object):
         self.devices.append(new_device)
         yield new_device
 
-    def edit_device(self, device, nickname=None, model=None, manufacturer=None, icon=None, has_sms=None):
+    def edit_device(self, device: Device, nickname: str = None,
+                    model: str = None, manufacturer: str = None,
+                    icon: str = None, has_sms: bool = None) -> dict:
         gen = self._edit_device_generator(device, nickname=nickname, model=model,
                                           manufacturer=manufacturer, icon=icon, has_sms=has_sms)
         xfer = next(gen)  # Prep http params
@@ -355,7 +357,7 @@ class Pushbullet(object):
         if x is None:
             self.log.debug("Chat {} not found in cache.  Refreshing.".format(email))
             self._load_chats()  # Refresh cache once
-        x = _get()
+            x = _get()
         return x
 
     def new_chat(self, email):
@@ -363,9 +365,7 @@ class Pushbullet(object):
         xfer = next(gen)  # Prep http params
         data = xfer.get('data', {})
         xfer["msg"] = self._post_data(self.CHATS_URL, data=json.dumps(data))
-        resp = next(gen)  # Post process response
-        # log.info("Chat created: {}".format(resp))
-        return resp
+        return next(gen)  # Post process response
 
     def _new_chat_generator(self, email):
         data = {"email": email}
@@ -432,7 +432,7 @@ class Pushbullet(object):
         if x is None:
             self.log.debug("Channel {} not found in cache.  Refreshing.".format(channel_tag))
             self._load_channels()  # Refresh cache once
-        x = _get()
+            x = _get()
         return x
 
     # ################
