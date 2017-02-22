@@ -29,12 +29,13 @@ logging.basicConfig(level=logging.DEBUG)
 #
 
 async def co_run(pb: AsyncPushbullet):
-    pl = PushListener(pb)
+    dev = pb.get_device("Chrome on DFCS-Harder05")
+    pl = PushListener(pb, filter_device=dev)
     async def _timeout():
         await asyncio.sleep(3)
-        pl.close()
+        await pl.close()
 
-    asyncio.get_event_loop().create_task(_timeout())
+    # asyncio.get_event_loop().create_task(_timeout())
 
     # async for p in PushListener(pb):
     async for p in pl:

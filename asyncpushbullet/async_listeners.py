@@ -11,6 +11,7 @@ import time
 
 import aiohttp  # pip install aiohttp
 
+from asyncpushbullet import Device
 from .async_pushbullet import AsyncPushbullet
 from .pushbullet import PushbulletError
 
@@ -192,15 +193,15 @@ class WebsocketListener(object):
                 if not self._closed:
                     await asyncio.sleep(3)  # Throttle restarts
 
-            # self.log.debug("Exiting async def _listen() on loop {}".format(id(asyncio.get_event_loop())))
+                    # self.log.debug("Exiting async def _listen() on loop {}".format(id(asyncio.get_event_loop())))
 
         asyncio.run_coroutine_threadsafe(_listen(func), loop=self.loop)
 
 
 class PushListener(object):
-    def __init__(self, account: AsyncPushbullet, on_message=None, on_connect=None,
-                 on_close=None,
-                 filter_inactive: bool = True, filter_dismissed: bool = True):
+    def __init__(self, account: AsyncPushbullet, on_message=None, on_connect=None, on_close=None,
+                 filter_inactive: bool = True, filter_dismissed: bool = True,
+                 filter_device: Device = None):
         """
         Creates a new PushtListener, either as a standalone object or
         as part of an "async for" construct.
@@ -217,6 +218,7 @@ class PushListener(object):
         self._most_recent_timestamp = 0.0  # type: float
         self._filter_inactive = filter_inactive
         self._filter_dismissed = filter_dismissed
+        self._filter_device = filter_device
         # self._pushes = []
         self.ws_listener = None  # type: WebsocketListener
 
@@ -264,9 +266,13 @@ class PushListener(object):
 
                     # Filter dismissed pushes if requested
                     for push in pushes:
+                        #
                         if not self._filter_dismissed or not bool(push.get("dismissed")):
-                            self.log.debug("Adding to push queue: {}".format(push))
-                            await self._queue.put(push)
+                            if not self._filter_device or \
+                                            self._filter_device.device_iden == \
+                                            push.get("target_device_iden", ""):
+                                self.log.debug("Adding to push queue: {}".format(push))
+                                await self._queue.put(push)
 
             # Notify callback of socket closed, if registered
             if inspect.iscoroutinefunction(self._on_close):
@@ -329,7 +335,7 @@ class PushListener(object):
                 # finally:
                 if not self._closed:
                     await asyncio.sleep(3)  # Throttle restarts
-            # self.log.debug("Exiting async def _listen()")
+                    # self.log.debug("Exiting async def _listen()")
 
         asyncio.run_coroutine_threadsafe(_listen(func), loop=self.account.loop)
 
