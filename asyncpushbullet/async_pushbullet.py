@@ -45,6 +45,7 @@ class AsyncPushbullet(Pushbullet):
             self._aio_sessions[loop] = session  # Save session for this loop
 
             if self.most_recent_timestamp == 0:
+                self.log.debug("Retrieving one push to set initial latest timestamp")
                 await self.async_get_pushes(limit=1)  # May throw invalid key error here
 
             else:
@@ -119,15 +120,6 @@ class AsyncPushbullet(Pushbullet):
     # Device
     #
 
-    async def async_get_device(self, nickname=None, iden=None) -> Device:
-        if self._devices is None:
-            await self._async_load_devices()
-
-        if nickname:
-            return next((device for device in self.devices if device.nickname == nickname), None)
-        elif iden:
-            return next((device for device in self.devices if device.device_iden == iden), None)
-
     async def _async_load_devices(self):
         self._devices = []
         msg = await self._async_get_data_with_pagination(self.DEVICES_URL, "devices", params={"active": "true"})
@@ -136,7 +128,31 @@ class AsyncPushbullet(Pushbullet):
             if device_info.get("active"):
                 d = Device(self, device_info)
                 self._devices.append(d)
-        self.log.info("Active devices found: {}".format(len(self._devices)))
+        self.log.info("Found {} active devices".format(len(self._devices)))
+
+    async def async_get_device(self, nickname=None, iden=None) -> Device:
+        """
+        Attempts to retrieve a device based on the given nickname or iden.
+        First looks in the cached copy of the data and then refreshes the
+        cache once if the device is not found.
+        Returns None if the device is still not found.
+        """
+
+        if self._devices is None:
+            self._devices = []
+
+        def _get():
+            if nickname:
+                return next((device for device in self.devices if device.nickname == nickname), None)
+            elif iden:
+                return next((device for device in self.devices if device.device_iden == iden), None)
+
+        dev = _get()
+        if dev is None:
+            self.log.debug("Device {} not found in cache.  Refreshing.".format(nickname or iden))
+            await self._async_load_devices()  # Refresh cache once
+        dev = _get()
+        return dev
 
 
     async def async_new_device(self, nickname: str, manufacturer: str = None,

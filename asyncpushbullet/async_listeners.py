@@ -201,7 +201,7 @@ class WebsocketListener(object):
 class PushListener(object):
     def __init__(self, account: AsyncPushbullet, on_message=None, on_connect=None, on_close=None,
                  filter_inactive: bool = True, filter_dismissed: bool = True,
-                 filter_device: Device = None):
+                 filter_device_nickname: str = None):
         """
         Creates a new PushtListener, either as a standalone object or
         as part of an "async for" construct.
@@ -218,7 +218,7 @@ class PushListener(object):
         self._most_recent_timestamp = 0.0  # type: float
         self._filter_inactive = filter_inactive
         self._filter_dismissed = filter_dismissed
-        self._filter_device = filter_device
+        self._filter_device_nickname = filter_device_nickname
         # self._pushes = []
         self.ws_listener = None  # type: WebsocketListener
 
@@ -264,15 +264,35 @@ class PushListener(object):
                     if len(pushes) > 0 and pushes[0].get('modified', 0) > self._most_recent_timestamp:
                         self._most_recent_timestamp = pushes[0]['modified']
 
-                    # Filter dismissed pushes if requested
+                    # Process each push
                     for push in pushes:
-                        #
-                        if not self._filter_dismissed or not bool(push.get("dismissed")):
-                            if not self._filter_device or \
-                                            self._filter_device.device_iden == \
-                                            push.get("target_device_iden", ""):
-                                self.log.debug("Adding to push queue: {}".format(push))
-                                await self._queue.put(push)
+
+                        # Filter dismissed pushes if requested
+                        if self._filter_dismissed is not None and bool(push.get("dismissed")):
+                            self.log.debug("Skipped push because it was dismissed: {}".format(push))
+                            continue  # skip this push
+
+                        # Filter on device if requested
+                        if self._filter_device_nickname is not None:
+
+                            # Does push have a target device
+                            target_iden = push.get("target_device_iden")
+                            if target_iden is None:
+                                self.log.debug("Skipped push because it had not target device: {}".format(push))
+                                continue  # skip push
+
+                            # Does target device have the right nickname?
+                            target_dev = await self.account.async_get_device(iden=target_iden)
+                            if target_dev is None:
+                                self.log.error("Received a target_device_iden in push that did not map to a device: {}"
+                                               .format(target_iden))
+                                continue  # skip this push
+                            if target_dev.nickname != self._filter_device_nickname:
+                                continue  # skip push - wrong device
+
+                        # Passed all filters - accept push
+                        self.log.debug("Adding to push queue: {}".format(push))
+                        await self._queue.put(push)
 
             # Notify callback of socket closed, if registered
             if inspect.iscoroutinefunction(self._on_close):

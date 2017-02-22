@@ -245,7 +245,7 @@ class Pushbullet(object):
             if device_info.get("active"):
                 d = Device(self, device_info)
                 self._devices.append(d)
-        self.log.info("Active devices found: {}".format(len(self._devices)))
+        self.log.info("Found {} active devices".format(len(self._devices)))
 
     @property
     def chats(self):
@@ -281,13 +281,31 @@ class Pushbullet(object):
                 self.channels.append(c)
         self.log.info("Active channels found: {}".format(len(self._channels)))
 
-    def get_device(self, nickname=None, iden=None):
-        if nickname:
-            return next((device for device in self.devices if device.nickname == nickname), None)
-        elif iden:
-            return next((device for device in self.devices if device.device_iden == iden), None)
+    def get_device(self, nickname=None, iden=None) -> Device:
+        """
+        Attempts to retrieve a device based on the given nickname or iden.
+        First looks in the cached copy of the data and then refreshes the
+        cache once if the device is not found.
+        Returns None if the device is still not found.
+        """
+        if self._devices is None:
+            self._devices = []
+
+        def _get():
+            if nickname:
+                return next((device for device in self.devices if device.nickname == nickname), None)
+            elif iden:
+                return next((device for device in self.devices if device.device_iden == iden), None)
+
+        dev = _get()
+        if dev is None:
+            self.log.debug("Device {} not found in cache.  Refreshing.".format(nickname or iden))
+            self._load_devices()  # Refresh cache once
+        dev = _get()
+        return dev
 
     def get_channel(self, channel_tag):
+        # TODO: improve cache handling like get_device
         return next((channel for channel in self.channels if channel.channel_tag == channel_tag), None)
 
     # ################

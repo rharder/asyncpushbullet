@@ -29,8 +29,7 @@ logging.basicConfig(level=logging.DEBUG)
 #
 
 async def co_run(pb: AsyncPushbullet):
-    dev = await pb.async_get_device("Chrome on DFCS-Harder05")
-    pl = PushListener(pb, filter_device=dev)
+    pl = PushListener(pb)#, filter_device_nickname="Chrome on DFCS-Harder05")
     async def _timeout():
         await asyncio.sleep(3)
         await pl.close()
