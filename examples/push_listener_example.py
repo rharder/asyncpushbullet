@@ -20,7 +20,7 @@ API_KEY = ""  # YOUR API KEY
 HTTP_PROXY_HOST = None
 HTTP_PROXY_PORT = None
 
-logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 # logging.getLogger("pushbullet.async_listeners").setLevel(logging.DEBUG)
 
 
