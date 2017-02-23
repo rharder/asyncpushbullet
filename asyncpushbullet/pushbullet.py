@@ -79,16 +79,18 @@ class Pushbullet(object):
     def session(self) -> requests.Session:
         """ Creates the http session upon first use. """
 
-        if self._session is None:
+        session = self._session
+        if session is None:
             # Set up session
-            self._session = requests.Session()
-            self._session.auth = (self.api_key, "")
-            self._session.headers.update(self._json_header)
+            session = requests.Session()
+            session.auth = (self.api_key, "")
+            session.headers.update(self._json_header)
+            self._session = session
 
             # Find most recent push's timestamp
             self.get_pushes(limit=1)  # Find timestamp of most recent push
 
-        return self._session
+        return session
 
     # ################
     # IO Methods
