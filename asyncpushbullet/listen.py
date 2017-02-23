@@ -182,6 +182,14 @@ def do_main(args):
             action = ExecutableAction(cmd_path, cmd_args)
             listen_app.add_action(action)
 
+    # Add actions from command line arguments
+    if args.exec_simple:
+        for cmd_opts in args.exec_simple:
+            cmd_path = cmd_opts[0]
+            cmd_args = cmd_opts[1:]
+            action = ExecutableActionSimplified(cmd_path, cmd_args)
+            listen_app.add_action(action)
+
     # Default action if none specified
     if len(listen_app.actions) == 0 or args.echo:
         listen_app.add_action(EchoAction())

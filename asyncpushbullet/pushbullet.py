@@ -28,11 +28,11 @@ class Pushbullet(object):
     UPLOAD_REQUEST_URL = "https://api.pushbullet.com/v2/upload-request"
     EPHEMERALS_URL = "https://api.pushbullet.com/v2/ephemerals"
 
-    def __init__(self, api_key, encryption_password=None, proxy=None):
+    def __init__(self, api_key: str, encryption_password: str = None, proxy: dict = None):
         self.api_key = api_key
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
-        self.__session = None  # type: requests.Session
+        self._session = None  # type: requests.Session
         self._json_header = {'Content-Type': 'application/json'}
         self.most_recent_timestamp = 0.0  # type: float
 
@@ -65,32 +65,36 @@ class Pushbullet(object):
             self._encryption_key = kdf.derive(encryption_password.encode("UTF-8"))
 
     def verify_key(self):
+        """
+        Triggers a call to Pushbullet.com that will throw an
+        InvalidKeyError if the key is not valid.
+        """
         x = self.session  # triggers a check
 
     def close(self):
-        if self.__session is not None:
-            self.__session.close()
+        if self._session is not None:
+            self._session.close()
 
     @property
-    def session(self):
+    def session(self) -> requests.Session:
         """ Creates the http session upon first use. """
 
-        if self.__session is None:
+        if self._session is None:
             # Set up session
-            self.__session = requests.Session()
-            self.__session.auth = (self.api_key, "")
-            self.__session.headers.update(self._json_header)
+            self._session = requests.Session()
+            self._session.auth = (self.api_key, "")
+            self._session.headers.update(self._json_header)
 
             # Find most recent push's timestamp
             self.get_pushes(limit=1)  # Find timestamp of most recent push
 
-        return self.__session
+        return self._session
 
     # ################
     # IO Methods
     #
 
-    def _http(self, func, url, **kwargs):
+    def _http(self, func, url: str, **kwargs) -> dict:
         """ All HTTP transactions funnel through here. """
 
         # If uploading a file, temporarily remove JSON header
@@ -103,7 +107,7 @@ class Pushbullet(object):
             self.session.headers.update(self._json_header)  # Put JSON header back
 
         code = resp.status_code
-        msg = None
+        msg = None  # type: dict
         try:
             if code != 204:  # No content
                 msg = resp.json()
@@ -111,16 +115,15 @@ class Pushbullet(object):
             pass
         finally:
             if msg is None:
-                msg = resp.text
+                msg = {"raw": str(resp.text)}
 
         return self._interpret_response(resp.status_code, resp.headers, msg)
 
-    def _interpret_response(self, code, headers, msg):
+    def _interpret_response(self, code: int, headers: dict, msg: dict):
         """ Interpret the HTTP response headers, raise exceptions, etc. """
 
         if code in (401, 403):
             err_msg = "{} Invalid API Key: {}".format(code, self.api_key)
-            # self.log.error(err_msg)
             raise InvalidKeyError(err_msg)
 
         elif code == 429:
@@ -133,17 +136,14 @@ class Pushbullet(object):
         elif code not in (200, 204):  # 200 OK, 204 Empty response (file upload)
             raise PushbulletError(code, msg)
 
-        if type(msg) is not dict:  # A dict is always returned
-            msg = {"raw": msg}
-
         return msg
 
-    def _get_data(self, url, **kwargs):
+    def _get_data(self, url: str, **kwargs) -> dict:
         """ HTTP GET """
         msg = self._http(self.session.get, url, **kwargs)
         return msg
 
-    def _get_data_with_pagination(self, url, item_name, **kwargs):
+    def _get_data_with_pagination(self, url: str, item_name: str, **kwargs) -> dict:
         """ Performs a GET on a list that Pushbullet may paginate. """
         gen = self._get_data_with_pagination_generator(url, item_name, **kwargs)
         xfer = next(gen)  # Prep params
@@ -154,7 +154,7 @@ class Pushbullet(object):
             msg = next(gen)
         return msg
 
-    def _get_data_with_pagination_generator(self, url, item_name, **kwargs):
+    def _get_data_with_pagination_generator(self, url: str, item_name: str, **kwargs):
         msg = {}
         items = []
         limit = kwargs.get("params", {}).get("limit")
@@ -179,23 +179,24 @@ class Pushbullet(object):
         msg[item_name] = items[:limit]  # Cut down to limit
         yield msg
 
-    def _post_data(self, url, **kwargs):
+    def _post_data(self, url: str, **kwargs) -> dict:
         """ HTTP POST """
         msg = self._http(self.session.post, url, **kwargs)
         return msg
 
-    def _delete_data(self, url, **kwargs):
+    def _delete_data(self, url: str, **kwargs) -> dict:
         """ HTTP DELETE """
         msg = self._http(self.session.delete, url, **kwargs)
         return msg
 
-    def _push(self, data):
+    def _push(self, data: dict) -> dict:
         """ Helper for generic push """
         msg = self._post_data(Pushbullet.PUSH_URL, data=json.dumps(data))
         return msg
 
     @staticmethod
-    def _recipient(device=None, chat=None, email=None, channel=None):
+    def _recipient(device: Device = None, chat: Chat = None,
+                   email: str = None, channel: Channel = None) -> dict:
         data = dict()
 
         if device:
@@ -221,7 +222,7 @@ class Pushbullet(object):
         self.get_pushes(limit=1)
 
     @property
-    def user_info(self):
+    def user_info(self) -> dict:
         """ :rtype: dict """
         if self._user_info is None:
             self._load_user_info()
@@ -235,7 +236,7 @@ class Pushbullet(object):
     #
 
     @property
-    def devices(self):
+    def devices(self) -> [Device]:
         """ :rtype: [Device] """
         if self._devices is None:
             self._load_devices()
@@ -251,7 +252,7 @@ class Pushbullet(object):
                 self._devices.append(d)
         self.log.info("Found {} active devices".format(len(self._devices)))
 
-    def get_device(self, nickname=None, iden=None) -> Device:
+    def get_device(self, nickname: str = None, iden: str = None) -> Device:
         """
         Attempts to retrieve a device based on the given nickname or iden.
         First looks in the cached copy of the data and then refreshes the
@@ -275,7 +276,7 @@ class Pushbullet(object):
         return x
 
     def new_device(self, nickname: str, manufacturer: str = None,
-                   model: str = None, icon: str = "system") -> dict:
+                   model: str = None, icon: str = "system") -> Device:
         gen = self._new_device_generator(nickname, manufacturer=manufacturer, model=model, icon=icon)
         xfer = next(gen)  # Prep http params
         data = xfer.get('data', {})
@@ -283,7 +284,8 @@ class Pushbullet(object):
         resp = next(gen)  # Post process response
         return resp
 
-    def _new_device_generator(self, nickname, manufacturer=None, model=None, icon="system"):
+    def _new_device_generator(self, nickname: str, manufacturer: str = None,
+                              model: str = None, icon: str = "system"):
         data = {"nickname": nickname, "icon": icon}
         data.update({k: v for k, v in
                      (("model", model), ("manufacturer", manufacturer)) if v is not None})
@@ -305,7 +307,9 @@ class Pushbullet(object):
         xfer["msg"] = self._post_data("{}/{}".format(self.DEVICES_URL, device.device_iden), data=json.dumps(data))
         return next(gen)  # Post process response
 
-    def _edit_device_generator(self, device, nickname=None, model=None, manufacturer=None, icon=None, has_sms=None):
+    def _edit_device_generator(self, device: Device, nickname: str = None,
+                               model: str = None, manufacturer: str = None,
+                               icon: str = None, has_sms: bool = None):
         data = {k: v for k, v in
                 (("nickname", nickname or device.nickname), ("model", model),
                  ("manufacturer", manufacturer), ("icon", icon),
@@ -320,7 +324,7 @@ class Pushbullet(object):
         self.devices[self.devices.index(device)] = new_device
         yield new_device
 
-    def remove_device(self, device):
+    def remove_device(self, device: Device):
         msg = self._delete_data("{}/{}".format(self.DEVICES_URL, device.device_iden))
         return msg
 
@@ -329,7 +333,7 @@ class Pushbullet(object):
     #
 
     @property
-    def chats(self):
+    def chats(self) -> [Chat]:
         """ :rtype: [Chat] """
         if self._chats is None:
             self._load_chats()
@@ -360,7 +364,7 @@ class Pushbullet(object):
             x = _get()
         return x
 
-    def new_chat(self, email):
+    def new_chat(self, email: str) -> Chat:
         gen = self._new_chat_generator(email)
         xfer = next(gen)  # Prep http params
         data = xfer.get('data', {})
@@ -377,7 +381,7 @@ class Pushbullet(object):
         self.chats.append(new_chat)
         yield new_chat
 
-    def edit_chat(self, chat, muted=False):
+    def edit_chat(self, chat: Chat, muted: bool = False) -> Chat:
         gen = self._edit_chat_generator(chat, muted)
         xfer = next(gen)  # Prep http params
         data = xfer.get('data', {})
@@ -394,7 +398,7 @@ class Pushbullet(object):
         self.chats[self.chats.index(chat)] = new_chat
         yield new_chat
 
-    def remove_chat(self, chat):
+    def remove_chat(self, chat: Chat) -> dict:
         msg = self._delete_data("{}/{}".format(self.CHATS_URL, chat.iden))
         return msg
 
@@ -404,7 +408,7 @@ class Pushbullet(object):
 
 
     @property
-    def channels(self):
+    def channels(self) -> [Channel]:
         """ :rtype: [Channel] """
         if self._channels is None:
             self._load_channels()
@@ -439,7 +443,8 @@ class Pushbullet(object):
     # Pushes
     #
 
-    def get_pushes(self, modified_after=None, limit=None, filter_inactive=True):
+    def get_pushes(self, modified_after: float = None, limit: int = None,
+                   filter_inactive: bool = True) -> [dict]:
         gen = self._get_pushes_generator(modified_after=modified_after,
                                          limit=limit, filter_inactive=filter_inactive)
         xfer = next(gen)  # Prep http params
@@ -448,8 +453,8 @@ class Pushbullet(object):
         resp = next(gen)  # Post process response
         return resp
 
-    def _get_pushes_generator(self, modified_after=None, limit=None,
-                              filter_inactive=True):
+    def _get_pushes_generator(self, modified_after: float = None, limit: int = None,
+                              filter_inactive: bool = True):
         data = {}
         if modified_after is not None:
             data["modified_after"] = str(modified_after)
@@ -467,40 +472,42 @@ class Pushbullet(object):
 
         yield pushes_list
 
-    def get_new_pushes(self, limit=None, filter_inactive=True):
+    def get_new_pushes(self, limit: int = None, filter_inactive: bool = True) -> [dict]:
         return self.get_pushes(modified_after=self.most_recent_timestamp,
                                limit=limit, filter_inactive=filter_inactive)
 
-    def dismiss_push(self, iden):
+    def dismiss_push(self, iden: str) -> dict:
         if type(iden) is dict and "iden" in iden:
             iden = iden["iden"]  # In case user passes entire push
         data = {"dismissed": "true"}
         msg = self._post_data("{}/{}".format(self.PUSH_URL, iden), data=json.dumps(data))
         return msg
 
-    def delete_push(self, iden):
+    def delete_push(self, iden: str) -> dict:
         if type(iden) is dict and "iden" in iden:
             iden = iden["iden"]  # In case user passes entire push
         msg = self._delete_data("{}/{}".format(self.PUSH_URL, iden))
         return msg
 
-    def delete_pushes(self):
+    def delete_pushes(self) -> dict:
         msg = self._delete_data(self.PUSH_URL)
         return msg
 
-    def push_note(self, title, body, device=None, chat=None, email=None, channel=None):
+    def push_note(self, title: str, body: str, device: Device = None, chat: Chat = None,
+                  email: str = None, channel: Channel = None) -> dict:
         data = {"type": "note", "title": title, "body": body}
         data.update(Pushbullet._recipient(device, chat, email, channel))
         resp = self._push(data)
         return resp
 
-    def push_link(self, title, url, body=None, device=None, chat=None, email=None, channel=None):
+    def push_link(self, title: str, url: str, body: str = None, device: Device = None,
+                  chat: Chat = None, email: str = None, channel: Channel = None) -> dict:
         data = {"type": "link", "title": title, "url": url, "body": body}
         data.update(Pushbullet._recipient(device, chat, email, channel))
         resp = self._push(data)
         return resp
 
-    def push_sms(self, device, number, message):
+    def push_sms(self, device: Device, number: str, message: str) -> dict:
         gen = self._push_sms_generator(device, number, message)
         xfer = next(gen)  # Prep http params
         data = xfer.get("data")
@@ -508,7 +515,7 @@ class Pushbullet(object):
         resp = next(gen)  # Post process response
         return resp
 
-    def _push_sms_generator(self, device, number, message):
+    def _push_sms_generator(self, device: Device, number: str, message: str):
         data = {
             "type": "push",
             "push": {
@@ -535,7 +542,7 @@ class Pushbullet(object):
     # Files
     #
 
-    def upload_file(self, file_path, file_type=None):
+    def upload_file(self, file_path: str, file_type: str = None) -> dict:
         gen = self._upload_file_generator(file_path, file_type=file_type)
         xfer = next(gen)  # Prep request params
 
@@ -545,11 +552,11 @@ class Pushbullet(object):
         next(gen)  # Prep upload params
 
         with open(file_path, "rb") as f:
-            xfer["msg"] = self._post_data(xfer["upload_url"], files={"file": f})
+            xfer["msg"] = self._post_data(str(xfer["upload_url"]), files={"file": f})
 
         return next(gen)  # Post process response
 
-    def _upload_file_generator(self, file_path, file_type=None):
+    def _upload_file_generator(self, file_path: str, file_type: str = None):
 
         file_name = os.path.basename(file_path)
         if not file_type:
@@ -560,17 +567,19 @@ class Pushbullet(object):
         yield xfer  # Request upload
 
         msg = xfer["msg"]
-        xfer["upload_url"] = msg.get("upload_url")  # Upload location
-        file_url = msg.get("file_url")  # Final destination for downloading
-        file_type = msg.get("file_type")  # What PB thinks is the filetype
+        xfer["upload_url"] = str(msg.get("upload_url"))  # Upload location
+        file_url = str(msg.get("file_url"))  # Final destination for downloading
+        file_type = str(msg.get("file_type"))  # What PB thinks is the filetype
         yield xfer  # Conduct upload
 
         return_msg = {"file_type": file_type, "file_url": file_url, "file_name": file_name}
         self.log.info("File uploaded: {}".format(return_msg))
         yield return_msg
 
-    def push_file(self, file_name, file_url, file_type, body=None, title=None, device=None, chat=None, email=None,
-                  channel=None):
+    def push_file(self, file_name: str, file_url: str, file_type: str,
+                  body: str = None, title: str = None, device: Device = None,
+                  chat: Chat = None, email: str = None,
+                  channel: Channel = None) -> dict:
         gen = self._push_file_generator(file_name, file_url, file_type, body=body, title=title,
                                         device=device, chat=chat, email=email, channel=channel)
         xfer = next(gen)  # Prep http params
