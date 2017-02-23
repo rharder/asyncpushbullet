@@ -12,7 +12,8 @@ __email__ = "rob@iharder.net"
 
 
 class AsyncPushbullet(Pushbullet):
-    def __init__(self, api_key: str, verify_ssl: bool = None, loop: asyncio.AbstractEventLoop = None, **kwargs):
+    def __init__(self, api_key: str, verify_ssl: bool = None,
+                 loop: asyncio.AbstractEventLoop = None, **kwargs):
         Pushbullet.__init__(self, api_key, **kwargs)
         self.loop = loop or asyncio.get_event_loop()
 
@@ -23,9 +24,13 @@ class AsyncPushbullet(Pushbullet):
         self.verify_ssl = verify_ssl
 
     async def async_verify_key(self):
+        """
+        Triggers a call to Pushbullet.com that will throw an
+        InvalidKeyError if the key is not valid.
+        """
         await self.aio_session()
 
-    async def aio_session(self):  # , loop: asyncio.AbstractEventLoop = None) -> aiohttp.ClientSession:
+    async def aio_session(self) -> aiohttp.ClientSession:
 
         # Sessions are created/handled on a per-loop basis
         loop = asyncio.get_event_loop()
@@ -130,7 +135,7 @@ class AsyncPushbullet(Pushbullet):
                 self._devices.append(d)
         self.log.info("Found {} active devices".format(len(self._devices)))
 
-    async def async_get_device(self, nickname=None, iden=None) -> Device:
+    async def async_get_device(self, nickname: str = None, iden: str = None) -> Device:
         """
         Attempts to retrieve a device based on the given nickname or iden.
         First looks in the cached copy of the data and then refreshes the
@@ -155,7 +160,7 @@ class AsyncPushbullet(Pushbullet):
         return x
 
     async def async_new_device(self, nickname: str, manufacturer: str = None,
-                               model: str = None, icon: str = "system") -> dict:
+                               model: str = None, icon: str = "system") -> Device:
         gen = self._new_device_generator(nickname, manufacturer=manufacturer, model=model, icon=icon)
         xfer = next(gen)  # Prep http params
         data = xfer.get('data', {})
@@ -165,7 +170,7 @@ class AsyncPushbullet(Pushbullet):
 
     async def async_edit_device(self, device: Device, nickname: str = None,
                                 model: str = None, manufacturer: str = None,
-                                icon: str = None, has_sms: bool = None) -> dict:
+                                icon: str = None, has_sms: bool = None) -> Device:
         gen = self._edit_device_generator(device, nickname=nickname, model=model,
                                           manufacturer=manufacturer, icon=icon, has_sms=has_sms)
         xfer = next(gen)
@@ -206,14 +211,14 @@ class AsyncPushbullet(Pushbullet):
             x = _get()
         return x
 
-    async def async_new_chat(self, email: str) -> dict:
+    async def async_new_chat(self, email: str) -> Chat:
         gen = self._new_chat_generator(email)
         xfer = next(gen)  # Prep http params
         data = xfer.get("data", {})
         xfer["msg"] = await self._async_post_data(self.CHATS_URL, data=data)
         return next(gen)  # Post process response
 
-    async def async_edit_chat(self, chat: Chat, muted: bool = False) -> dict:
+    async def async_edit_chat(self, chat: Chat, muted: bool = False) -> Chat:
         gen = self._edit_chat_generator(chat, muted)
         xfer = next(gen)
         data = xfer.get('data', {})
@@ -238,7 +243,7 @@ class AsyncPushbullet(Pushbullet):
                 self.channels.append(c)
         self.log.info("Found {} active channels".format(len(self._channels)))
 
-    async def async_get_channel(self, channel_tag):
+    async def async_get_channel(self, channel_tag: str) -> Channel:
         if self._channels is None:
             self._channels = []
 
@@ -265,19 +270,20 @@ class AsyncPushbullet(Pushbullet):
         xfer["msg"] = await self._async_get_data_with_pagination(self.PUSH_URL, "pushes", params=data)
         return next(gen)  # Post process response
 
-    async def async_get_new_pushes(self, limit: int = None, filter_inactive: bool = True) -> [dict]:
+    async def async_get_new_pushes(self, limit: int = None,
+                                   filter_inactive: bool = True) -> [dict]:
         pushes = await self.async_get_pushes(modified_after=self.most_recent_timestamp,
                                              limit=limit, filter_inactive=filter_inactive)
         return pushes
 
-    async def async_dismiss_push(self, iden) -> dict:
+    async def async_dismiss_push(self, iden: str) -> dict:
         if type(iden) is dict and "iden" in iden:
             iden = iden["iden"]  # In case user passes entire push
         data = {"dismissed": "true"}
         msg = await self._async_post_data("{}/{}".format(self.PUSH_URL, iden), data=data)
         return msg
 
-    async def async_delete_push(self, iden) -> dict:
+    async def async_delete_push(self, iden: str) -> dict:
         if type(iden) is dict and "iden" in iden:
             iden = iden["iden"]  # In case user passes entire push
         msg = await self._async_delete_data("{}/{}".format(self.PUSH_URL, iden))
