@@ -82,6 +82,28 @@ You can upload and push a file as well. ::
 
     $ python3 -m asyncpushbullet.push --file homework.txt --title "Homework" --body "Avoid the dog."
 
+The flags available for the ``push`` command line script: ::
+
+    usage: push.py [-h] [-k KEY] [--key-file KEY_FILE] [-t TITLE] [-b BODY]
+                   [-d DEVICE] [-u URL] [-f FILE] [--transfer.sh] [--list-devices]
+                   [-q]
+
+    optional arguments:
+      -h, --help            show this help message and exit
+      -k KEY, --key KEY     Your Pushbullet.com API key
+      --key-file KEY_FILE   Text file containing your Pushbullet.com API key
+      -t TITLE, --title TITLE
+                            Title of your push
+      -b BODY, --body BODY  Body of your push (- means read from stdin)
+      -d DEVICE, --device DEVICE
+                            Destination device nickname
+      -u URL, --url URL     URL of link being pushed
+      -f FILE, --file FILE  Pathname to file to push
+      --transfer.sh         Use transfer.sh website for uploading files (use with
+                            --file)
+      --list-devices        List registered device names
+      -q, --quiet           Suppress all output
+
 
 Listening for and Responding to Pushes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

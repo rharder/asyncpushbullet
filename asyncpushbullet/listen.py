@@ -51,7 +51,10 @@ import textwrap
 import time
 
 from asyncpushbullet import Device
+from asyncpushbullet import InvalidKeyError
 from asyncpushbullet import PushListener
+from asyncpushbullet import Pushbullet
+from asyncpushbullet import PushbulletError
 
 sys.path.append("..")
 from asyncpushbullet import AsyncPushbullet
@@ -59,6 +62,14 @@ from asyncpushbullet import AsyncPushbullet
 __author__ = "Robert Harder"
 __email__ = "rob@iHarder.net"
 __encoding__ = "utf-8"
+
+# Exit codes
+__ERR_API_KEY_NOT_GIVEN__ = 1
+__ERR_INVALID_API_KEY__ = 2
+__ERR_CONNECTING_TO_PB__ = 3
+__ERR_FILE_NOT_FOUND__ = 4
+__ERR_DEVICE_NOT_FOUND__ = 5
+__ERR_NOTHING_TO_DO__ = 6
 
 # sys.argv.append("-h")
 # sys.argv += ["-k", "badkey"]
@@ -72,64 +83,6 @@ DEFAULT_THROTTLE_SECONDS = 10
 def main():
     args = parse_args()
     do_main(args)
-
-
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-k", "--key", help="Your Pushbullet.com API key")
-    parser.add_argument("--key-file", help="Text file containing your Pushbullet.com API key")
-    parser.add_argument("-e", "--echo", action="store_true", help="ACTION: Echo push as json to stdout (default)")
-    parser.add_argument("-x", "--exec", nargs="+", action="append",
-                        help=textwrap.dedent("""
-                        ACTION: Execute a script to receive push as json via stdin.
-                        Your script can write json to stdout to send pushes back.
-
-        {
-            "pushes" :
-                [
-                    {
-                        "title" = "Fish Food Served",
-                        "body" = "Your automated fish feeding gadget has fed your fish. "
-                     }
-                ]
-        }
-
-    Or simpler form for a single push:
-
-        { "title" = "title here", "body" = "body here"}
-                        """))
-    parser.add_argument("-s", "--exec-simple", nargs="+", action="append",
-                        help=textwrap.dedent("""
-                        ACTION: Execute a script to receive push in simplified form
-                        via stdin.  The first line of stdin will be the title, and
-                        subsequent lines will be the body.
-                        Your script can write lines back to stdout to send a single
-                        push back.  The first line of stdout will be the title, and
-                        subsequent lines will be the body.
-                        """))
-
-    parser.add_argument("--throttle-count", type=int, default=DEFAULT_THROTTLE_COUNT,
-                        help=textwrap.dedent("""
-                        Pushes will be throttled to this many pushes (default {})
-                        in a certain number of seconds (default {})"""
-                                             .format(DEFAULT_THROTTLE_COUNT,
-                                                     DEFAULT_THROTTLE_SECONDS)))
-    parser.add_argument("--throttle-seconds", type=int, default=DEFAULT_THROTTLE_SECONDS,
-                        help=textwrap.dedent("""
-                        Pushes will be throttled to a certain number of pushes (default {})
-                        in this many seconds (default {})"""
-                                             .format(DEFAULT_THROTTLE_COUNT,
-                                                     DEFAULT_THROTTLE_SECONDS)))
-
-    parser.add_argument("--device",
-                        help=textwrap.dedent("""
-                        Registers a device name (if not already registered),and only notifies
-                        actions if pushes are addressed to this device name."""))
-    parser.add_argument("-d", "--debug", action="store_true", help="Turn on debug logging")
-    parser.add_argument("-v", "--verbose", action="store_true", help="Turn on verbose logging (INFO messages)")
-
-    args = parser.parse_args()
-    return args
 
 
 def do_main(args):
@@ -149,7 +102,7 @@ def do_main(args):
         print(
             "You must specify an API key, either at the command line or with the PUSHBULLET_API_KEY environment variable.",
             file=sys.stderr)
-        sys.exit(1)
+        sys.exit(__ERR_API_KEY_NOT_GIVEN__)
 
     # Verbose?
     if args.verbose:
@@ -160,6 +113,27 @@ def do_main(args):
     if args.debug:
         print("Log level: DEBUG")
         logging.basicConfig(level=logging.DEBUG)
+
+
+    # List devices?
+    if args.list_devices:
+        print("Devices:")
+
+        pb = None  # type: Pushbullet
+        try:
+            pb = Pushbullet(api_key)
+            pb.verify_key()
+        except InvalidKeyError as exc:
+            print(exc, file=sys.stderr)
+            sys.exit(__ERR_INVALID_API_KEY__)
+        except PushbulletError as exc:
+            print(exc, file=sys.stderr)
+            sys.exit(__ERR_CONNECTING_TO_PB__)
+
+        for dev in pb.devices:
+            print("\t", dev.nickname)
+        sys.exit(0)
+
 
     # Throttle
     throttle_count = args.throttle_count
@@ -207,13 +181,79 @@ def do_main(args):
 
 
     loop = asyncio.get_event_loop()
+    exit_code = None
     try:
-        loop.run_until_complete(listen_app.run())
+        fut = loop.run_until_complete(listen_app.run())
+        exit_code = fut.result()
     except KeyboardInterrupt as e:
         print("Caught keyboard interrupt")
     finally:
         loop.run_until_complete(listen_app.close())
+        if exit_code is None:
+            exit_code = 0
+        sys.exit(exit_code)
         # END OF PROGRAM
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-k", "--key", help="Your Pushbullet.com API key")
+    parser.add_argument("--key-file", help="Text file containing your Pushbullet.com API key")
+    parser.add_argument("-e", "--echo", action="store_true", help="ACTION: Echo push as json to stdout")
+    parser.add_argument("-x", "--exec", nargs="+", action="append",
+                        help=textwrap.dedent("""
+                        ACTION: Execute a script to receive push as json via stdin.
+                        Your script can write json to stdout to send pushes back.
+
+        {
+            "pushes" :
+                [
+                    {
+                        "title" = "Fish Food Served",
+                        "body" = "Your automated fish feeding gadget has fed your fish. "
+                     }
+                ]
+        }
+
+    Or simpler form for a single push:
+
+        { "title" = "title here", "body" = "body here"}
+                        """))
+    parser.add_argument("-s", "--exec-simple", nargs="+", action="append",
+                        help=textwrap.dedent("""
+                        ACTION: Execute a script to receive push in simplified form
+                        via stdin.  The first line of stdin will be the title, and
+                        subsequent lines will be the body.
+                        Your script can write lines back to stdout to send a single
+                        push back.  The first line of stdout will be the title, and
+                        subsequent lines will be the body.
+                        """))
+
+    parser.add_argument("--throttle-count", type=int, default=DEFAULT_THROTTLE_COUNT,
+                        help=textwrap.dedent("""
+                        Pushes will be throttled to this many pushes (default {})
+                        in a certain number of seconds (default {})"""
+                                             .format(DEFAULT_THROTTLE_COUNT,
+                                                     DEFAULT_THROTTLE_SECONDS)))
+    parser.add_argument("--throttle-seconds", type=int, default=DEFAULT_THROTTLE_SECONDS,
+                        help=textwrap.dedent("""
+                        Pushes will be throttled to a certain number of pushes (default {})
+                        in this many seconds (default {})"""
+                                             .format(DEFAULT_THROTTLE_COUNT,
+                                                     DEFAULT_THROTTLE_SECONDS)))
+
+    parser.add_argument("-d", "--device", help="Only listen for pushes targeted at given device name")
+    parser.add_argument("--list-devices", action="store_true", help="List registered device names")
+    parser.add_argument("-d", "--debug", action="store_true", help="Turn on debug logging")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Turn on verbose logging (INFO messages)")
+
+    args = parser.parse_args()
+
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(__ERR_NOTHING_TO_DO__)
+
+    return args
 
 
 class Action:
@@ -434,34 +474,33 @@ class ListenApp:
 
         try:
             await self.pb.async_verify_key()
-        except Exception as e:
-            print(type(e).__name__, e, file=sys.stderr)
+        except InvalidKeyError as exc:
+            print(exc, file=sys.stderr)
             await self.pb.close()
-            return
+            # sys.exit(__ERR_INVALID_API_KEY__)
+            return __ERR_INVALID_API_KEY__
+        except PushbulletError as exc:
+            print(exc, file=sys.stderr)
+            await self.pb.close()
+            # sys.exit(__ERR_CONNECTING_TO_PB__)
+            return __ERR_CONNECTING_TO_PB__
 
-        # Need to register a device?
-        dest_dev = None  # type: Device
-        if self.device_name is not None:
-            if self.pb._devices is None:
-                await self.pb._async_load_devices()
-            dest_dev = self.pb.get_device(self.device_name)
-            if dest_dev is None:
-                dest_dev = await self.pb.async_new_device(nickname=self.device_name)
-                self.log.info("Registered new device with nickname={}".format(self.device_name))
-            else:
-                self.log.info("Found existing device with nickname={}".format(self.device_name))
+        # # Need to register a device?
+        # dest_dev = None  # type: Device
+        # if self.device_name is not None:
+        #     if self.pb._devices is None:
+        #         await self.pb._async_load_devices()
+        #     dest_dev = self.pb.get_device(self.device_name)
+        #     if dest_dev is None:
+        #         dest_dev = await self.pb.async_new_device(nickname=self.device_name)
+        #         self.log.info("Registered new device with nickname={}".format(self.device_name))
+        #     else:
+        #         self.log.info("Found existing device with nickname={}".format(self.device_name))
 
-        self._listener = PushListener(self.pb)
+        self._listener = PushListener(self.pb, filter_device_nickname=self.device_name)
         self.log.info("Awaiting pushes ...".format(str(self)))
         async for push in self._listener:  # type: dict
             self.log.info("Received push {}".format(push))
-
-            # If we are filtering based on device, then only let pushes continue if
-            # they are for the device specified.
-            # If we are not filtering, then let all pushes pass.
-            if dest_dev is not None:  # We are filtering
-                if push.get("target_device_iden", "") != dest_dev.device_iden:  # Wrong device
-                    continue  # back to top of for loop
 
             await self._throttle()
 

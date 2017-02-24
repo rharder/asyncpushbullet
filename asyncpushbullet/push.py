@@ -3,7 +3,8 @@
 A command line script for sending pushes.
 
 usage: push.py [-h] [-k KEY] [--key-file KEY_FILE] [-t TITLE] [-b BODY]
-               [-u URL] [-f FILE] [--transfer.sh] [--list-devices] [-q]
+               [-d DEVICE] [-u URL] [-f FILE] [--transfer.sh] [--list-devices]
+               [-q]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -12,6 +13,8 @@ optional arguments:
   -t TITLE, --title TITLE
                         Title of your push
   -b BODY, --body BODY  Body of your push (- means read from stdin)
+  -d DEVICE, --device DEVICE
+                        Destination device nickname
   -u URL, --url URL     URL of link being pushed
   -f FILE, --file FILE  Pathname to file to push
   --transfer.sh         Use transfer.sh website for uploading files (use with
@@ -26,15 +29,27 @@ import io
 import os
 import sys
 
+from asyncpushbullet import Device
+from asyncpushbullet import InvalidKeyError
+
 sys.path.append("..")  # To help when running examples direct from the source repository
 from asyncpushbullet.filetype import get_file_type
 from asyncpushbullet import Pushbullet, PushbulletError
+
+# Exit codes
+__ERR_API_KEY_NOT_GIVEN__ = 1
+__ERR_INVALID_API_KEY__ = 2
+__ERR_CONNECTING_TO_PB__ = 3
+__ERR_FILE_NOT_FOUND__ = 4
+__ERR_DEVICE_NOT_FOUND__ = 5
+__ERR_NOTHING_TO_DO__ = 6
 
 
 # logging.basicConfig(logging.ERROR)
 
 # sys.argv.append("--help")
 # sys.argv.append("--list-devices")
+# sys.argv += ["-t", "test to device", "--device", "netmem"]
 # sys.argv += ["--file", __file__]
 # sys.argv.append("--transfer.sh")
 
@@ -68,27 +83,39 @@ def do_main(args):
         print(
             "You must specify an API key, either at the command line or with the PUSHBULLET_API_KEY environment variable.",
             file=sys.stderr)
-        sys.exit(1)
+        sys.exit(__ERR_API_KEY_NOT_GIVEN__)
 
     # Make connection
     pb = None  # type: Pushbullet
     try:
         pb = Pushbullet(api_key)
+        pb.verify_key()
+    except InvalidKeyError as exc:
+        print(exc, file=sys.stderr)
+        sys.exit(__ERR_INVALID_API_KEY__)
     except PushbulletError as exc:
-        print(exc)
-        sys.exit(2)
+        print(exc, file=sys.stderr)
+        sys.exit(__ERR_CONNECTING_TO_PB__)
 
     # List devices?
     if args.list_devices:
         print("Devices:")
         for dev in pb.devices:
             print("\t", dev.nickname)
+        sys.exit(0)
 
     # Transfer file?
     elif args.file:
         if not os.path.isfile(args.file):
             print("File not found:", args.file, file=sys.stderr)
-            sys.exit(3)
+            sys.exit(__ERR_FILE_NOT_FOUND__)
+
+        dev = None  # type: Device
+        if args.device:
+            dev = pb.get_device(nickname=args.device)
+            if dev is None:
+                print("Device not found:", args.device, file=sys.stderr)
+                sys.exit(__ERR_DEVICE_NOT_FOUND__)
 
         if args.transfer_sh:
             if not args.quiet:
@@ -99,8 +126,8 @@ def do_main(args):
                 file_url = resp["raw"].strip()
                 file_type = get_file_type(f, args.file)
                 resp = pb.push_file(file_type=file_type, file_name=file_name,
-                                    file_url=file_url, title=args.title,
-                                    body=args.body)
+                                    file_url=file_url,
+                                    title=args.title, body=args.body)
             print(resp)
 
         else:
@@ -109,12 +136,6 @@ def do_main(args):
             stats = pb.upload_file(args.file)
             if not args.quiet:
                 print("Pushing file ... {}".format(stats["file_url"]))
-            dev = None
-            if args.device:
-                dev = pb.get_device(args.device)
-                if dev is None:
-                    print("Could not find device named {}".format(args.device))
-                    sys.exit(3)
             resp = pb.push_file(file_name=stats["file_name"], file_type=stats["file_type"], file_url=stats["file_url"],
                                 title=args.title, body=args.body, device=dev)
             if not args.quiet:
@@ -124,19 +145,27 @@ def do_main(args):
     elif args.title or args.body:
         title = args.title
         body = args.body
+
+        dev = None  # type: Device
+        if args.device:
+            dev = pb.get_device(nickname=args.device)
+            if dev is None:
+                print("Device not found:", args.device, file=sys.stderr)
+                sys.exit(__ERR_DEVICE_NOT_FOUND__)
+
         if body is not None and body == "-":
             body = sys.stdin.read()
         url = args.url
         if url is None:
-            resp = pb.push_note(title=title, body=body)
+            resp = pb.push_note(title=title, body=body, device=dev)
         else:
-            resp = pb.push_link(title=title, url=url, body=body)
+            resp = pb.push_link(title=title, url=url, body=body, device=dev)
 
         if not args.quiet:
             print(resp)
     else:
         print("Nothing to do.")
-        sys.exit(4)
+        sys.exit(__ERR_NOTHING_TO_DO__)
 
 
 def parse_args():
@@ -145,19 +174,19 @@ def parse_args():
     parser.add_argument("--key-file", help="Text file containing your Pushbullet.com API key")
     parser.add_argument("-t", "--title", help="Title of your push")
     parser.add_argument("-b", "--body", help="Body of your push (- means read from stdin)")
-    # parser.add_argument("-d", "--device", help="Destination device name")
+    parser.add_argument("-d", "--device", help="Destination device nickname")
+    parser.add_argument("--list-devices", action="store_true", help="List registered device names")
     parser.add_argument("-u", "--url", help="URL of link being pushed")
     parser.add_argument("-f", "--file", help="Pathname to file to push")
     parser.add_argument("--transfer.sh", dest="transfer_sh", action="store_true",
                         help="Use transfer.sh website for uploading files (use with --file)")
-    parser.add_argument("--list-devices", action="store_true", help="List registered device names")
     parser.add_argument("-q", "--quiet", action="store_true", help="Suppress all output")
 
     args = parser.parse_args()
 
     if len(sys.argv) == 1:
         parser.print_help()
-        sys.exit(5)
+        sys.exit(__ERR_NOTHING_TO_DO__)
 
     return args
 
