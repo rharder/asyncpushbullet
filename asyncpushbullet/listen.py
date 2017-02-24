@@ -5,14 +5,14 @@ A command line script for listening for pushes.
 usage: listen.py [-h] [-k KEY] [--key-file KEY_FILE] [-e] [-x EXEC [EXEC ...]]
                  [-s EXEC_SIMPLE [EXEC_SIMPLE ...]]
                  [--throttle-count THROTTLE_COUNT]
-                 [--throttle-seconds THROTTLE_SECONDS] [--device DEVICE] [-d]
-                 [-v]
+                 [--throttle-seconds THROTTLE_SECONDS] [-d DEVICE]
+                 [--list-devices] [--debug] [-v]
 
 optional arguments:
   -h, --help            show this help message and exit
   -k KEY, --key KEY     Your Pushbullet.com API key
   --key-file KEY_FILE   Text file containing your Pushbullet.com API key
-  -e, --echo            ACTION: Echo push as json to stdout (default)
+  -e, --echo            ACTION: Echo push as json to stdout
   -x EXEC [EXEC ...], --exec EXEC [EXEC ...]
                         ACTION: Execute a script to receive push as json via
                         stdin. Your script can write json to stdout to send
@@ -34,10 +34,10 @@ optional arguments:
   --throttle-seconds THROTTLE_SECONDS
                         Pushes will be throttled to a certain number of pushes
                         (default 10) in this many seconds (default 10)
-  --device DEVICE       Registers a device name (if not already
-                        registered),and only notifies actions if pushes are
-                        addressed to this device name.
-  -d, --debug           Turn on debug logging
+  -d DEVICE, --device DEVICE
+                        Only listen for pushes targeted at given device name
+  --list-devices        List registered device names
+  --debug               Turn on debug logging
   -v, --verbose         Turn on verbose logging (INFO messages)
 
 """
@@ -74,7 +74,8 @@ __ERR_NOTHING_TO_DO__ = 6
 # sys.argv.append("-h")
 # sys.argv += ["-k", "badkey"]
 # sys.argv += ["--key-file", "../api_key.txt"]
-
+# sys.argv.append("--echo")
+# sys.argv.append("--list-devices")
 
 DEFAULT_THROTTLE_COUNT = 10
 DEFAULT_THROTTLE_SECONDS = 10
@@ -114,7 +115,6 @@ def do_main(args):
         print("Log level: DEBUG")
         logging.basicConfig(level=logging.DEBUG)
 
-
     # List devices?
     if args.list_devices:
         print("Devices:")
@@ -133,7 +133,6 @@ def do_main(args):
         for dev in pb.devices:
             print("\t", dev.nickname)
         sys.exit(0)
-
 
     # Throttle
     throttle_count = args.throttle_count
@@ -183,8 +182,7 @@ def do_main(args):
     loop = asyncio.get_event_loop()
     exit_code = None
     try:
-        fut = loop.run_until_complete(listen_app.run())
-        exit_code = fut.result()
+        exit_code = loop.run_until_complete(listen_app.run())
     except KeyboardInterrupt as e:
         print("Caught keyboard interrupt")
     finally:
@@ -244,7 +242,7 @@ def parse_args():
 
     parser.add_argument("-d", "--device", help="Only listen for pushes targeted at given device name")
     parser.add_argument("--list-devices", action="store_true", help="List registered device names")
-    parser.add_argument("-d", "--debug", action="store_true", help="Turn on debug logging")
+    parser.add_argument("--debug", action="store_true", help="Turn on debug logging")
     parser.add_argument("-v", "--verbose", action="store_true", help="Turn on verbose logging (INFO messages)")
 
     args = parser.parse_args()
@@ -321,7 +319,7 @@ class ExecutableAction(Action):
         self.timeout = timeout
 
         if not os.path.isfile(path_to_executable):
-            self.log.warning("Executable not found at time launch time.  " +
+            self.log.warning("Executable not found at launch time.  " +
                              "Will still attempt to run when pushes are received. ({})"
                              .format(path_to_executable))
 
@@ -477,25 +475,19 @@ class ListenApp:
         except InvalidKeyError as exc:
             print(exc, file=sys.stderr)
             await self.pb.close()
-            # sys.exit(__ERR_INVALID_API_KEY__)
             return __ERR_INVALID_API_KEY__
         except PushbulletError as exc:
             print(exc, file=sys.stderr)
             await self.pb.close()
-            # sys.exit(__ERR_CONNECTING_TO_PB__)
             return __ERR_CONNECTING_TO_PB__
 
-        # # Need to register a device?
-        # dest_dev = None  # type: Device
-        # if self.device_name is not None:
-        #     if self.pb._devices is None:
-        #         await self.pb._async_load_devices()
-        #     dest_dev = self.pb.get_device(self.device_name)
-        #     if dest_dev is None:
-        #         dest_dev = await self.pb.async_new_device(nickname=self.device_name)
-        #         self.log.info("Registered new device with nickname={}".format(self.device_name))
-        #     else:
-        #         self.log.info("Found existing device with nickname={}".format(self.device_name))
+        # Warn if device is not known at launch
+        if self.device_name is not None:
+            dev = await self.pb.async_get_device(nickname=self.device_name)
+            if dev is None:
+                self.log.warning("Device {} not found at launch time.  ".format(self.device_name) +
+                                 "Will still attempt to filter as pushes are received.")
+            del dev
 
         self._listener = PushListener(self.pb, filter_device_nickname=self.device_name)
         self.log.info("Awaiting pushes ...".format(str(self)))

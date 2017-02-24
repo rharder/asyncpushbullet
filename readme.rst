@@ -147,6 +147,48 @@ title of the push, and the subsequent lines will be the body. ::
 You can throttle how many pushes are received in a period of time using
 the ``--throttle-count`` and ``--throttle-seconds`` flags.
 
+The flags available for the ``listen`` command line script: ::
+
+    usage: listen.py [-h] [-k KEY] [--key-file KEY_FILE] [-e] [-x EXEC [EXEC ...]]
+                     [-s EXEC_SIMPLE [EXEC_SIMPLE ...]]
+                     [--throttle-count THROTTLE_COUNT]
+                     [--throttle-seconds THROTTLE_SECONDS] [-d DEVICE]
+                     [--list-devices] [--debug] [-v]
+
+    optional arguments:
+      -h, --help            show this help message and exit
+      -k KEY, --key KEY     Your Pushbullet.com API key
+      --key-file KEY_FILE   Text file containing your Pushbullet.com API key
+      -e, --echo            ACTION: Echo push as json to stdout
+      -x EXEC [EXEC ...], --exec EXEC [EXEC ...]
+                            ACTION: Execute a script to receive push as json via
+                            stdin. Your script can write json to stdout to send
+                            pushes back. { "pushes" : [ { "title" = "Fish Food
+                            Served", "body" = "Your automated fish feeding gadget
+                            has fed your fish. " } ] } Or simpler form for a
+                            single push: { "title" = "title here", "body" = "body
+                            here"}
+      -s EXEC_SIMPLE [EXEC_SIMPLE ...], --exec-simple EXEC_SIMPLE [EXEC_SIMPLE ...]
+                            ACTION: Execute a script to receive push in simplified
+                            form via stdin. The first line of stdin will be the
+                            title, and subsequent lines will be the body. Your
+                            script can write lines back to stdout to send a single
+                            push back. The first line of stdout will be the title,
+                            and subsequent lines will be the body.
+      --throttle-count THROTTLE_COUNT
+                            Pushes will be throttled to this many pushes (default
+                            10) in a certain number of seconds (default 10)
+      --throttle-seconds THROTTLE_SECONDS
+                            Pushes will be throttled to a certain number of pushes
+                            (default 10) in this many seconds (default 10)
+      -d DEVICE, --device DEVICE
+                            Only listen for pushes targeted at given device name
+      --list-devices        List registered device names
+      --debug               Turn on debug logging
+      -v, --verbose         Turn on verbose logging (INFO messages)
+
+
+
 Developer Docs
 ~~~~~~~~~~~~~~
 
