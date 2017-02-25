@@ -1,5 +1,7 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
+import sys
+sys.path.append("..")  # Since examples are buried one level into source tree
 from asyncpushbullet import Pushbullet
 
 __author__ = "Robert Harder"
