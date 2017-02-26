@@ -17,8 +17,7 @@ __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
 
 API_KEY = ""  # YOUR API KEY
-HTTP_PROXY_HOST = None
-HTTP_PROXY_PORT = None
+
 
 # logging.basicConfig(level=logging.DEBUG)
 # logging.getLogger("pushbullet.async_listeners").setLevel(logging.DEBUG)
@@ -30,11 +29,14 @@ HTTP_PROXY_PORT = None
 
 async def co_run(pb: AsyncPushbullet):
     pl = PushListener(pb)
-    async def _timeout():
-        await asyncio.sleep(3)
-        await pl.close()
 
-    # asyncio.get_event_loop().create_task(_timeout())
+    async def _timeout_and_close():
+        await asyncio.sleep(3)
+        print("Closing...")
+        await pl.close()
+        await pb.close()
+
+    asyncio.get_event_loop().create_task(_timeout_and_close())
 
     # async for p in PushListener(pb):
     async for p in pl:
@@ -44,11 +46,9 @@ async def co_run(pb: AsyncPushbullet):
 def main1():
     """ Uses the listener in an asynchronous for loop. """
     pb = AsyncPushbullet(API_KEY, verify_ssl=False)
-    asyncio.ensure_future(co_run(pb))
 
     loop = asyncio.get_event_loop()
-    loop.run_forever()
-
+    loop.run_until_complete(co_run(pb))
 
 # ################
 # Technique 2: Callbacks
@@ -58,9 +58,9 @@ async def connected(listener: PushListener):
     print("Connected to websocket")
     await listener.account.async_push_note("Connected to websocket", "Connected to websocket")
 
+
 async def on_close(listener: PushListener):
     print("PushListener closed")
-
 
 
 async def push_received(p: dict, listener: PushListener):
@@ -77,7 +77,6 @@ def main2():
 
 
 def main3():
-
     async def _print(*kargs, **kwargs):
         loop = asyncio.get_event_loop()
         print("[loop {}]".format(id(loop)), *kargs, **kwargs)
@@ -92,7 +91,6 @@ def main3():
     t = threading.Thread(target=partial(_run, ioloop))
     t.daemon = True
     t.start()
-
 
     pb = AsyncPushbullet(API_KEY, verify_ssl=False, loop=ioloop)
     listener = PushListener(pb, on_connect=connected, on_message=push_received)

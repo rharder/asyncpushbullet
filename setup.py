@@ -39,7 +39,7 @@ setup(
     version=version,
     author="Robert Harder, Richard Borcsik",
     author_email="rob@iharder.net, borcsikrichard@gmail.com",
-    description=("An asyncio-based client for pushbullet.com"),
+    description=("A synchronous and asyncio-based client for pushbullet.com"),
     license="MIT",
     keywords="push android pushbullet notification",
     url="https://github.com/rharder/asyncpushbullet",

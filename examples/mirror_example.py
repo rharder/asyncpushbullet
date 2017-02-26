@@ -1,5 +1,7 @@
 """
 A simple example showing how to mirror notifications.
+
+This example has not been verified with the asyncio-based code.
 """
 
 import json

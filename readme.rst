@@ -15,10 +15,11 @@ asyncpushbullet
     :target: https://travis-ci.org/rharder/asyncpushbullet
     :alt: build status
 
-This is a python library for the wonderful
+This is a python library for synchronous and asyncio-based
+communication with the wonderful
 `Pushbullet <https://www.pushbullet.com>`__ service. It allows you to
-send push notifications to
-`Android <https://play.google.com/store/apps/details?id=com.pushbullet.android>`__
+send push notifications to your computer,
+`Android <https://play.google.com/store/apps/details?id=com.pushbullet.android>`__,
 and `iOS <https://itunes.apple.com/us/app/pushbullet/id810352052>`__
 devices.
 
@@ -45,9 +46,9 @@ Alternatively you can clone this repo and install it with ::
 Requirements
 ------------
 
--  The wonderful requests library.
--  The magical python-magic library.
--  The amazing aiohttp library
+-  The wonderful ``requests`` library.
+-  The magical ``python-magic`` library.
+-  The amazing ``aiohttp`` library
 
 Usage
 -----

@@ -98,7 +98,11 @@ class WebsocketListener(object):
                 elif callable(self._on_close):
                     self._on_close(self)
             except asyncio.TimeoutError as e:
-                self.log.warning("TimeoutError. Connection closing. {}".format(e))
+                # self.log.warning("TimeoutError. Connection closing. {}".format(e))
+                stop_msg = StopAsyncIteration("TimeoutError. Connection closing")
+                self.log.warning(stop_msg)
+                await self._queue.put(stop_msg)
+
             else:
                 pass
                 stop_msg = StopAsyncIteration("Connection closed")
