@@ -1,10 +1,10 @@
-def _magic_get_file_type(f, _):
-    file_type = magic.from_buffer(f.read(1024), mime=True)
-    f.seek(0)
+def _magic_get_file_type(filename):
+    with open(filename, "rb") as f:
+        file_type = magic.from_buffer(f.read(1024), mime=True)
     return maybe_decode(file_type)
 
 
-def _guess_file_type(_, filename):
+def _guess_file_type(filename):
     return mimetypes.guess_type(filename)[0]
 
 

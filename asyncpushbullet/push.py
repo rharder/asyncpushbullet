@@ -57,7 +57,7 @@ __ERR_NOTHING_TO_DO__ = 6
 # sys.argv.append("--help")
 # sys.argv.append("--list-devices")
 # sys.argv += ["-t", "test to device", "--device", "netmem"]
-sys.argv += ["--file", __file__]
+# sys.argv += ["--file", __file__]
 # sys.argv += ["--file", "/Users/rob/Movies/Braveheart.mp4"]
 # sys.argv.append("--transfer.sh")
 # sys.argv += ["--device", "netmem"]
@@ -166,7 +166,7 @@ def do_main(args):
             # resp = pb._post_data("https://transfer.sh/", files={file_name: f})
 
             file_url = resp["raw"].strip()
-            file_type = get_file_type(None, args.file)
+            file_type = get_file_type(args.file)
 
         else:
             if not args.quiet:

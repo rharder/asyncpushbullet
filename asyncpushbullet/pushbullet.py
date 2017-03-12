@@ -579,8 +579,7 @@ class Pushbullet(object):
 
         file_name = os.path.basename(file_path)
         if not file_type:
-            with open(file_path, "rb") as f:
-                file_type = get_file_type(f, file_path)
+            file_type = get_file_type(file_path)
         data = {"file_name": file_name, "file_type": file_type}
         xfer = {"data": data}
         yield xfer  # Request upload
