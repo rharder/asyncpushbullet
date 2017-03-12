@@ -1,10 +1,16 @@
 import asyncio
+import hashlib
+import os
 
 import aiohttp
+import io
+
+from tqdm import tqdm
 
 from asyncpushbullet import Device
 from asyncpushbullet.channel import Channel
 from asyncpushbullet.chat import Chat
+from asyncpushbullet.tqio import tqio
 from .pushbullet import Pushbullet, PushbulletError
 
 __author__ = "Robert Harder"
@@ -87,7 +93,7 @@ class AsyncPushbullet(Pushbullet):
                 pass
             finally:
                 if msg is None:
-                    msg = resp.text()
+                    msg = await resp.text()
 
             return self._interpret_response(code, resp.headers, msg)
 
@@ -319,7 +325,8 @@ class AsyncPushbullet(Pushbullet):
     # Files
     #
 
-    async def async_upload_file(self, file_path: str, file_type: str = None) -> dict:
+    async def async_upload_file(self, file_path: str, file_type: str = None,
+                                suppress_progress: bool = False) -> dict:
         """
         Uploads a file to pushbullet storage and returns a dict with information
         about how the uploaded file:
@@ -338,9 +345,23 @@ class AsyncPushbullet(Pushbullet):
         xfer["msg"] = await self._async_post_data(self.UPLOAD_REQUEST_URL, data=data)
         next(gen)  # Prep upload params
 
-        data = xfer["data"]
-        with open(file_path, "rb") as f:
-            xfer["msg"] = await self._async_post_data(xfer["upload_url"], data={"file": f})
+        file_name = xfer["data"]["file_name"]
+        file_type = xfer["data"]["file_type"]
+
+        # data = aiohttp.FormData()
+        # data.add_field('file',
+        #                # tqio(open(args.file, "rb")),
+        #                tqio(args.file),
+        #                # stream,
+        #                filename=file_name,
+        #                content_type=file_type)
+
+        if suppress_progress:
+            with open(file_path, "rb") as f:
+                xfer["msg"] = await self._async_post_data(xfer["upload_url"], data={"file": f})
+        else:
+            with tqio(file_path) as f:
+                xfer["msg"] = await self._async_post_data(xfer["upload_url"], data={"file": f})
 
         return next(gen)  # Prep response
 
@@ -354,3 +375,4 @@ class AsyncPushbullet(Pushbullet):
         data = xfer.get("data")
         xfer["msg"] = await self._async_push(data)
         return next(gen)
+

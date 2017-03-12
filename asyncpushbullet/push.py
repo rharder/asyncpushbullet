@@ -24,17 +24,25 @@ optional arguments:
 
 """
 import argparse
+import asyncio
 import contextlib
+import inspect
 import io
 import os
 import sys
+import time
 
-from asyncpushbullet import Device
-from asyncpushbullet import InvalidKeyError
+import aiohttp
+from tqdm import tqdm
+
+from asyncpushbullet.tqio import tqio
 
 sys.path.append("..")  # To help when running examples direct from the source repository
 from asyncpushbullet.filetype import get_file_type
-from asyncpushbullet import Pushbullet, PushbulletError
+from asyncpushbullet import PushbulletError
+from asyncpushbullet import AsyncPushbullet
+from asyncpushbullet import Device
+from asyncpushbullet import InvalidKeyError
 
 # Exit codes
 __ERR_API_KEY_NOT_GIVEN__ = 1
@@ -44,17 +52,20 @@ __ERR_FILE_NOT_FOUND__ = 4
 __ERR_DEVICE_NOT_FOUND__ = 5
 __ERR_NOTHING_TO_DO__ = 6
 
-
 # logging.basicConfig(logging.ERROR)
 
 # sys.argv.append("--help")
 # sys.argv.append("--list-devices")
 # sys.argv += ["-t", "test to device", "--device", "netmem"]
-# sys.argv += ["--file", __file__]
+sys.argv += ["--file", __file__]
+# sys.argv += ["--file", "/Users/rob/Movies/Braveheart.mp4"]
 # sys.argv.append("--transfer.sh")
+# sys.argv += ["--device", "netmem"]
+
 
 # sys.argv += ["-t", "foo"]
 # sys.argv += ["--key-file", "../api_key.txt"]
+# sys.argv += ["--key", "badkey"]
 
 # sys.argv.append("--quiet")
 
@@ -86,15 +97,19 @@ def do_main(args):
         sys.exit(__ERR_API_KEY_NOT_GIVEN__)
 
     # Make connection
-    pb = None  # type: Pushbullet
+    pb = None  # type: AsyncPushbullet
+    loop = asyncio.get_event_loop()
     try:
-        pb = Pushbullet(api_key)
-        pb.verify_key()
+        pb = AsyncPushbullet(api_key)
+        # pb.verify_key()
+        loop.run_until_complete(pb.async_verify_key())
     except InvalidKeyError as exc:
         print(exc, file=sys.stderr)
+        loop.run_until_complete(pb.close())
         sys.exit(__ERR_INVALID_API_KEY__)
     except PushbulletError as exc:
         print(exc, file=sys.stderr)
+        loop.run_until_complete(pb.close())
         sys.exit(__ERR_CONNECTING_TO_PB__)
 
     # List devices?
@@ -102,6 +117,8 @@ def do_main(args):
         print("Devices:")
         for dev in pb.devices:
             print("\t", dev.nickname)
+        loop.run_until_complete(pb.close())
+        loop.close()
         sys.exit(0)
 
     # Transfer file?
@@ -112,34 +129,71 @@ def do_main(args):
 
         dev = None  # type: Device
         if args.device:
-            dev = pb.get_device(nickname=args.device)
+            dev = loop.run_until_complete(pb.async_get_device(nickname=args.device))
+            # dev = pb.get_device(nickname=args.device)
+            # print("DEVICE", dev)
             if dev is None:
                 print("Device not found:", args.device, file=sys.stderr)
                 sys.exit(__ERR_DEVICE_NOT_FOUND__)
 
+        file_name = os.path.basename(args.file)  # type: str
+        file_url = None  # type: str
+        file_type = None  # type: str
         if args.transfer_sh:
             if not args.quiet:
                 print("Uploading file to transfer.sh ... {}".format(args.file))
-            with open(args.file, "rb") as f:
-                file_name = os.path.basename(args.file)
-                resp = pb._post_data("https://transfer.sh/", files={file_name: f})
-                file_url = resp["raw"].strip()
-                file_type = get_file_type(f, args.file)
-                resp = pb.push_file(file_type=file_type, file_name=file_name,
-                                    file_url=file_url,
-                                    title=args.title, body=args.body)
-            print(resp)
+
+            # data = aiohttp.FormData()
+            # data.add_field('file',
+            #                tqio(args.file),
+            #                filename=file_name,
+            #                content_type=file_type)
+
+            if args.quiet:
+                # Upload without any progress indicator
+                with open(args.file, "rb") as f:
+                    resp = loop.run_until_complete(pb._async_post_data(
+                        "https://transfer.sh/",
+                        # data=data))
+                        data={"file": f}))
+            else:
+                # Upload with progress indicator
+                with tqio(args.file) as f:
+                    resp = loop.run_until_complete(pb._async_post_data(
+                        "https://transfer.sh/",
+                        # data=data))
+                        data={"file": f}))
+            # resp = pb._post_data("https://transfer.sh/", files={file_name: f})
+
+            file_url = resp["raw"].strip()
+            file_type = get_file_type(None, args.file)
 
         else:
             if not args.quiet:
                 print("Uploading file to Pushbullet ... {}".format(args.file))
-            stats = pb.upload_file(args.file)
-            if not args.quiet:
-                print("Pushing file ... {}".format(stats["file_url"]))
-            resp = pb.push_file(file_name=stats["file_name"], file_type=stats["file_type"], file_url=stats["file_url"],
-                                title=args.title, body=args.body, device=dev)
-            if not args.quiet:
-                print(resp)
+            stats = loop.run_until_complete(pb.async_upload_file(args.file))
+            # stats = pb.upload_file(args.file)
+
+            file_url = stats["file_url"]
+            file_type = stats["file_type"]
+            file_name = stats["file_name"]
+
+        if not args.quiet:
+            print("Pushing file ... {}".format(file_url))
+        resp = loop.run_until_complete(pb.async_push_file(file_name=file_name,
+                            file_type=file_type,
+                            file_url=file_url,
+                            title=args.title, body=args.body, device=dev))
+        # resp = pb.push_file(file_name=file_name,
+        #                     file_type=file_type,
+        #                     file_url=file_url,
+        #                     title=args.title, body=args.body, device=dev)
+        if not args.quiet:
+            print(resp)
+
+        loop.run_until_complete(pb.close())
+        loop.close()
+
 
     # Push note
     elif args.title or args.body:
@@ -163,8 +217,12 @@ def do_main(args):
 
         if not args.quiet:
             print(resp)
+        loop.run_until_complete(pb.close())
+        loop.close()
     else:
         print("Nothing to do.")
+        loop.run_until_complete(pb.close())
+        loop.close()
         sys.exit(__ERR_NOTHING_TO_DO__)
 
 
@@ -179,7 +237,7 @@ def parse_args():
     parser.add_argument("-u", "--url", help="URL of link being pushed")
     parser.add_argument("-f", "--file", help="Pathname to file to push")
     parser.add_argument("--transfer.sh", dest="transfer_sh", action="store_true",
-                        help="Use transfer.sh website for uploading files (use with --file)")
+                        help="Use www.transfer.sh website for uploading files (use with --file)")
     parser.add_argument("-q", "--quiet", action="store_true", help="Suppress all output")
 
     args = parser.parse_args()
@@ -197,6 +255,7 @@ def nostdout():
     sys.stdout = io.TextIOBase()
     yield
     sys.stdout = save_stdout
+
 
 
 if __name__ == "__main__":

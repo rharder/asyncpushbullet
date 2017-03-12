@@ -2,8 +2,10 @@ import datetime
 import json
 import logging
 import os
+import time
 
 import requests
+from tqdm import tqdm
 
 from ._compat import standard_b64encode
 from .channel import Channel
@@ -117,7 +119,8 @@ class Pushbullet(object):
             pass
         finally:
             if msg is None:
-                msg = {"raw": str(resp.text)}
+                # msg = {"raw": str(resp.text)}
+                msg = resp.text
 
         return self._interpret_response(resp.status_code, resp.headers, msg)
 
@@ -137,6 +140,9 @@ class Pushbullet(object):
 
         elif code not in (200, 204):  # 200 OK, 204 Empty response (file upload)
             raise PushbulletError(code, msg)
+
+        elif not isinstance(msg, dict):
+            msg = {"raw": msg}
 
         return msg
 
@@ -552,6 +558,17 @@ class Pushbullet(object):
         data = xfer["data"]
         xfer["msg"] = self._post_data(self.UPLOAD_REQUEST_URL, data=json.dumps(data))
         next(gen)  # Prep upload params
+        #
+        # def _wrap():
+        #     t = tqdm(total=os.path.getsize(file_path))
+        #     with open(file_path, "rb") as f:
+        #         x = f.read(1024)
+        #         while x != b'':
+        #             t.update(len(x))
+        #             time.sleep(.1)
+        #             yield x
+        #             x = f.read(1024)
+        #     t.close()
 
         with open(file_path, "rb") as f:
             xfer["msg"] = self._post_data(str(xfer["upload_url"]), files={"file": f})
