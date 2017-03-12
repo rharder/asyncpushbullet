@@ -22,7 +22,8 @@ if sys.argv[-1] == 'publish':
 install_reqs = [
     "requests>=1.0.0",
     "python-magic",
-    "aiohttp"
+    "aiohttp",
+    "tqdm"
 ]
 
 
