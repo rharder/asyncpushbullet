@@ -114,6 +114,7 @@ class AsyncPushbullet(Pushbullet):
 
     async def _async_post_data(self, url: str, **kwargs) -> dict:
         session = await self.aio_session()
+        kwargs["timeout"] = None
         msg = await self._async_http(session.post, url, **kwargs)
         return msg
 
@@ -375,4 +376,3 @@ class AsyncPushbullet(Pushbullet):
         data = xfer.get("data")
         xfer["msg"] = await self._async_push(data)
         return next(gen)
-
