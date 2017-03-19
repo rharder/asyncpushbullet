@@ -26,23 +26,16 @@ optional arguments:
 import argparse
 import asyncio
 import contextlib
-import inspect
 import io
 import os
 import sys
-import time
 
-import aiohttp
-from tqdm import tqdm
-
-from asyncpushbullet.tqio import tqio
-
-sys.path.append("..")  # To help when running examples direct from the source repository
-from asyncpushbullet.filetype import get_file_type
-from asyncpushbullet import PushbulletError
 from asyncpushbullet import AsyncPushbullet
 from asyncpushbullet import Device
 from asyncpushbullet import InvalidKeyError
+from asyncpushbullet import PushbulletError
+from asyncpushbullet.filetype import get_file_type
+from asyncpushbullet.tqio import tqio
 
 # Exit codes
 __ERR_API_KEY_NOT_GIVEN__ = 1
@@ -58,7 +51,6 @@ __ERR_NOTHING_TO_DO__ = 6
 # sys.argv.append("--list-devices")
 # sys.argv += ["-t", "test to device", "--device", "netmem"]
 # sys.argv += ["--file", __file__]
-# sys.argv += ["--file", "/Users/rob/Movies/Braveheart.mp4"]
 # sys.argv.append("--transfer.sh")
 # sys.argv += ["--device", "netmem"]
 
@@ -130,8 +122,6 @@ def do_main(args):
         dev = None  # type: Device
         if args.device:
             dev = loop.run_until_complete(pb.async_get_device(nickname=args.device))
-            # dev = pb.get_device(nickname=args.device)
-            # print("DEVICE", dev)
             if dev is None:
                 print("Device not found:", args.device, file=sys.stderr)
                 sys.exit(__ERR_DEVICE_NOT_FOUND__)
@@ -143,18 +133,11 @@ def do_main(args):
             if not args.quiet:
                 print("Uploading file to transfer.sh ... {}".format(args.file))
 
-            # data = aiohttp.FormData()
-            # data.add_field('file',
-            #                tqio(args.file),
-            #                filename=file_name,
-            #                content_type=file_type)
-
             if args.quiet:
                 # Upload without any progress indicator
                 with open(args.file, "rb") as f:
                     resp = loop.run_until_complete(pb._async_post_data(
                         "https://transfer.sh/",
-                        # data=data))
                         data={"file": f}))
             else:
                 # Upload with progress indicator
@@ -163,7 +146,6 @@ def do_main(args):
                         "https://transfer.sh/",
                         # data=data))
                         data={"file": f}))
-            # resp = pb._post_data("https://transfer.sh/", files={file_name: f})
 
             file_url = resp["raw"].strip()
             file_type = get_file_type(args.file)
@@ -172,7 +154,6 @@ def do_main(args):
             if not args.quiet:
                 print("Uploading file to Pushbullet ... {}".format(args.file))
             stats = loop.run_until_complete(pb.async_upload_file(args.file))
-            # stats = pb.upload_file(args.file)
 
             file_url = stats["file_url"]
             file_type = stats["file_type"]
@@ -183,11 +164,8 @@ def do_main(args):
         resp = loop.run_until_complete(pb.async_push_file(file_name=file_name,
                             file_type=file_type,
                             file_url=file_url,
-                            title=args.title, body=args.body, device=dev))
-        # resp = pb.push_file(file_name=file_name,
-        #                     file_type=file_type,
-        #                     file_url=file_url,
-        #                     title=args.title, body=args.body, device=dev)
+                            title=args.title, body=args.body or file_name, device=dev))
+
         if not args.quiet:
             print(resp)
 

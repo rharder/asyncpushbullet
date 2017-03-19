@@ -1,17 +1,12 @@
 import asyncio
-import hashlib
-import os
 
 import aiohttp
-import io
-
-from tqdm import tqdm
 
 from asyncpushbullet import Device
 from asyncpushbullet.channel import Channel
 from asyncpushbullet.chat import Chat
 from asyncpushbullet.tqio import tqio
-from .pushbullet import Pushbullet, PushbulletError
+from .pushbullet import Pushbullet
 
 __author__ = "Robert Harder"
 __email__ = "rob@iharder.net"
@@ -348,14 +343,6 @@ class AsyncPushbullet(Pushbullet):
 
         file_name = xfer["data"]["file_name"]
         file_type = xfer["data"]["file_type"]
-
-        # data = aiohttp.FormData()
-        # data.add_field('file',
-        #                # tqio(open(args.file, "rb")),
-        #                tqio(args.file),
-        #                # stream,
-        #                filename=file_name,
-        #                content_type=file_type)
 
         if suppress_progress:
             with open(file_path, "rb") as f:
