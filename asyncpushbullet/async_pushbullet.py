@@ -64,7 +64,7 @@ class AsyncPushbullet(Pushbullet):
 
         loop = asyncio.get_event_loop()
         if loop in self._aio_sessions:
-            self._aio_sessions[loop].close()
+            await self._aio_sessions[loop].close()
             del self._aio_sessions[loop]
 
     def close_all(self):
@@ -136,6 +136,10 @@ class AsyncPushbullet(Pushbullet):
                 d = Device(self, device_info)
                 self._devices.append(d)
         self.log.info("Found {} active devices".format(len(self._devices)))
+
+    async def async_get_devices(self):
+        await self._async_load_devices()
+        return self._devices
 
     async def async_get_device(self, nickname: str = None, iden: str = None) -> Device:
         """

@@ -19,6 +19,7 @@ __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
 
 
+
 class WebsocketListener(object):
     WEBSOCKET_URL = 'wss://stream.pushbullet.com/websocket/'
 
@@ -43,6 +44,8 @@ class WebsocketListener(object):
         self.loop = loop or asyncio.get_event_loop()
         self._queue = None  # type: asyncio.Queue
 
+        self._anext_called = False
+
         # Callbacks
         self._on_connect = on_connect
         self._on_close = on_close
@@ -61,8 +64,12 @@ class WebsocketListener(object):
             await self._ws.close()
             self._closed = True
             self._ws = None
+        # print("Leaving WebsocketListener.close")
 
-    async def __aiter__(self):
+    def __aiter__(self):
+        return self
+
+    async def __aiter__Z(self):
         """ Called at the beginning of an "async for" construct. """
         # self.log.debug("Starting async def __aiter___() on loop {}".format(id(asyncio.get_event_loop())))
 
@@ -75,6 +82,8 @@ class WebsocketListener(object):
                 # Connecting...
                 session = await self.account.aio_session()
 
+                url = self.WEBSOCKET_URL + self.account.api_key
+                self.log.debug("Connecting to websocket {}".format(url))
                 async with session.ws_connect(self.WEBSOCKET_URL + self.account.api_key) as ws:
                     self._ws = ws
                     self.log.info("Connected to websocket {}".format(id(ws)))
@@ -127,6 +136,10 @@ class WebsocketListener(object):
     async def __anext__(self) -> dict:
         """ Called at each iteration of an "async for" construct. """
         # self.log.debug("Starting async def __anext__() on loop {}".format(id(asyncio.get_event_loop())))
+
+        if not self._anext_called:
+            self._anext_called = True
+            await self.__aiter__Z()
 
         if self._closed:
             self.log.debug("Raising StopAsyncIteration on loop {}".format(id(asyncio.get_event_loop())))
@@ -229,13 +242,19 @@ class PushListener(object):
         self._closed = False
         self._queue = None  # type: asyncio.Queue
 
+        self._anext_called = False
+
         # Callbacks
         self._on_connect = on_connect
         self._on_close = on_close
         if on_message is not None:
             self._start_callbacks(on_message)
 
-    async def __aiter__(self):
+    def __aiter__(self):
+        print("__aiter__ called")
+        return self
+
+    async def __aiter__Z(self):
         self._queue = asyncio.Queue()
 
         # Start listening to the websocket for tickles
@@ -315,6 +334,12 @@ class PushListener(object):
         return self
 
     async def __anext__(self) -> dict:
+        print("__anext__ called")
+
+        if not self._anext_called:
+            self._anext_called = True
+            await self.__aiter__Z()
+
         if self._closed:
             raise StopAsyncIteration("This listener has closed.")
 

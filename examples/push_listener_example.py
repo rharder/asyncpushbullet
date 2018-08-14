@@ -18,6 +18,7 @@ __email__ = "rob@iharder.net"
 
 API_KEY = ""  # YOUR API KEY
 
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 # logging.basicConfig(level=logging.DEBUG)
 # logging.getLogger("pushbullet.async_listeners").setLevel(logging.DEBUG)
@@ -28,7 +29,11 @@ API_KEY = ""  # YOUR API KEY
 #
 
 async def co_run(pb: AsyncPushbullet):
-    pl = PushListener(pb)
+    pl = PushListener(pb,on_connect=print)
+
+    devs = await pb.async_get_devices()
+    # devs = pb.devices
+    print("DEVICES", devs)
 
     async def _timeout_and_close():
         await asyncio.sleep(3)
@@ -36,7 +41,9 @@ async def co_run(pb: AsyncPushbullet):
         await pl.close()
         await pb.close()
 
-    asyncio.get_event_loop().create_task(_timeout_and_close())
+    # asyncio.get_event_loop().create_task(_timeout_and_close())
+
+    await pl.account.aio_session()
 
     # async for p in PushListener(pb):
     async for p in pl:
@@ -46,6 +53,7 @@ async def co_run(pb: AsyncPushbullet):
 def main1():
     """ Uses the listener in an asynchronous for loop. """
     pb = AsyncPushbullet(API_KEY, verify_ssl=False)
+    print(pb.get_new_pushes(limit=1))
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(co_run(pb))
