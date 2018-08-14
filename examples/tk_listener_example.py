@@ -21,6 +21,7 @@ __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
 
 API_KEY = ""  # YOUR API KEY
+PROXY = ""
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -63,6 +64,9 @@ class PushApp():
         btn_connect = tk.Button(self.window, text="Connect", command=self.connect_button_clicked)
         btn_connect.grid(row=1, column=1, sticky=tk.W)
 
+        btn_disconnect = tk.Button(self.window, text="Disconnect", command=self.disconnect_button_clicked)
+        btn_disconnect.grid(row=2, column=1, sticky=tk.W)
+
         lbl_data = tk.Label(self.window, text="Incoming Pushes...")
         lbl_data.grid(row=4, column=0, sticky=tk.W)
         txt_data = BindableTextArea(self.window, textvariable=self.pushes_var, width=80, height=10)
@@ -70,7 +74,7 @@ class PushApp():
 
     def connect_button_clicked(self):
         if self.pushbullet is not None:
-            self.pushbullet.close()
+            self.pushbullet.close_all()
             self.pushbullet = None
         if self.pushbullet_listener is not None:
             self.pushbullet_listener.close()
@@ -86,10 +90,14 @@ class PushApp():
         print("main loop", id(asyncio.get_event_loop()))
         print("ioloop", id(ioloop))
 
-        self.pushbullet = AsyncPushbullet(self.key_var.get(), loop=ioloop, verify_ssl=False)
+        self.pushbullet = AsyncPushbullet(self.key_var.get(), loop=ioloop, verify_ssl=False,
+                                          proxy=PROXY)
         self.pushbullet_listener = PushListener(self.pushbullet,
                                                 on_connect=self.connected,
                                                 on_message=self.push_received)
+
+    def disconnect_button_clicked(self):
+        self.pushbullet.close_all()
 
     async def connected(self, listener: PushListener):
         print("Connected to websocket")
@@ -112,6 +120,13 @@ if __name__ == '__main__':
     if API_KEY == "":
         with open("../api_key.txt") as f:
             API_KEY = f.read().strip()
+    try:
+        if PROXY == "":
+            with open("../proxy.txt") as f:
+                PROXY = f.read().strip()
+    except Exception as e:
+        pass  # No proxy file, that's OK
+
     try:
         main()
     except KeyboardInterrupt:

@@ -84,7 +84,8 @@ class WebsocketListener(object):
 
                 url = self.WEBSOCKET_URL + self.account.api_key
                 self.log.debug("Connecting to websocket {}".format(url))
-                async with session.ws_connect(self.WEBSOCKET_URL + self.account.api_key) as ws:
+                async with session.ws_connect(self.WEBSOCKET_URL + self.account.api_key,
+                                              proxy=self.account._proxy) as ws:
                     self._ws = ws
                     self.log.info("Connected to websocket {}".format(id(ws)))
 
@@ -111,6 +112,10 @@ class WebsocketListener(object):
                 stop_msg = StopAsyncIteration("TimeoutError. Connection closing")
                 self.log.warning(stop_msg)
                 await self._queue.put(stop_msg)
+            except Exception as ex:
+                stop_msg = StopAsyncIteration("Exception {}. Connection closing".format(ex))
+                self.log.warning(stop_msg)
+                await self._queue.put(stop_msg)
 
             else:
                 pass
@@ -125,7 +130,7 @@ class WebsocketListener(object):
                 self._closed = True
                 self._ws = None
 
-                # self.log.debug("Exiting async def _ws_loop() on loop {}".format(id(asyncio.get_event_loop())))
+                self.log.debug("Exiting async def _ws_loop() on loop {}".format(id(asyncio.get_event_loop())))
 
         loop = asyncio.get_event_loop()
         loop.create_task(_ws_loop())
@@ -238,6 +243,7 @@ class PushListener(object):
         self._filter_device_nickname = filter_device_nickname
         # self._pushes = []
         self.ws_listener = None  # type: WebsocketListener
+        self.loop = None  # type: asyncio.BaseEventLoop
 
         self._closed = False
         self._queue = None  # type: asyncio.Queue
@@ -251,10 +257,10 @@ class PushListener(object):
             self._start_callbacks(on_message)
 
     def __aiter__(self):
-        print("__aiter__ called")
+        # print("__aiter__ called")
         return self
 
-    async def __aiter__Z(self):
+    async def __aiter__setup(self):
         self._queue = asyncio.Queue()
 
         # Start listening to the websocket for tickles
@@ -329,16 +335,17 @@ class PushListener(object):
             # self.log.debug("Exiting async def _ws_pull_pushes()")
 
         loop = asyncio.get_event_loop()
+        self.loop = loop
         loop.create_task(_ws_pull_pushes())
 
         return self
 
     async def __anext__(self) -> dict:
-        print("__anext__ called")
+        # print("__anext__ called")
 
         if not self._anext_called:
             self._anext_called = True
-            await self.__aiter__Z()
+            await self.__aiter__setup()
 
         if self._closed:
             raise StopAsyncIteration("This listener has closed.")
@@ -370,31 +377,35 @@ class PushListener(object):
 
         async def _listen(func):
             """ Internal use only """
-            # self.log.debug("Starting async def _listen() on loop {}".format(id(asyncio.get_event_loop())))
+            self.log.debug("Starting async def _listen() on loop {}".format(id(asyncio.get_event_loop())))
             while not self._closed:
                 # try:
-                async for push in self:
-                    if inspect.iscoroutinefunction(func):
-                        await func(push, self)
-                    else:
-                        func(push, self)
-                # except Exception as e:
+                    async for push in self:
+                        if inspect.iscoroutinefunction(func):
+                            await func(push, self)
+                        else:
+                            func(push, self)
+                # except BaseException as e:
                 #     self.log.warning("Ignoring exception in callback: {}".format(e))
                 #     self.log.debug("Exception caught from callback: {}".format(e), e)  # Traceback in debug mode only
                 # finally:
-                if not self._closed:
-                    await asyncio.sleep(3)  # Throttle restarts
-                    # self.log.debug("Exiting async def _listen()")
+                    if not self._closed:
+                        await asyncio.sleep(3)  # Throttle restarts
+                        self.log.debug("Exiting async def _listen()")
 
         asyncio.run_coroutine_threadsafe(_listen(func), loop=self.account.loop)
 
-    async def close(self):
+    def close(self):
         """
         Disconnects from websocket and marks this listener as "closed,"
         meaning it will cease to notify callbacks or operate in an "async for"
         construct.
         """
-        if self.ws_listener is not None:
-            self.log.info("Closing PushListener {}".format(id(self.ws_listener)))
-            # self.ws_listener.close()
-            await self.ws_listener.close()
+        async def _close():
+            if self.ws_listener is not None:
+                self.log.info("Closing PushListener {}".format(id(self.ws_listener)))
+                # self.ws_listener.close()
+                await self.ws_listener.close()
+
+
+        asyncio.run_coroutine_threadsafe(_close(), loop=self.loop)

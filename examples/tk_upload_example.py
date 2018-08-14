@@ -23,6 +23,7 @@ __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
 
 API_KEY = ""  # YOUR API KEY
+PROXY = ""
 
 
 # logging.basicConfig(level=logging.DEBUG)
@@ -120,7 +121,8 @@ class PushApp():
         t.daemon = True
         t.start()
 
-        self.pushbullet = AsyncPushbullet(self.key_var.get(), loop=self.ioloop, verify_ssl=False)
+        self.pushbullet = AsyncPushbullet(self.key_var.get(), loop=self.ioloop, verify_ssl=False,
+                                          proxy=PROXY)
         self.pushbullet_listener = PushListener(self.pushbullet,
                                                 on_connect=self.connected,
                                                 on_message=self.push_received)
@@ -171,6 +173,13 @@ if __name__ == '__main__':
     if API_KEY == "":
         with open("../api_key.txt") as f:
             API_KEY = f.read().strip()
+    try:
+        if PROXY == "":
+            with open("../proxy.txt") as f:
+                PROXY = f.read().strip()
+    except Exception as e:
+        pass  # No proxy file, that's OK
+
     try:
         main()
     except KeyboardInterrupt:

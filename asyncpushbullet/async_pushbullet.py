@@ -18,9 +18,9 @@ class AsyncPushbullet(Pushbullet):
         Pushbullet.__init__(self, api_key, **kwargs)
         self.loop = loop or asyncio.get_event_loop()
 
-        # TODO: Proxies
-        self._proxy = kwargs.get("proxy")  # type: dict
-
+        self._proxy = kwargs.get("proxy")  # type: str
+        if self._proxy is not None:
+            self.log.info("Using proxy: {}".format(self._proxy))
         self._aio_sessions = {}  # type: {asyncio.AbstractEventLoop:aiohttp.ClientSession}
         self.verify_ssl = verify_ssl
 
@@ -46,7 +46,8 @@ class AsyncPushbullet(Pushbullet):
                 aio_connector = aiohttp.TCPConnector(verify_ssl=False, loop=loop)
 
             # self.log.debug("Creating aiohttp session on loop {}".format(id(loop)))
-            session = aiohttp.ClientSession(headers=headers, connector=aio_connector)  # , loop=loop)
+            session = aiohttp.ClientSession(headers=headers, connector=aio_connector)  # , trust_env=True)
+
             self.log.debug("Created aiohttp session {} on loop {}".format(id(session), id(loop)))
             self._aio_sessions[loop] = session  # Save session for this loop
 
@@ -77,6 +78,7 @@ class AsyncPushbullet(Pushbullet):
 
     async def _async_http(self, aiohttp_func, url: str, **kwargs) -> dict:
 
+        # async with aiohttp_func(url, **kwargs) as resp:  # Do HTTP
         async with aiohttp_func(url, proxy=self._proxy, **kwargs) as resp:  # Do HTTP
 
             code = resp.status
