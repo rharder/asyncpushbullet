@@ -13,12 +13,12 @@ __email__ = "rob@iharder.net"
 
 
 class AsyncPushbullet(Pushbullet):
-    def __init__(self, api_key: str, verify_ssl: bool = None,
+    def __init__(self, api_key: str = None, verify_ssl: bool = None,
                  loop: asyncio.AbstractEventLoop = None, **kwargs):
         Pushbullet.__init__(self, api_key, **kwargs)
         self.loop = loop or asyncio.get_event_loop()
 
-        self._proxy = kwargs.get("proxy")  # type: str
+        self._proxy = kwargs.get("proxy", "")  # type: str
         if self._proxy.strip() == "":
             self._proxy = None
         if self._proxy is not None:
@@ -31,7 +31,9 @@ class AsyncPushbullet(Pushbullet):
         Triggers a call to Pushbullet.com that will throw an
         InvalidKeyError if the key is not valid.
         """
-        await self.aio_session()
+        print("GETTING SESSION...")
+        sess = await self.aio_session()
+        print("SESSION:", sess)
 
     async def aio_session(self) -> aiohttp.ClientSession:
 
@@ -56,6 +58,7 @@ class AsyncPushbullet(Pushbullet):
             if self.most_recent_timestamp == 0:
                 self.log.debug("Retrieving one push to set initial latest timestamp")
                 await self.async_get_pushes(limit=1)  # May throw invalid key error here
+                # await asyncio.sleep(0)
 
             else:
                 self.log.debug("Retrieved aiohttp session {} on loop {}".format(id(session), id(loop)))

@@ -52,7 +52,10 @@ class WebsocketListener(object):
         if on_message is not None:
             self._start_callbacks(on_message)
 
-    async def close(self):
+    def close(self):
+        asyncio.run_coroutine_threadsafe(self.async_close(), loop=self.loop)
+
+    async def async_close(self):
         """
         Disconnects from websocket and marks this listener as "closed,"
         meaning it will cease to notify callbacks or operate in an "async for"
@@ -126,7 +129,7 @@ class WebsocketListener(object):
 
             finally:
 
-                await self.close()
+                await self.async_close()
                 self._closed = True
                 self._ws = None
 
@@ -279,7 +282,14 @@ class PushListener(object):
                 elif callable(self._on_connect):
                     self._on_connect(self)
 
-            self.ws_listener = WebsocketListener(self.account, on_connect=_ws_on_connect)
+            async def _ws_on_close(ws_listener):
+                # Notify callback on_close, if registered
+                if inspect.iscoroutinefunction(self._on_close):
+                    await self._on_close(self)
+                elif callable(self._on_close):
+                    self._on_close(self)
+
+            self.ws_listener = WebsocketListener(self.account, on_connect=_ws_on_connect, on_close=_ws_on_close)
             async for msg in self.ws_listener:  # type: aiohttp.WSMessage
 
                 # Look for websocket message announcing new pushes
@@ -393,6 +403,12 @@ class PushListener(object):
                         await asyncio.sleep(3)  # Throttle restarts
                         self.log.debug("Exiting async def _listen()")
 
+            # Notify callback on_close, if registered
+            if inspect.iscoroutinefunction(self._on_close):
+                await self._on_close(self)
+            elif callable(self._on_close):
+                self._on_close(self)
+
         asyncio.run_coroutine_threadsafe(_listen(func), loop=self.account.loop)
 
     def close(self):
@@ -402,10 +418,10 @@ class PushListener(object):
         construct.
         """
         async def _close():
+            print(self.__class__.__name__, "close()._close()")
             if self.ws_listener is not None:
                 self.log.info("Closing PushListener {}".format(id(self.ws_listener)))
-                # self.ws_listener.close()
-                await self.ws_listener.close()
-
+                await self.ws_listener.async_close()
+                self.log.info("Closed PushListener {}".format(id(self.ws_listener)))
 
         asyncio.run_coroutine_threadsafe(_close(), loop=self.loop)

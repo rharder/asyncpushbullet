@@ -30,7 +30,7 @@ class Pushbullet(object):
     UPLOAD_REQUEST_URL = "https://api.pushbullet.com/v2/upload-request"
     EPHEMERALS_URL = "https://api.pushbullet.com/v2/ephemerals"
 
-    def __init__(self, api_key: str, encryption_password: str = None, proxy: dict = None):
+    def __init__(self, api_key: str = None, encryption_password: str = None, proxy: str = None):
         self.api_key = api_key
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
@@ -42,7 +42,7 @@ class Pushbullet(object):
         #     if "https" not in [k.lower() for k in proxy.keys()]:
         #         raise PushbulletError("You can only use HTTPS proxies!")
 
-        self.session.proxies.update(dict(https=proxy))
+        self.proxy = proxy
 
         self._user_info = None  # type: dict
         self._devices = None  # type: [Device]
@@ -88,6 +88,7 @@ class Pushbullet(object):
             session = requests.Session()
             session.auth = (self.api_key, "")
             session.headers.update(self._json_header)
+            self.session.proxies.update(dict(https=self.proxy))
             self._session = session
 
             # Find most recent push's timestamp
