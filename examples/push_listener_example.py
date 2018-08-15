@@ -43,7 +43,7 @@ async def co_run(pb: AsyncPushbullet):
         await pl.close()
         await pb.close()
 
-    asyncio.get_event_loop().create_task(_timeout_and_close())
+    # asyncio.get_event_loop().create_task(_timeout_and_close())
 
     async for p in pl:
         print("Push received:", p)

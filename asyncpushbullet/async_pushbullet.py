@@ -19,6 +19,8 @@ class AsyncPushbullet(Pushbullet):
         self.loop = loop or asyncio.get_event_loop()
 
         self._proxy = kwargs.get("proxy")  # type: str
+        if self._proxy.strip() == "":
+            self._proxy = None
         if self._proxy is not None:
             self.log.info("Using proxy: {}".format(self._proxy))
         self._aio_sessions = {}  # type: {asyncio.AbstractEventLoop:aiohttp.ClientSession}
