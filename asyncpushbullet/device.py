@@ -1,6 +1,7 @@
 from __future__ import unicode_literals
 
 import collections
+import pprint
 import warnings
 
 from .helpers import use_appropriate_encoding
@@ -8,14 +9,16 @@ from .helpers import use_appropriate_encoding
 
 class Device(object):
 
+    DEVICE_ATTRIBUTES = ("push_token", "app_version", "fingerprint", "created", "modified",
+                    "active", "nickname", "generated_nickname", "manufacturer", "icon",
+                    "model", "has_sms", "key_fingerprint")
+
     def __init__(self, account, device_info):
         self._account = account
         self.device_iden = device_info.get("iden")
         if not device_info.get("icon", None):
             device_info["icon"] = "system"
-        for attr in ("push_token", "app_version", "fingerprint", "created", "modified",
-                    "active", "nickname", "generated_nickname", "manufacturer", "icon",
-                    "model", "has_sms", "key_fingerprint"):
+        for attr in self.DEVICE_ATTRIBUTES:
             setattr(self, attr, device_info.get(attr))
 
     def push_note(self, title, body):
@@ -43,7 +46,14 @@ class Device(object):
 
     @use_appropriate_encoding
     def __str__(self):
-        return "Device('{0}')".format(self.nickname or "nameless (iden: {})".format(self.device_iden))
+        _str = "Device('{}')".format(self.nickname or "nameless (iden: {})"
+                                          .format(self.device_iden))
+        return _str
 
     def __repr__(self):
-        return self.__str__()
+        attr_map = {k:self.__getattribute__(k) for k in self.DEVICE_ATTRIBUTES}
+        # attr_str = ", ".join(["{}={}".format(k,v) for k,v in attr_map.items()])
+        attr_str = pprint.pformat(attr_map)
+        _str = "Device('{}',\n{})".format(self.nickname or "nameless (iden: {})"
+                                          .format(self.device_iden), attr_str)
+        return _str

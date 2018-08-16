@@ -11,6 +11,7 @@ import logging
 import sys
 from functools import partial
 
+# from tkinter_tools import BindableTextArea
 from tkinter_tools import BindableTextArea
 
 sys.path.append("..")  # Since examples are buried one level into source tree

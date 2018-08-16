@@ -418,7 +418,7 @@ class PushListener(object):
         construct.
         """
         async def _close():
-            print(self.__class__.__name__, "close()._close()")
+            # print(self.__class__.__name__, "close()._close()")
             if self.ws_listener is not None:
                 self.log.info("Closing PushListener {}".format(id(self.ws_listener)))
                 await self.ws_listener.async_close()
