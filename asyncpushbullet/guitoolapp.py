@@ -19,6 +19,7 @@ from asyncpushbullet import tkinter_tools
 # sys.path.append("..")  # Since examples are buried one level into source tree
 from asyncpushbullet import AsyncPushbullet
 from asyncpushbullet.async_listeners import PushListener
+from asyncpushbullet.helpers import print_function_name
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
@@ -103,7 +104,7 @@ class GuiToolApp():
 
         # Status line
         status_label = tk.Label(parent, textvar=self.status_var)
-        status_label.grid(row=999, column=0, sticky=tk.W)
+        status_label.grid(row=999, column=0, sticky=tk.W, columnspan=2)
 
         # # Tab: API Key
         # api_key_frame = tk.Frame(notebook)
@@ -146,29 +147,32 @@ class GuiToolApp():
             self.pushbullet_listener.close()
 
         async def _connect():
+            # print_function_name(self)
             # asyncio.set_event_loop(loop)
-            print("key:", self.key_var.get())
-            self.pushbullet = AsyncPushbullet(api_key=self.key_var.get(),
+            api_key = self.key_var.get()
+            self.pushbullet = AsyncPushbullet(api_key=api_key,
                                               loop=asyncio.get_event_loop(),
                                               verify_ssl=False,
                                               proxy=PROXY)
-            # try:
-            await self.pushbullet.async_verify_key()
-            # self.pushbullet.verify_key()
-            # except Exception as e:
-            #     print("EXCEPTION", e)
-            #     raise e
-            #     return
-            # push = self.pushbullet.get_pushes(limit=1)
-            # print(push)
-            devs = await self.pushbullet.async_get_devices()
-            print("DEVICES")
-            pprint(devs)
-
-            pushes = await self.pushbullet.async_get_pushes(limit=1)
-            # pushes = self.pushbullet.get_pushes(limit=1)  # stuck?
-            print("PUSHES")
-            pprint(pushes)
+            try:
+                await self.pushbullet.async_verify_key()
+            except Exception as e:
+                self.log.info("Invalid API Key: {}".format(api_key))
+                # raise e
+                self.status = "Invalid API key: {}".format(api_key)
+                self.pushbullet = None
+                self.btn_connect.configure(state=tk.NORMAL)
+                self.btn_disconnect.configure(state=tk.DISABLED)
+                return
+            #
+            # devs = await self.pushbullet.async_get_devices()
+            # print("DEVICES")
+            # pprint(devs)
+            #
+            # pushes = await self.pushbullet.async_get_pushes(limit=1)
+            # # pushes = self.pushbullet.get_pushes(limit=1)  # stuck?
+            # print("PUSHES")
+            # pprint(pushes)
 
             self.pushbullet_listener = PushListener(self.pushbullet,
                                                     on_connect=self.pushlistener_connected,

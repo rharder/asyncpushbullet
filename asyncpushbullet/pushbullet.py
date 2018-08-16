@@ -7,6 +7,7 @@ import time
 import requests
 from tqdm import tqdm
 
+from asyncpushbullet.helpers import print_function_name
 from ._compat import standard_b64encode
 from .channel import Channel
 from .chat import Chat
@@ -465,6 +466,7 @@ class Pushbullet(object):
 
     def _get_pushes_generator(self, modified_after: float = None, limit: int = None,
                               filter_inactive: bool = True):
+        # print_function_name(self)
         data = {}
         if modified_after is not None:
             data["modified_after"] = str(modified_after)

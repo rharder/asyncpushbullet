@@ -5,6 +5,7 @@ import aiohttp
 from asyncpushbullet import Device
 from asyncpushbullet.channel import Channel
 from asyncpushbullet.chat import Chat
+from asyncpushbullet.helpers import print_function_name
 from asyncpushbullet.tqio import tqio
 from .pushbullet import Pushbullet
 
@@ -31,17 +32,18 @@ class AsyncPushbullet(Pushbullet):
         Triggers a call to Pushbullet.com that will throw an
         InvalidKeyError if the key is not valid.
         """
-        print("GETTING SESSION...")
+        # print_function_name(self)
         sess = await self.aio_session()
-        print("SESSION:", sess)
 
     async def aio_session(self) -> aiohttp.ClientSession:
+        # print_function_name(self)
 
         # Sessions are created/handled on a per-loop basis
         loop = asyncio.get_event_loop()
         session = self._aio_sessions.get(loop)  # type: aiohttp.ClientSession
 
         if session is None:
+            # print("Session is None, creating new one")
             headers = {"Access-Token": self.api_key}
 
             aio_connector = None  # type: aiohttp.TCPConnector
@@ -49,19 +51,16 @@ class AsyncPushbullet(Pushbullet):
                 self.log.info("SSL/TLS verification disabled")
                 aio_connector = aiohttp.TCPConnector(verify_ssl=False, loop=loop)
 
-            # self.log.debug("Creating aiohttp session on loop {}".format(id(loop)))
             session = aiohttp.ClientSession(headers=headers, connector=aio_connector)  # , trust_env=True)
 
-            self.log.debug("Created aiohttp session {} on loop {}".format(id(session), id(loop)))
             self._aio_sessions[loop] = session  # Save session for this loop
 
             if self.most_recent_timestamp == 0:
-                self.log.debug("Retrieving one push to set initial latest timestamp")
-                await self.async_get_pushes(limit=1)  # May throw invalid key error here
-                # await asyncio.sleep(0)
+                single_push = await self.async_get_pushes(limit=1)  # May throw invalid key error here
 
-            else:
-                self.log.debug("Retrieved aiohttp session {} on loop {}".format(id(session), id(loop)))
+        # else:
+        #     self.log.debug("Retrieved aiohttp session {} on loop {}".format(id(session), id(loop)))
+        #     pass
 
         return session
 
@@ -83,9 +82,10 @@ class AsyncPushbullet(Pushbullet):
 
     async def _async_http(self, aiohttp_func, url: str, **kwargs) -> dict:
 
+        # print_function_name(self)
+
         # async with aiohttp_func(url, **kwargs) as resp:  # Do HTTP
         async with aiohttp_func(url, proxy=self._proxy, **kwargs) as resp:  # Do HTTP
-
             code = resp.status
             msg = None
             try:
@@ -276,6 +276,7 @@ class AsyncPushbullet(Pushbullet):
 
     async def async_get_pushes(self, modified_after: float = None, limit: int = None,
                                filter_inactive: bool = True) -> [dict]:
+        # print_function_name(self)
         gen = self._get_pushes_generator(modified_after=modified_after,
                                          limit=limit, filter_inactive=filter_inactive)
         xfer = next(gen)  # Prep http params

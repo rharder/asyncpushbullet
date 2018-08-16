@@ -11,3 +11,19 @@ def use_appropriate_encoding(fn):
         return _fn
     else:
         return fn
+
+def print_function_name(enclosing_class=None):
+    try:
+        if enclosing_class is None:
+            classname = ""
+        else:
+            classname = enclosing_class.__class__.__name__
+        import inspect
+        name = inspect.getframeinfo(inspect.currentframe().f_back).function
+        print('\033[94m{}.{}\033[99m'.format(classname, name), flush=True)
+    except AttributeError as ae:
+        raise ae
+        pass  # Likely caused by lack of stack frame support where currentframe() returns None.
+    except KeyError as ke:
+        raise ke
+        pass  # In case the function name is not found in the globals dictionary.
