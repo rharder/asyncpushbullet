@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 
+import collections
 import warnings
 
 from .helpers import use_appropriate_encoding

@@ -1,4 +1,5 @@
 import asyncio
+from typing import List
 
 import aiohttp
 
@@ -144,7 +145,7 @@ class AsyncPushbullet(Pushbullet):
                 self._devices.append(d)
         self.log.info("Found {} active devices".format(len(self._devices)))
 
-    async def async_get_devices(self):
+    async def async_get_devices(self) -> List[Device]:
         await self._async_load_devices()
         return self._devices
 

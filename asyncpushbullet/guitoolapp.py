@@ -14,7 +14,9 @@ from pprint import pprint
 from tkinter import ttk
 
 # from tkinter_tools import BindableTextArea
-from asyncpushbullet import tkinter_tools
+from typing import List
+
+from asyncpushbullet import tkinter_tools, Device
 
 # sys.path.append("..")  # Since examples are buried one level into source tree
 from asyncpushbullet import AsyncPushbullet
@@ -37,7 +39,7 @@ class GuiToolApp():
         self.log = logging.getLogger(__name__)
 
         # Data
-        self.pushbullet = None  #AsyncPushbullet(proxy=PROXY)  # type: AsyncPushbullet
+        self._pushbullet = None  #AsyncPushbullet(proxy=PROXY)  # type: AsyncPushbullet
         self.pushbullet_listener = None  # type: PushListener
         self.key_var = tk.StringVar()  # API key
         self.pushes_var = tk.StringVar()
@@ -50,6 +52,8 @@ class GuiToolApp():
         # View / Control
         self.btn_connect = None  # type: tk.Button
         self.btn_disconnect = None  # type: tk.Button
+        self.lb_device = None  # type: tk.Listbox
+        self.btn_load_devices = None  # type: tk.Button
         self.create_widgets()
 
         # Connections
@@ -63,6 +67,28 @@ class GuiToolApp():
     @status.setter
     def status(self, val):
         self.status_var.set(str(val))
+
+    @property
+    def pushbullet(self):
+        current_key = self.key_var.get()
+        if self._pushbullet is not None:
+            if current_key != self._pushbullet.api_key:
+                self._pushbullet.close_all()
+                self._pushbullet = None
+        if self._pushbullet is None:
+            self._pushbullet = AsyncPushbullet(api_key=current_key,
+                                                  loop=self.ioloop,
+                                                  verify_ssl=False,
+                                                  proxy=PROXY)
+
+        return self._pushbullet
+
+    @pushbullet.setter
+    def pushbullet(self, val):
+        if val is None and self._pushbullet is not None:
+            self._pushbullet.close_all()
+        self._pushbullet = val
+
 
     def create_io_loop(self):
 
@@ -116,6 +142,12 @@ class GuiToolApp():
         notebook.add(pushes_frame, text="Pushes")
         self.create_widgets_pushes(pushes_frame)
 
+        # Tab: Devices
+        devices_frame = tk.Frame(notebook)
+        notebook.add(devices_frame, text="Devices")
+        self.create_widgets_devices(devices_frame)
+
+
 
     def create_widgets_pushes(self, parent: tk.Frame):
 
@@ -135,6 +167,21 @@ class GuiToolApp():
         tk.Grid.grid_columnconfigure(parent, 1, weight=1)
         tk.Grid.grid_rowconfigure(parent, 1, weight=1)
 
+    def create_widgets_devices(self, parent: tk.Frame):
+
+        scrollbar = tk.Scrollbar(parent, orient=tk.VERTICAL)
+        self.lb_device = tk.Listbox(parent, yscrollcommand=scrollbar.set)
+        # listbox = Listbox(frame, yscrollcommand=scrollbar.set)
+        scrollbar.config(command=self.lb_device.yview)
+        self.lb_device.grid(row=0, column=0, sticky="NSEW")
+        # self.lb_device.insert(tk.END, "hello")
+        # self.lb_device.insert(tk.END, "world")
+
+        self.btn_load_devices = tk.Button(parent, text="Load Devices", command=self.load_devices_clicked)
+        self.btn_load_devices.grid(row=1, column=0, sticky="EW")
+
+    # ########   B U T T O N S   ########
+
     def connect_button_clicked(self):
         self.status = "Connecting to Pushbullet..."
         self.btn_connect.configure(state=tk.DISABLED)
@@ -150,10 +197,10 @@ class GuiToolApp():
             # print_function_name(self)
             # asyncio.set_event_loop(loop)
             api_key = self.key_var.get()
-            self.pushbullet = AsyncPushbullet(api_key=api_key,
-                                              loop=asyncio.get_event_loop(),
-                                              verify_ssl=False,
-                                              proxy=PROXY)
+            # self.pushbullet = AsyncPushbullet(api_key=api_key,
+            #                                   loop=asyncio.get_event_loop(),
+            #                                   verify_ssl=False,
+            #                                   proxy=PROXY)
             try:
                 await self.pushbullet.async_verify_key()
             except Exception as e:
@@ -196,6 +243,36 @@ class GuiToolApp():
         self.btn_disconnect.configure(state=tk.DISABLED)
         self.pushbullet_listener.close()
 
+    def load_devices_clicked(self):
+        self.btn_load_devices.configure(state=tk.DISABLED)
+        self.status = "Loading devices..."
+        self.lb_device.delete(0, tk.END)
+        self.lb_device.insert(tk.END, "Loading...")
+
+        async def _load():
+            devices = []  # type: List[Device]
+            try:
+                await self.verify_key()
+                devices = await self.pushbullet.async_get_devices()
+                self.lb_device.delete(0, tk.END)
+                for dev in devices:
+                    self.lb_device.insert(tk.END, str(dev.nickname))
+                self.status = "Loaded {} devices".format(len(devices))
+
+            except Exception as ex:
+                # print(ex)
+                # ex.with_traceback()
+                self.lb_device.delete(0, tk.END)
+            finally:
+                self.btn_load_devices.configure(state=tk.NORMAL)
+                # self.status = "Loaded {} devices".format(len(devices))
+
+
+        asyncio.run_coroutine_threadsafe(_load(), self.ioloop)
+
+
+    # ########   C A L L B A C K S  ########
+
     async def pushlistener_connected(self, listener: PushListener):
         self.status = "Connected to Pushbullet"
         self.btn_disconnect.configure(state=tk.NORMAL)
@@ -209,6 +286,29 @@ class GuiToolApp():
         prev = self.pushes_var.get()
         prev += "{}\n\n".format(p)
         self.pushes_var.set(prev)
+
+    async def verify_key(self):
+        self.status = "Verifying API key..."
+        valid = False
+        api_key = self.key_var.get()
+        try:
+            await self.pushbullet.async_verify_key()
+            valid = True
+        except Exception as e:
+            pass
+            # self.log.info("Invalid API Key: {}".format(api_key))
+            # raise e
+            # self.status = "Invalid API key: {}".format(api_key)
+            # self.pushbullet = None
+            # self.btn_connect.configure(state=tk.NORMAL)
+            # self.btn_disconnect.configure(state=tk.DISABLED)
+            # return
+        finally:
+            if valid:
+                self.status = "Valid API key: {}".format(api_key)
+            else:
+                self.status = "Invalid API key: {}".format(api_key)
+            return valid
 
 
 def main():
