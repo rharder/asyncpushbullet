@@ -1,4 +1,5 @@
 import asyncio
+import pprint
 from typing import List
 
 import aiohttp
@@ -55,13 +56,15 @@ class AsyncPushbullet(Pushbullet):
             session = aiohttp.ClientSession(headers=headers, connector=aio_connector)  # , trust_env=True)
 
             self._aio_sessions[loop] = session  # Save session for this loop
-
-            if self.most_recent_timestamp == 0:
-                single_push = await self.async_get_pushes(limit=1)  # May throw invalid key error here
-
-        # else:
-        #     self.log.debug("Retrieved aiohttp session {} on loop {}".format(id(session), id(loop)))
-        #     pass
+            try:
+                # This will recursively call aio_session() but that's OK
+                # because self._aio_session caches it until we determine
+                # if the key is valid in the line below.
+                _ = await self.async_get_user()  # May throw invalid key error here
+            except Exception as ex:
+                await session.close()
+                del self._aio_sessions[loop]
+                raise ex
 
         return session
 
@@ -91,12 +94,16 @@ class AsyncPushbullet(Pushbullet):
             msg = None
             try:
                 if code != 204:  # No content
+                    # if kwargs.get("raw_data", False):
+                    #     msg = await resp.read()
+                    # else:
                     msg = await resp.json()
             except:
                 pass
             finally:
                 if msg is None:
-                    msg = await resp.text()
+                    # msg = await resp.text()
+                    msg = await resp.read()
 
             return self._interpret_response(code, resp.headers, msg)
 
@@ -298,7 +305,7 @@ class AsyncPushbullet(Pushbullet):
         msg = await self._async_post_data("{}/{}".format(self.PUSH_URL, iden), data=data)
         return msg
 
-    async def async_delete_push(self, iden: str) -> dict:
+    async def async_delete_push(self, iden) -> dict:
         if type(iden) is dict and "iden" in iden:
             iden = iden["iden"]  # In case user passes entire push
         msg = await self._async_delete_data("{}/{}".format(self.PUSH_URL, iden))
@@ -376,3 +383,11 @@ class AsyncPushbullet(Pushbullet):
         data = xfer.get("data")
         xfer["msg"] = await self._async_push(data)
         return next(gen)
+
+    # ################
+    # User
+    #
+
+    async def async_get_user(self):
+        self._user_info = await self._async_get_data(self.ME_URL)
+        return self._user_info

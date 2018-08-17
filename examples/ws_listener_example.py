@@ -9,6 +9,8 @@ import logging
 import threading
 from functools import partial
 
+from asyncpushbullet.helpers import print_function_name
+
 sys.path.append("..")  # Since examples are buried one level into source tree
 from asyncpushbullet import AsyncPushbullet
 from asyncpushbullet.async_listeners import WebsocketListener
@@ -17,8 +19,7 @@ __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
 
 API_KEY = ""  # YOUR API KEY
-HTTP_PROXY_HOST = None
-HTTP_PROXY_PORT = None
+PROXY = ""
 
 # logging.basicConfig(level=logging.DEBUG)
 
@@ -37,7 +38,7 @@ HTTP_PROXY_PORT = None
 
 def main1():
     """ Uses the listener in an asynchronous for loop. """
-    pb = AsyncPushbullet(API_KEY, verify_ssl=False)
+    pb = AsyncPushbullet(API_KEY, verify_ssl=False, proxy=PROXY)
     listener = WebsocketListener(pb)  # type: WebsocketListener
     loop = asyncio.get_event_loop()
     loop.set_debug(True)
@@ -49,11 +50,14 @@ def main1():
             await pb.close()
         except Exception as e:
             print("NO BIGGIE", e)
+            raise e
 
     task = loop.create_task(_timeout())
 
 
     async def _get_pushes():
+        print_function_name()
+
         try:
             async for ws_msg in listener:  # type: dict
                 print("ws msg received:", ws_msg)
@@ -65,7 +69,7 @@ def main1():
         print("_exc_handler", loop, context)
         # loop.run_until_complete(listener.close())
 
-    # loop.set_exception_handler(_exc_handler)
+    loop.set_exception_handler(_exc_handler)
 
     try:
         loop.run_until_complete(_get_pushes())
@@ -74,7 +78,7 @@ def main1():
         task.cancel()
     finally:
         print("finally...")
-        loop.run_until_complete(listener.close())
+        loop.run_until_complete(listener.async_close())
         loop.run_until_complete(pb.close())
         # loop.close()
 
@@ -126,6 +130,13 @@ if __name__ == '__main__':
     if API_KEY == "":
         with open("../api_key.txt") as f:
             API_KEY = f.read().strip()
+
+    try:
+        if PROXY == "":
+            with open("../proxy.txt") as f:
+                PROXY = f.read().strip()
+    except Exception as e:
+        pass  # No proxy file, that's OK
 
     main1()
     # main2()

@@ -122,8 +122,7 @@ class Pushbullet(object):
             pass
         finally:
             if msg is None:
-                # msg = {"raw": str(resp.text)}
-                msg = resp.text
+                msg = resp.raw
 
         return self._interpret_response(resp.status_code, resp.headers, msg)
 
