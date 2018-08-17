@@ -4,6 +4,7 @@ Tool for managing Pushbullet account
 """
 import base64
 import io
+import sys
 import pprint
 import threading
 import tkinter as tk
@@ -23,10 +24,10 @@ try:
 except ImportError as ie:
     print("To include image support: pip install pillow")
 
-from asyncpushbullet import Device
 import tkinter_tools
 
-# sys.path.append("..")  # Since examples are buried one level into source tree
+sys.path.append("..")  # Since examples are buried one level into source tree
+from asyncpushbullet import Device
 from asyncpushbullet import AsyncPushbullet
 from asyncpushbullet.async_listeners import PushListener
 from asyncpushbullet.helpers import print_function_name
@@ -37,7 +38,7 @@ __email__ = "rob@iharder.net"
 API_KEY = ""  # YOUR API KEY
 PROXY = ""
 
-logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 
 
 class GuiToolApp():
