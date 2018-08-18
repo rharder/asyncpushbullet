@@ -73,7 +73,8 @@ class Pushbullet(object):
         Triggers a call to Pushbullet.com that will throw an
         InvalidKeyError if the key is not valid.
         """
-        x = self.session  # triggers a check
+        # x = self.session  # triggers a check
+        self._load_user_info()  # Will trigger an invalid key if invalid
 
     def close(self):
         if self._session is not None:
