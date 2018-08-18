@@ -21,8 +21,8 @@ class TestDevices(object):
         # cause any errors.
         print(self.device)
 
-    def test_repr(self):
-        assert repr(self.device) == "Device('test dev')"
+    # def test_repr(self):
+    #     assert repr(self.device) == "Device('test dev')"
 
     def test_push_note(self):
         title = "test title"
