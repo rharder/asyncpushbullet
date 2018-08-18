@@ -90,7 +90,7 @@ class Pushbullet(object):
             session = requests.Session()
             session.auth = (self.api_key, "")
             session.headers.update(self._json_header)
-            self.session.proxies.update(dict(https=self.proxy))
+            session.proxies.update(dict(https=self.proxy))
             self._session = session
 
             # Find most recent push's timestamp
