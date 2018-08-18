@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+# Instructions from
+# https://packaging.python.org/tutorials/packaging-projects/
+
+
+python3 setup.py sdist bdist_wheel
+
+twine upload --repository-url https://test.pypi.org/legacy/ dist/*
+
+twine upload dist/*
+

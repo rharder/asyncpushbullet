@@ -23,7 +23,8 @@ install_reqs = [
     "requests>=1.0.0",
     "python-magic",
     "aiohttp",
-    "tqdm"
+    "tqdm",
+    "pillow"
 ]
 
 
