@@ -2,21 +2,16 @@
 """
 Tool for managing Pushbullet account
 """
-import base64
+import asyncio
 import io
-import sys
+import logging
 import pprint
+import sys
 import threading
 import tkinter as tk
-import asyncio
-
-import logging
-
 from functools import partial
 from tkinter import ttk
-
-# from tkinter_tools import BindableTextArea
-from typing import List, Tuple
+from typing import Tuple
 
 try:
     from PIL import Image
@@ -37,6 +32,7 @@ __email__ = "rob@iharder.net"
 
 API_KEY = ""  # YOUR API KEY
 PROXY = ""
+
 
 # logging.basicConfig(level=logging.DEBUG)
 

@@ -2,10 +2,9 @@ import datetime
 import json
 import logging
 import os
-import time
+import pprint
 
 import requests
-from tqdm import tqdm
 
 from asyncpushbullet.helpers import print_function_name
 from ._compat import standard_b64encode
@@ -73,7 +72,6 @@ class Pushbullet(object):
         Triggers a call to Pushbullet.com that will throw an
         InvalidKeyError if the key is not valid.
         """
-        # x = self.session  # triggers a check
         self._load_user_info()  # Will trigger an invalid key if invalid
 
     def close(self):
@@ -83,6 +81,7 @@ class Pushbullet(object):
     @property
     def session(self) -> requests.Session:
         """ Creates the http session upon first use. """
+        print_function_name()
 
         session = self._session
         if session is None:
@@ -129,7 +128,7 @@ class Pushbullet(object):
 
     def _interpret_response(self, code: int, headers: dict, msg: dict):
         """ Interpret the HTTP response headers, raise exceptions, etc. """
-
+        # print_function_name()
         if code in (401, 403):
             err_msg = "{} Invalid API Key: {}".format(code, self.api_key)
             raise InvalidKeyError(err_msg)
@@ -361,7 +360,6 @@ class Pushbullet(object):
         self.log.info("Found {} active chats".format(len(self._chats)))
 
     def get_chat(self, email: str) -> Chat:
-
         if self._chats is None:
             self._chats = []
 
@@ -417,7 +415,6 @@ class Pushbullet(object):
     # Channel
     #
 
-
     @property
     def channels(self) -> [Channel]:
         """ :rtype: [Channel] """
@@ -436,7 +433,6 @@ class Pushbullet(object):
         self.log.info("Found {} active channels".format(len(self._channels)))
 
     def get_channel(self, channel_tag: str) -> Channel:
-
         if self._channels is None:
             self._channels = []
 
@@ -456,6 +452,7 @@ class Pushbullet(object):
 
     def get_pushes(self, modified_after: float = None, limit: int = None,
                    filter_inactive: bool = True) -> [dict]:
+        # print_function_name()
         gen = self._get_pushes_generator(modified_after=modified_after,
                                          limit=limit, filter_inactive=filter_inactive)
         xfer = next(gen)  # Prep http params
@@ -482,6 +479,13 @@ class Pushbullet(object):
         if len(pushes_list) > 0 and pushes_list[0].get('modified', 0) > self.most_recent_timestamp:
             self.most_recent_timestamp = pushes_list[0]['modified']
 
+        if self.log.isEnabledFor(logging.INFO):
+            self.log.info("Retrieved {} push{}".format(len(pushes_list),
+                                                       "es" if len(pushes_list) > 1 else ""))
+        elif self.log.isEnabledFor(logging.DEBUG):
+            self.log.debug("Retrieved {} push{}: {}".format(len(pushes_list),
+                                                            "es" if len(pushes_list) > 1 else "",
+                                                            pprint.pformat(pushes_list)))
         yield pushes_list
 
     def get_new_pushes(self, limit: int = None, filter_inactive: bool = True) -> [dict]:
@@ -562,17 +566,6 @@ class Pushbullet(object):
         data = xfer["data"]
         xfer["msg"] = self._post_data(self.UPLOAD_REQUEST_URL, data=json.dumps(data))
         next(gen)  # Prep upload params
-        #
-        # def _wrap():
-        #     t = tqdm(total=os.path.getsize(file_path))
-        #     with open(file_path, "rb") as f:
-        #         x = f.read(1024)
-        #         while x != b'':
-        #             t.update(len(x))
-        #             time.sleep(.1)
-        #             yield x
-        #             x = f.read(1024)
-        #     t.close()
 
         with open(file_path, "rb") as f:
             xfer["msg"] = self._post_data(str(xfer["upload_url"]), files={"file": f})
@@ -580,7 +573,6 @@ class Pushbullet(object):
         return next(gen)  # Post process response
 
     def _upload_file_generator(self, file_path: str, file_type: str = None):
-
         file_name = os.path.basename(file_path)
         if not file_type:
             file_type = get_file_type(file_path)

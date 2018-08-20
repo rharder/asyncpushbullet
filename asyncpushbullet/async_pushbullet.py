@@ -1,5 +1,4 @@
 import asyncio
-import pprint
 from typing import List
 
 import aiohttp
@@ -7,7 +6,6 @@ import aiohttp
 from asyncpushbullet import Device
 from asyncpushbullet.channel import Channel
 from asyncpushbullet.chat import Chat
-from asyncpushbullet.helpers import print_function_name
 from asyncpushbullet.tqio import tqio
 from .pushbullet import Pushbullet
 
@@ -35,6 +33,7 @@ class AsyncPushbullet(Pushbullet):
         InvalidKeyError if the key is not valid.
         """
         # print_function_name(self)
+        # print("VERIFY KEY, OK VERSION")
         sess = await self.aio_session()
 
     async def aio_session(self) -> aiohttp.ClientSession:
@@ -54,13 +53,17 @@ class AsyncPushbullet(Pushbullet):
                 aio_connector = aiohttp.TCPConnector(verify_ssl=False, loop=loop)
 
             session = aiohttp.ClientSession(headers=headers, connector=aio_connector)  # , trust_env=True)
-
+            # print("created new session id:", id(session))
+            self.log.debug("Created new session: {}".format(session))
             self._aio_sessions[loop] = session  # Save session for this loop
+
             try:
                 # This will recursively call aio_session() but that's OK
                 # because self._aio_session caches it until we determine
                 # if the key is valid in the line below.
-                _ = await self.async_get_user()  # May throw invalid key error here
+                # Other purpose: Establish a timestamp for the most recent push
+                _ = await self.async_get_pushes(limit=1)  # May throw invalid key error here
+
             except Exception as ex:
                 await session.close()
                 del self._aio_sessions[loop]
@@ -89,34 +92,44 @@ class AsyncPushbullet(Pushbullet):
         # print_function_name(self)
 
         # async with aiohttp_func(url, **kwargs) as resp:  # Do HTTP
+        # try:
         async with aiohttp_func(url, proxy=self._proxy, **kwargs) as resp:  # Do HTTP
             code = resp.status
             msg = None
             try:
-                if code != 204:  # No content
-                    # if kwargs.get("raw_data", False):
-                    #     msg = await resp.read()
-                    # else:
+                if code != 204:  # 204 would be "No content"
                     msg = await resp.json()
             except:
                 pass
             finally:
                 if msg is None:
-                    # msg = await resp.text()
                     msg = await resp.read()
 
             return self._interpret_response(code, resp.headers, msg)
+        # except Exception as ex:
+        #     print(ex)
+        #     ex.with_traceback()
+        #     await asyncio.sleep(10)
 
-    async def _async_get_data(self, url: str, **kwargs) -> dict:
-        session = await self.aio_session()
+    async def _async_get_data(self, url: str, session=None, **kwargs) -> dict:
+        # print_function_name()
+        # await asyncio.sleep(1)
+        session = session or await self.aio_session()
+        # session = await self.aio_session()
+        # session = kwargs["session"] if "session" in kwargs else await self.aio_session()
+        # print("_async_get_data session id:", id(session))
+
+        # session = session or await self.aio_session()
         msg = await self._async_http(session.get, url, **kwargs)
         return msg
 
     async def _async_get_data_with_pagination(self, url: str, item_name: str, **kwargs) -> dict:
+        # print_function_name()
         gen = self._get_data_with_pagination_generator(url, item_name, **kwargs)
         xfer = next(gen)  # Prep params
         msg = {}
         while xfer.get("get_more", False):
+            # print("ONCE MORE THROUGH get more LOOP")
             args = xfer.get("kwargs", {})  # type: dict
             xfer["msg"] = await self._async_get_data(url, **args)
             msg = next(gen)
@@ -134,8 +147,8 @@ class AsyncPushbullet(Pushbullet):
 
         return msg
 
-    async def _async_push(self, data: dict) -> dict:
-        msg = await self._async_post_data(self.PUSH_URL, data=data)
+    async def _async_push(self, data: dict, **kwargs) -> dict:
+        msg = await self._async_post_data(self.PUSH_URL, data=data, **kwargs)
         return msg
 
     # ################
@@ -282,8 +295,9 @@ class AsyncPushbullet(Pushbullet):
     # Pushes
     #
 
-    async def async_get_pushes(self, modified_after: float = None, limit: int = None,
+    async def async_get_pushes(self, modified_after: float = None, limit: int = 10,
                                filter_inactive: bool = True) -> [dict]:
+        """Retrieve pushes with a default limit of 10 (None means unlimited)."""
         # print_function_name(self)
         gen = self._get_pushes_generator(modified_after=modified_after,
                                          limit=limit, filter_inactive=filter_inactive)
@@ -294,6 +308,7 @@ class AsyncPushbullet(Pushbullet):
 
     async def async_get_new_pushes(self, limit: int = None,
                                    filter_inactive: bool = True) -> [dict]:
+        # print_function_name(self)
         pushes = await self.async_get_pushes(modified_after=self.most_recent_timestamp,
                                              limit=limit, filter_inactive=filter_inactive)
         return pushes
@@ -389,5 +404,6 @@ class AsyncPushbullet(Pushbullet):
     #
 
     async def async_get_user(self):
+        # print_function_name()
         self._user_info = await self._async_get_data(self.ME_URL)
         return self._user_info

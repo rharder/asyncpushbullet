@@ -16,6 +16,8 @@ def print_function_name(enclosing_class=None):
     try:
         if enclosing_class is None:
             classname = ""
+        elif isinstance(enclosing_class, str):
+            classname = enclosing_class
         else:
             classname = enclosing_class.__class__.__name__
         import inspect

@@ -90,7 +90,7 @@ class WebsocketListener(object):
                 async with session.ws_connect(self.WEBSOCKET_URL + self.account.api_key,
                                               proxy=self.account._proxy) as ws:
                     self._ws = ws
-                    self.log.info("Connected to websocket {}".format(id(ws)))
+                    self.log.info("Connected to websocket {}".format(url))
 
                     # Notify callback on_connect, if registered
                     if inspect.iscoroutinefunction(self._on_connect):
@@ -387,7 +387,7 @@ class PushListener(object):
 
         async def _listen(func):
             """ Internal use only """
-            self.log.debug("Starting async def _listen() on loop {}".format(id(asyncio.get_event_loop())))
+            # self.log.debug("Starting async def _listen() on loop {}".format(id(asyncio.get_event_loop())))
             while not self._closed:
                 # try:
                     async for push in self:
