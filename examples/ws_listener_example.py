@@ -13,7 +13,7 @@ from asyncpushbullet.helpers import print_function_name
 
 sys.path.append("..")  # Since examples are buried one level into source tree
 from asyncpushbullet import AsyncPushbullet
-from asyncpushbullet.async_listeners import WebsocketListener
+from asyncpushbullet.async_listeners import WebsocketListener, PushListener2
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
@@ -25,6 +25,7 @@ PROXY = ""
 
 
 # logging.getLogger("pushbullet.async_listeners").setLevel(logging.DEBUG)
+
 
 
 # ################
@@ -41,23 +42,29 @@ def main1():
     pb = AsyncPushbullet(API_KEY, verify_ssl=False, proxy=PROXY)
     listener = WebsocketListener(pb)  # type: WebsocketListener
     loop = asyncio.get_event_loop()
-    loop.set_debug(True)
+    # loop.set_debug(True)
 
+    def _exc_handler(loop, context):
+        print("_exc_handler", loop, context)
+    loop.set_exception_handler(_exc_handler)
+
+
+    # Example of closing listener after a time
     async def _timeout():
         try:
             await asyncio.sleep(3)
-            await listener.close()
-            await pb.close()
+            await listener.async_close()
+            pb.close_all()
         except Exception as e:
-            print("NO BIGGIE", e)
+            print("Exception. NO BIGGIE", e)
+            e.with_traceback()
             raise e
-
+        finally:
+            print("Done.")
     task = loop.create_task(_timeout())
 
 
     async def _get_pushes():
-        print_function_name()
-
         try:
             async for ws_msg in listener:  # type: dict
                 print("ws msg received:", ws_msg)
@@ -65,21 +72,18 @@ def main1():
             print("_get_pushes caught exception", e)
             raise e
 
-    def _exc_handler(loop, context):
-        print("_exc_handler", loop, context)
-        # loop.run_until_complete(listener.close())
-
-    loop.set_exception_handler(_exc_handler)
 
     try:
         loop.run_until_complete(_get_pushes())
     except KeyboardInterrupt:
         print("KeyboardInterrupt")
         task.cancel()
+    except Exception as ex:
+        print("Exception", ex)
     finally:
         print("finally...")
         loop.run_until_complete(listener.async_close())
-        loop.run_until_complete(pb.close())
+        # loop.run_until_complete(pb.close())
         # loop.close()
 
 
@@ -122,7 +126,7 @@ def main2():
     finally:
         print("finally...")
         loop.run_until_complete(listener.close())
-        loop.run_until_complete(pb.close())
+        pb.close_all()
         # loop.close()
 
 

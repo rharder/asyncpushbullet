@@ -11,7 +11,11 @@ import subprocess
 import os, sys
 import time
 
-from asyncpushbullet import PushBullet, Listener
+# from asyncpushbullet import PushBullet, Listener
+from asyncpushbullet.listener import Listener
+
+from asyncpushbullet import Pushbullet
+
 
 class Mirrorer(object):
 
@@ -21,7 +25,7 @@ class Mirrorer(object):
             os.makedirs(temp_folder)
 
         self._auth_key = auth_key
-        self.pb = PushBullet(self._auth_key)
+        self.pb = Pushbullet(self._auth_key)
         self.listener = Listener(self.pb, self.watcher)
 
         self.last_push = last_push

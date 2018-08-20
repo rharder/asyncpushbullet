@@ -10,7 +10,7 @@ from functools import partial
 
 sys.path.append("..")  # Since examples are buried one level into source tree
 from asyncpushbullet import AsyncPushbullet
-from asyncpushbullet.async_listeners import PushListener
+from asyncpushbullet.async_listeners import PushListener, PushListener2
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
@@ -23,6 +23,26 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
 # logging.basicConfig(level=logging.DEBUG)
 # logging.getLogger("pushbullet.async_listeners").setLevel(logging.DEBUG)
+
+def main_new_listener():
+
+    async def _run():
+        try:
+            account = AsyncPushbullet(api_key=API_KEY, proxy=PROXY, verify_ssl=False)
+            async with PushListener2(account) as pl2:
+                # print("Awaiting first push...")
+                # push = await pl2.next_push()
+                # print("Next push:", push)
+
+                async for push in pl2:
+                    print("Push:", push)
+
+        except Exception as ex:
+            print("_run() exception:", ex)
+            ex.with_traceback()
+
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(_run())
 
 
 # ################
@@ -122,7 +142,8 @@ if __name__ == '__main__':
         pass  # No proxy file, that's OK
 
     try:
-        main1()
+        main_new_listener()
+        # main1()
         # main2()
         # main3()
     except KeyboardInterrupt:
