@@ -7,24 +7,28 @@ from setuptools import setup
 with open("./asyncpushbullet/__version__.py") as version_file:
     version = version_file.read().split("\"")[1]
 
+if len(sys.argv) < 2:
+    cmd = input("Command (test or publish): ")
+    sys.argv.append(cmd)
+
 if sys.argv[-1] == 'test':
     print("TEST")
-    os.system('python3 setup.py register -r pypitest')
-    os.system('python3 setup.py sdist upload -r pypitest')
+    os.system('python setup.py register -r pypitest')
+    os.system('python setup.py sdist upload -r pypitest')
     sys.exit()
 
 if sys.argv[-1] == 'publish':
     print("PUBLISH")
-    os.system('python3 setup.py register -r pypi')
-    os.system('python3 setup.py sdist upload -r pypi')
+    os.system('python setup.py register -r pypi')
+    os.system('python setup.py sdist upload -r pypi')
     sys.exit()
 
 install_reqs = [
     "requests>=1.0.0",
     "python-magic",
     "aiohttp",
-    "tqdm",
-    "pillow"
+    "tqdm"#,
+#    "pillow"
 ]
 
 

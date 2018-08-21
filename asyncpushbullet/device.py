@@ -42,6 +42,11 @@ class Device(object):
 
     def _push(self, data):
         data["device_iden"] = self.device_iden
+        if getattr(self, "push_token") is not None:
+            data["push_token"] = self.push_token
+            print("Including push token {} in push coming from device {}".format(self.push_token, self))
+        else:
+            print("Skipping push token")
         return self._account._push(data)
 
     @use_appropriate_encoding

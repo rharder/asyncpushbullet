@@ -37,12 +37,7 @@ class Pushbullet(object):
         self._session = None  # type: requests.Session
         self._json_header = {'Content-Type': 'application/json'}
         self.most_recent_timestamp = 0.0  # type: float
-
-        # if proxy:
-        #     if "https" not in [k.lower() for k in proxy.keys()]:
-        #         raise PushbulletError("You can only use HTTPS proxies!")
-
-        self.proxy = proxy
+        self.proxy = None if proxy is None or str(proxy).strip() == "" else str(proxy)
 
         self._user_info = None  # type: dict
         self._devices = None  # type: [Device]
@@ -212,6 +207,8 @@ class Pushbullet(object):
 
         if device:
             data["device_iden"] = device.device_iden
+            if device.push_token:
+                data["push_token"] = device.push_token
         elif chat:
             data["email"] = chat.email
         elif email:

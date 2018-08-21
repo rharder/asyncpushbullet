@@ -49,6 +49,7 @@ Requirements
 -  The wonderful ``requests`` library.
 -  The magical ``python-magic`` library.
 -  The amazing ``aiohttp`` library
+-  The optional (used in some examples) ``pillow`` library
 
 Usage
 -----

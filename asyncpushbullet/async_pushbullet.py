@@ -19,11 +19,11 @@ class AsyncPushbullet(Pushbullet):
         Pushbullet.__init__(self, api_key, **kwargs)
         self.loop = loop or asyncio.get_event_loop()
 
-        self._proxy = kwargs.get("proxy", "")  # type: str
-        if self._proxy.strip() == "":
-            self._proxy = None
-        if self._proxy is not None:
-            self.log.info("Using proxy: {}".format(self._proxy))
+        # self._proxy = kwargs.get("proxy", "")  # type: str
+        # if self._proxy.strip() == "":
+        #     self._proxy = None
+        # if self._proxy is not None:
+        #     self.log.info("Using proxy: {}".format(self._proxy))
         self._aio_sessions = {}  # type: Dict[asyncio.AbstractEventLoop, aiohttp.ClientSession]
         self.verify_ssl = verify_ssl
 
@@ -102,7 +102,7 @@ class AsyncPushbullet(Pushbullet):
 
         # async with aiohttp_func(url, **kwargs) as resp:  # Do HTTP
         # try:
-        async with aiohttp_func(url, proxy=self._proxy, **kwargs) as resp:  # Do HTTP
+        async with aiohttp_func(url, proxy=self.proxy, **kwargs) as resp:  # Do HTTP
             code = resp.status
             msg = None
             try:

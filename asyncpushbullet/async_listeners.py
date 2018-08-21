@@ -59,7 +59,7 @@ class PushListener2(object):
 
         session = await self.account.aio_session()
         wc = WebsocketClient(url=WEBSOCKET_URL + self.account.api_key,
-                             proxy=self.account._proxy,
+                             proxy=self.account.proxy,
                              session=session)
         self._ws_client = await wc.__aenter__()
         asyncio.create_task(_listen_for_pushes(wc))

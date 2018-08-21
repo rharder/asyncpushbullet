@@ -38,6 +38,12 @@ def main_new_listener():
         except Exception as ex:
             print("_run() exception:", ex)
 
+
+    # if sys.platform == 'win32':
+    #     print("Using win32 ProactorEventLoop")
+    #     loop = asyncio.ProactorEventLoop()
+    #     asyncio.set_event_loop(loop)
+    # else:
     loop = asyncio.get_event_loop()
     loop.run_until_complete(_run())
 

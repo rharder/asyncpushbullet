@@ -48,11 +48,13 @@ import logging
 import os
 import sys
 import textwrap
+import threading
 import time
+from functools import partial
 
 from asyncpushbullet import Device
 from asyncpushbullet import InvalidKeyError
-from asyncpushbullet import PushListener
+from asyncpushbullet import PushListener2
 from asyncpushbullet import Pushbullet
 from asyncpushbullet import PushbulletError
 
@@ -75,7 +77,10 @@ __ERR_NOTHING_TO_DO__ = 6
 # sys.argv += ["-k", "badkey"]
 # sys.argv += ["--key-file", "../api_key.txt"]
 # sys.argv.append("--echo")
+# sys.argv += ["--proxy", ""]
 # sys.argv.append("--list-devices")
+# sys.argv += ["--exec", r"C:\windows\System32\notepad.exe"]
+# sys.argv += ["--exec", r"C:\windows\System32\clip.exe"]
 
 DEFAULT_THROTTLE_COUNT = 10
 DEFAULT_THROTTLE_SECONDS = 10
@@ -121,7 +126,7 @@ def do_main(args):
 
         pb = None  # type: Pushbullet
         try:
-            pb = Pushbullet(api_key)
+            pb = Pushbullet(api_key, proxy=args.proxy)
             pb.verify_key()
         except InvalidKeyError as exc:
             print(exc, file=sys.stderr)
@@ -143,16 +148,31 @@ def do_main(args):
 
     # Create ListenApp
     listen_app = ListenApp(api_key,
+                           proxy=args.proxy,
                            throttle_count=throttle_count,
                            throttle_seconds=throttle_seconds,
                            device=device)
+
+    # Windows needs special event loop in order to launch processes on it
+    proc_loop = None  # type: asyncio.BaseEventLoop
+    if sys.platform == 'win32':
+        proc_loop = asyncio.ProactorEventLoop()
+    else:
+        proc_loop = asyncio.new_event_loop()
+
+    def _run(loop):
+        loop.run_forever()
+
+    t = threading.Thread(target=partial(_run, proc_loop))
+    t.daemon = True
+    t.start()
 
     # Add actions from command line arguments
     if args.exec:
         for cmd_opts in args.exec:
             cmd_path = cmd_opts[0]
             cmd_args = cmd_opts[1:]
-            action = ExecutableAction(cmd_path, cmd_args)
+            action = ExecutableAction(cmd_path, cmd_args, loop=proc_loop)
             listen_app.add_action(action)
 
     # Add actions from command line arguments
@@ -160,24 +180,20 @@ def do_main(args):
         for cmd_opts in args.exec_simple:
             cmd_path = cmd_opts[0]
             cmd_args = cmd_opts[1:]
-            action = ExecutableActionSimplified(cmd_path, cmd_args)
+            action = ExecutableActionSimplified(cmd_path, cmd_args, loop=proc_loop)
             listen_app.add_action(action)
 
     # Default action if none specified
     if len(listen_app.actions) == 0 or args.echo:
         listen_app.add_action(EchoAction())
 
-    # Windows needs special event loop in order to launch processes on it
-    if sys.platform == 'win32':
-        loop = asyncio.ProactorEventLoop()
-        asyncio.set_event_loop(loop)
+        # asyncio.set_event_loop(loop)
 
     # async def _timeout():
     #     await asyncio.sleep(2)
     #     await listen_app.close()
 
     # loop.create_task(_timeout())
-
 
     loop = asyncio.get_event_loop()
     exit_code = None
@@ -242,6 +258,7 @@ def parse_args():
 
     parser.add_argument("-d", "--device", help="Only listen for pushes targeted at given device name")
     parser.add_argument("--list-devices", action="store_true", help="List registered device names")
+    parser.add_argument("--proxy", help="Optional web proxy")
     parser.add_argument("--debug", action="store_true", help="Turn on debug logging")
     parser.add_argument("-v", "--verbose", action="store_true", help="Turn on verbose logging (INFO messages)")
 
@@ -260,7 +277,7 @@ class Action:
     def __init__(self):
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
-    async def do(self, push: dict, pb: AsyncPushbullet):
+    async def do(self, push: dict, pb: AsyncPushbullet, device: Device):
         pass
 
     def __repr__(self):
@@ -270,7 +287,7 @@ class Action:
 class EchoAction(Action):
     """ Echoes pushes in json format to standard out. """
 
-    async def do(self, push: dict, pb: AsyncPushbullet):
+    async def do(self, push: dict, pb: AsyncPushbullet, device:Device):
         json_push = json.dumps(push)
         print(json_push, end="\n\n", flush=True)
 
@@ -311,12 +328,13 @@ class ExecutableAction(Action):
         def process_exited(self):
             print("process_exited")
 
-    def __init__(self, path_to_executable, args_for_exec=(), timeout=30):
+    def __init__(self, path_to_executable, args_for_exec=(), loop: asyncio.BaseEventLoop = None, timeout=30):
         super().__init__()
         self.path_to_executable = path_to_executable
         self.args_for_exec = args_for_exec
         self.protocol = ExecutableAction._ProcessProtocol(self)
         self.timeout = timeout
+        self.proc_loop = loop
 
         if not os.path.isfile(path_to_executable):
             self.log.warning("Executable not found at launch time.  " +
@@ -326,40 +344,53 @@ class ExecutableAction(Action):
     def __repr__(self):
         return "{}({} {})".format(super().__repr__(), self.path_to_executable, " ".join(self.args_for_exec))
 
-    async def do(self, push: dict, pb: AsyncPushbullet):
+    async def do(self, push: dict, pb: AsyncPushbullet, device:Device):
+        io_loop = asyncio.get_event_loop()  # Loop handling the pushbullet IO
 
-        # Launch process
-        try:
-            proc = await asyncio.create_subprocess_exec(self.path_to_executable,
-                                                        *self.args_for_exec,
-                                                        stdin=asyncio.subprocess.PIPE,
-                                                        stdout=asyncio.subprocess.PIPE,
-                                                        stderr=asyncio.subprocess.PIPE)
-        except Exception as e:
-            self.log.error("Error occurred while trying to launch script. ({}): {}"
-                           .format(self.path_to_executable, e))
-
-        else:
-
-            # Pass the incoming push via stdin (json form)
-            input_bytes = self.transform_push_to_stdin_data(push)
-
+        async def _on_proc_loop():
+            # Launch process
             try:
-                stdout_data, stderr_data = await asyncio.wait_for(proc.communicate(input=input_bytes),
-                                                                  timeout=self.timeout)
-            except asyncio.futures.TimeoutError as e:
-                self.log.error("Execution time out after {} seconds. {}".format(self.timeout, repr(self)))
-                proc.terminate()
+                proc = await asyncio.create_subprocess_exec(self.path_to_executable,
+                                                            *self.args_for_exec,
+                                                            stdin=asyncio.subprocess.PIPE,
+                                                            stdout=asyncio.subprocess.PIPE,
+                                                            stderr=asyncio.subprocess.PIPE)
+            except Exception as e:
+                self.log.error("Error occurred while trying to launch script. ({}): {}"
+                               .format(self.path_to_executable, e))
+
             else:
-                # Process response from subprocess
-                await self.handle_process_response(stdout_data, stderr_data, pb)
+
+                # Pass the incoming push via stdin (json form)
+                input_bytes = self.transform_push_to_stdin_data(push)
+
+                try:
+                    stdout_data, stderr_data = await asyncio.wait_for(proc.communicate(input=input_bytes),
+                                                                      timeout=self.timeout)
+                except asyncio.futures.TimeoutError as e:
+                    self.log.error("Execution time out after {} seconds. {}".format(self.timeout, repr(self)))
+                    proc.terminate()
+                else:
+                    # Process response from subprocess
+                    # asyncio.run_coroutine_threadsafe(
+                    #     self.handle_process_response(stdout_data, stderr_data, pb, device),
+                    #     loop=io_loop)
+                    pass
+
+        asyncio.run_coroutine_threadsafe(_on_proc_loop(), self.proc_loop)
 
     def transform_push_to_stdin_data(self, push: dict) -> bytes:
         json_push = json.dumps(push)
         input_bytes = json_push.encode(__encoding__)
         return input_bytes
 
-    async def handle_process_response(self, stdout_data: bytes, stderr_data: bytes, pb: AsyncPushbullet):
+    async def handle_process_response(self, stdout_data: bytes, stderr_data: bytes, pb: AsyncPushbullet, device:Device):
+        # stdout_data = b"hello world"
+        # await asyncio.sleep(1)
+
+        # There's a problem with a push be sent in response and then that push is responded
+        # to etc and then an infinite loop.
+        raise Exception("Not yet implemented.")
 
         # Any stderr output?
         if stderr_data != b"":
@@ -371,25 +402,29 @@ class ExecutableAction(Action):
 
             # Requesting a response push?
             resp = {}
+            raw_data = None
             try:
-                resp = json.loads(stdout_data.decode(__encoding__, "replace"))
+                raw_data = stdout_data.decode(__encoding__, "replace")
+                resp = json.loads(raw_data)
             except json.decoder.JSONDecodeError as e:
-                print(e)
+                resp["body"] = raw_data
 
-            # Single push
+            # Single push response
             if "title" in resp or "body" in resp:
                 title = str(resp.get("title"))
                 body = str(resp.get("body"))
-                await pb.async_push_note(title=title, body=body)
+                push_resp = await pb.async_push_note(title=title, body=body, device=device)
+                # push_resp = await device.push_note(title=title, body=body)
+                print("Push Resp:", push_resp)
 
-            # Multiple pushes
+            # Multiple pushes response
             pushes = resp.get("pushes", [])
             if type(pushes) == list:
                 for push in pushes:  # type: dict
                     if type(push) == dict:
                         title = push.get("title", "no title")
                         body = push.get("body", "no body")
-                        await pb.async_push_note(title=title, body=body)
+                        await pb.async_push_note(title=title, body=body, device=device.device_iden)
                     else:
                         self.log.error("A push response was received but was not in dictionary form: {}".format(resp))
 
@@ -429,18 +464,20 @@ class ExecutableActionSimplified(ExecutableAction):
 
 class ListenApp:
     def __init__(self, api_key: str,
+                 proxy: str = None,
                  throttle_count: int = DEFAULT_THROTTLE_COUNT,
                  throttle_seconds: float = DEFAULT_THROTTLE_SECONDS,
                  device: str = None):
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
-        self.pb = AsyncPushbullet(api_key=api_key)
+        self.pb = AsyncPushbullet(api_key=api_key, proxy=proxy)
         self.throttle_max_count = throttle_count
         self.throttle_max_seconds = throttle_seconds
         self.device_name = device
         self._throttle_timestamps = []  # type: [float]
         self.actions = []  # type: [Action]
-        self._listener = None  # type: PushListener
+        self._listener = None  # type: PushListener2
+        self.app_device = None  # type: Device
 
     def add_action(self, action: Action):
         self.actions.append(action)
@@ -449,7 +486,7 @@ class ListenApp:
     async def close(self):
         if self._listener is not None:
             await self._listener.close()
-        await self.pb.close()
+        self.pb.close_all()
 
     async def _throttle(self):
         """ Makes one tick and stalls if necessary """
@@ -468,39 +505,81 @@ class ListenApp:
             await asyncio.sleep(stall)
 
     async def run(self):
-        loop = asyncio.get_event_loop()
-
         try:
-            await self.pb.async_verify_key()
-        except InvalidKeyError as exc:
-            print(exc, file=sys.stderr)
-            await self.pb.close()
-            return __ERR_INVALID_API_KEY__
-        except PushbulletError as exc:
-            print(exc, file=sys.stderr)
-            await self.pb.close()
-            return __ERR_CONNECTING_TO_PB__
+            self.app_device = await self.pb.async_get_device(nickname="ListenApp")
+            if self.app_device is None:
+                self.app_device = await self.pb.async_new_device(nickname="ListenApp")
+            token = "randomdata"
+            setattr(self.app_device, "push_token", token)
+            print("ListenApp using device:", repr(self.app_device))
 
-        # Warn if device is not known at launch
-        if self.device_name is not None:
-            dev = await self.pb.async_get_device(nickname=self.device_name)
-            if dev is None:
-                self.log.warning("Device {} not found at launch time.  ".format(self.device_name) +
-                                 "Will still attempt to filter as pushes are received.")
-            del dev
+            async with PushListener2(self.pb, filter_device_nickname=self.device_name) as pl2:
+                self._listener = pl2
 
-        self._listener = PushListener(self.pb, filter_device_nickname=self.device_name)
-        self.log.info("Awaiting pushes ...".format(str(self)))
-        async for push in self._listener:  # type: dict
-            self.log.info("Received push {}".format(push))
+                # Warn if device is not known at launch
+                if self.device_name is not None:
+                    dev = await self.pb.async_get_device(nickname=self.device_name)
+                    if dev is None:
+                        self.log.warning("Device {} not found at launch time.  ".format(self.device_name) +
+                                         "Will still attempt to filter as pushes are received.")
+                    del dev
 
-            await self._throttle()
+                print("Awaiting pushes...")
+                async for push in pl2:
+                    self.log.info("Received push {}".format(push))
 
-            for action in self.actions:  # type: Action
-                self.log.debug("Calling action {}".format(repr(action)))
-                loop.create_task(action.do(push, self.pb))
+                    await self._throttle()
 
-        self.log.debug("run() coroutine exiting")
+                    # First ignore pushes that came from this app
+                    if "source_device_iden" in push:
+                        if push["source_device_iden"] == self.app_device.device_iden:
+                            # Ignore this push
+                            print("Got a push from myself. Ignoring it:", push)
+                            continue  # next push in pl2
+
+                    for action in self.actions:  # type: Action
+                        self.log.debug("Calling action {}".format(repr(action)))
+                        try:
+                            await action.do(push, self.pb, self.app_device)
+                            await asyncio.sleep(0)
+                        except Exception as ex:
+                            print("Action {} caused exception {}".format(action, ex))
+        except Exception as ex:
+            print("listenapp.run exception:", ex)
+            ex.with_traceback()
+        # loop = asyncio.get_event_loop()
+        #
+        # try:
+        #     await self.pb.async_verify_key()
+        # except InvalidKeyError as exc:
+        #     print(exc, file=sys.stderr)
+        #     await self.pb.close()
+        #     return __ERR_INVALID_API_KEY__
+        # except PushbulletError as exc:
+        #     print(exc, file=sys.stderr)
+        #     await self.pb.close()
+        #     return __ERR_CONNECTING_TO_PB__
+        #
+        # # Warn if device is not known at launch
+        # if self.device_name is not None:
+        #     dev = await self.pb.async_get_device(nickname=self.device_name)
+        #     if dev is None:
+        #         self.log.warning("Device {} not found at launch time.  ".format(self.device_name) +
+        #                          "Will still attempt to filter as pushes are received.")
+        #     del dev
+        #
+        # self._listener = PushListener(self.pb, filter_device_nickname=self.device_name)
+        # self.log.info("Awaiting pushes ...".format(str(self)))
+        # async for push in self._listener:  # type: dict
+        #     self.log.info("Received push {}".format(push))
+        #
+        #     await self._throttle()
+        #
+        #     for action in self.actions:  # type: Action
+        #         self.log.debug("Calling action {}".format(repr(action)))
+        #         loop.create_task(action.do(push, self.pb))
+        #
+        # self.log.debug("run() coroutine exiting")
 
 
 if __name__ == "__main__":
