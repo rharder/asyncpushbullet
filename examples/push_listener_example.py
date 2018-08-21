@@ -4,6 +4,7 @@ Demonstrates how to consume new pushes in an asyncio for loop.
 """
 import asyncio
 import logging
+import pprint
 import sys
 import threading
 from functools import partial
@@ -35,7 +36,7 @@ def main_new_listener():
                 # print("Next push:", push)
 
                 async for push in pl2:
-                    print("Push:", push)
+                    print("Push:", pprint.pformat(push))
 
         except Exception as ex:
             print("_run() exception:", ex)
