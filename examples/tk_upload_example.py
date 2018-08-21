@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """
-UNDER CONSTRUCTION
 Example tkinter app that uploads files and shows incoming pushes.
+
+It is not necessary to connect to a listener and listen for pushes in order to upload,
+but it makes the example more interesting.
 """
 import threading
 import tkinter as tk
@@ -16,8 +18,9 @@ from tkinter import filedialog
 from tkinter_tools import BindableTextArea
 
 sys.path.append("..")  # Since examples are buried one level into source tree
-from asyncpushbullet import AsyncPushbullet
-from asyncpushbullet.async_listeners import PushListener
+from asyncpushbullet import AsyncPushbullet, PushListener2
+
+# from asyncpushbullet.async_listeners import PushListener
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
@@ -38,7 +41,7 @@ class PushApp():
         # Data
         self.ioloop = None  # type: asyncio.AbstractEventLoop
         self.pushbullet = None  # type: AsyncPushbullet
-        self.pushbullet_listener = None  # type: PushListener
+        self.pushbullet_listener = None  # type: PushListener2
         self.key_var = tk.StringVar()  # API key
         self.pushes_var = tk.StringVar()
         self.filename_var = tk.StringVar()
@@ -48,6 +51,7 @@ class PushApp():
         self.create_widgets()
 
         # Connections
+        self.create_io_loop()
         self.key_var.set(API_KEY)
         self.filename_var.set(__file__)
 
@@ -102,30 +106,64 @@ class PushApp():
         txt_data = BindableTextArea(self.window, textvariable=self.pushes_var, width=80, height=10)
         txt_data.grid(row=row, column=0, columnspan=2)
 
-    def connect_button_clicked(self):
-        self.pushes_var.set("Connecting...")
 
-        if self.pushbullet is not None:
-            self.pushbullet.close()
-            self.pushbullet = None
-        if self.pushbullet_listener is not None:
-            self.pushbullet_listener.close()
-            self.pushbullet_listener = None
+    def create_io_loop(self):
+        """Creates a new thread to manage an asyncio event loop specifically for IO to/from Pushbullet."""
+        assert self.ioloop is None  # This should only ever be run once
 
         def _run(loop):
-            asyncio.set_event_loop(loop)
             loop.run_forever()
 
         self.ioloop = asyncio.new_event_loop()
+        self.ioloop.set_exception_handler(self._ioloop_exc_handler)
         t = threading.Thread(target=partial(_run, self.ioloop))
         t.daemon = True
         t.start()
 
-        self.pushbullet = AsyncPushbullet(self.key_var.get(), loop=self.ioloop, verify_ssl=False,
-                                          proxy=PROXY)
-        self.pushbullet_listener = PushListener(self.pushbullet,
-                                                on_connect=self.connected,
-                                                on_message=self.push_received)
+    def _ioloop_exc_handler(self, loop: asyncio.BaseEventLoop, context: dict):
+        if "exception" in context:
+            self.status = context["exception"]
+        self.status = str(context)
+        # Handle this more robustly in real-world code
+
+
+
+    def connect_button_clicked(self):
+        self.pushes_var.set("Connecting...")
+        self.close()
+
+        async def _listen():
+            try:
+                self.pushbullet = AsyncPushbullet(self.key_var.get(),
+                                                  verify_ssl=False,
+                                                  proxy=PROXY)
+
+                async with PushListener2(self.pushbullet) as pl2:
+                    self.pushbullet_listener = pl2
+                    await self.connected(pl2)
+
+                    async for push in pl2:
+                        await self.push_received(push, pl2)
+
+            except Exception as ex:
+                print("Exception:", ex)
+            finally:
+                await self.disconnected(self.pushbullet_listener)
+
+        asyncio.run_coroutine_threadsafe(_listen(), self.ioloop)
+
+    def close(self):
+
+        if self.pushbullet is not None:
+            self.pushbullet.close_all()
+            self.pushbullet = None
+        if self.pushbullet_listener is not None:
+            assert self.ioloop is not None
+            pl = self.pushbullet_listener
+            asyncio.run_coroutine_threadsafe(pl.close(), self.ioloop)
+            self.pushbullet_listener = None
+
+
 
     def browse_button_clicked(self):
         print("browse_button_clicked")
@@ -140,22 +178,27 @@ class PushApp():
         asyncio.run_coroutine_threadsafe(self.upload_file(filename), loop=self.ioloop)
 
     async def upload_file(self, filename: str):
+        # This is the actual upload command
         info = await self.pushbullet.async_upload_file(filename)
 
-        # Push as a file:
+        # Push a notification of the upload "as a file":
         await self.pushbullet.async_push_file(info["file_name"], info["file_url"], info["file_type"],
                                               title="File Arrived!", body="Please enjoy your file")
 
-        # Push as a link:
+        # Push a notification of the upload "as a link":
         await self.pushbullet.async_push_link("Link to File Arrived!", info["file_url"], body="Please enjoy your file")
         self.btn_upload["state"] = tk.NORMAL
         self.pushes_var.set(self.pushes_var.get() + "Uploaded\n")
 
-    async def connected(self, listener: PushListener):
+    async def connected(self, listener: PushListener2):
         self.btn_upload["state"] = tk.NORMAL
         self.pushes_var.set(self.pushes_var.get() + "Connected\n")
 
-    async def push_received(self, p: dict, listener: PushListener):
+    async def disconnected(self, listener: PushListener2):
+        self.btn_upload["state"] = tk.DISABLED
+        self.pushes_var.set(self.pushes_var.get() + "Disconnected\n")
+
+    async def push_received(self, p: dict, listener: PushListener2):
         print("Push received:", p)
         prev = self.pushes_var.get()
         prev += "{}\n\n".format(p)

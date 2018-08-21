@@ -23,17 +23,19 @@ def main():
 
     loop = asyncio.get_event_loop()
     pb = AsyncPushbullet(API_KEY, verify_ssl=False, loop=loop)
-    loop.run_until_complete(upload_file(pb, __file__))
+    loop.run_until_complete(upload_file(pb, __file__))  # Upload this source code file as an example
 
 
 async def upload_file(pb: AsyncPushbullet, filename: str):
+
+    # This is the actual upload command
     info = await pb.async_upload_file(filename)
 
-    # Push as a file:
+    # Push a notification of the upload "as a file":
     await pb.async_push_file(info["file_name"], info["file_url"], info["file_type"],
                              title="File Arrived!", body="Please enjoy your file")
 
-    # Push as a link:
+    # Push a notification of the upload "as a link":
     await pb.async_push_link("Link to File Arrived!", info["file_url"], body="Please enjoy your file")
 
     await pb.close()

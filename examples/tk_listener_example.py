@@ -16,7 +16,7 @@ from tkinter_tools import BindableTextArea
 
 sys.path.append("..")  # Since examples are buried one level into source tree
 from asyncpushbullet import AsyncPushbullet
-from asyncpushbullet.async_listeners import PushListener
+from asyncpushbullet.async_listeners import PushListener2
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
@@ -35,15 +35,18 @@ class PushApp():
 
         # Data
         self.pushbullet = None  # type: AsyncPushbullet
-        self.pushbullet_listener = None  # type: PushListener
+        self.pushbullet_listener = None  # type: PushListener2
         self.key_var = tk.StringVar()  # API key
         self.pushes_var = tk.StringVar()
+        self.ioloop = None  # type: asyncio.BaseEventLoop
 
         # View / Control
         self.create_widgets()
 
         # Connections
+        self.create_io_loop()
         self.key_var.set(API_KEY)
+
 
     def create_widgets(self):
         """
@@ -74,36 +77,69 @@ class PushApp():
         txt_data.grid(row=5, column=0, columnspan=2)
 
     def connect_button_clicked(self):
+        self.close()
+
+        async def _listen():
+            try:
+                self.pushbullet = AsyncPushbullet(self.key_var.get(),
+                                                  verify_ssl=False,
+                                                  proxy=PROXY)
+
+                async with PushListener2(self.pushbullet) as pl2:
+                    self.pushbullet_listener = pl2
+                    await self.connected(pl2)
+
+                    async for push in pl2:
+                        await self.push_received(push, pl2)
+
+            except Exception as ex:
+                print("Exception:", ex)
+            finally:
+                await self.disconnected(self.pushbullet_listener)
+
+        asyncio.run_coroutine_threadsafe(_listen(), self.ioloop)
+
+
+    def create_io_loop(self):
+        """Creates a new thread to manage an asyncio event loop specifically for IO to/from Pushbullet."""
+        assert self.ioloop is None  # This should only ever be run once
+
+        def _run(loop):
+            loop.run_forever()
+
+        self.ioloop = asyncio.new_event_loop()
+        self.ioloop.set_exception_handler(self._ioloop_exc_handler)
+        t = threading.Thread(target=partial(_run, self.ioloop))
+        t.daemon = True
+        t.start()
+
+    def _ioloop_exc_handler(self, loop: asyncio.BaseEventLoop, context: dict):
+        if "exception" in context:
+            self.status = context["exception"]
+        self.status = str(context)
+        # Handle this more robustly in real-world code
+
+    def close(self):
+
         if self.pushbullet is not None:
             self.pushbullet.close_all()
             self.pushbullet = None
         if self.pushbullet_listener is not None:
-            self.pushbullet_listener.close()
-
-        def _run(loop):
-            asyncio.set_event_loop(loop)
-            loop.run_forever()
-
-        ioloop = asyncio.new_event_loop()
-        t = threading.Thread(target=partial(_run, ioloop))
-        t.daemon = True
-        t.start()
-        print("main loop", id(asyncio.get_event_loop()))
-        print("ioloop", id(ioloop))
-
-        self.pushbullet = AsyncPushbullet(self.key_var.get(), loop=ioloop, verify_ssl=False,
-                                          proxy=PROXY)
-        self.pushbullet_listener = PushListener(self.pushbullet,
-                                                on_connect=self.connected,
-                                                on_message=self.push_received)
+            assert self.ioloop is not None
+            pl = self.pushbullet_listener
+            asyncio.run_coroutine_threadsafe(pl.close(), self.ioloop)
+            self.pushbullet_listener = None
 
     def disconnect_button_clicked(self):
-        self.pushbullet.close_all()
+        self.close()
 
-    async def connected(self, listener: PushListener):
+    async def connected(self, listener: PushListener2):
         print("Connected to websocket")
 
-    async def push_received(self, p: dict, listener: PushListener):
+    async def disconnected(self, listener: PushListener2):
+        print("Disconnected from websocket")
+
+    async def push_received(self, p: dict, listener: PushListener2):
         print("Push received:", p)
         prev = self.pushes_var.get()
         prev += "{}\n\n".format(p)

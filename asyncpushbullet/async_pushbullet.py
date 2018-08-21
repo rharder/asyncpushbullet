@@ -1,5 +1,5 @@
 import asyncio
-from typing import List
+from typing import List, Dict
 
 import aiohttp
 
@@ -24,7 +24,7 @@ class AsyncPushbullet(Pushbullet):
             self._proxy = None
         if self._proxy is not None:
             self.log.info("Using proxy: {}".format(self._proxy))
-        self._aio_sessions = {}  # type: {asyncio.AbstractEventLoop:aiohttp.ClientSession}
+        self._aio_sessions = {}  # type: Dict[asyncio.AbstractEventLoop, aiohttp.ClientSession]
         self.verify_ssl = verify_ssl
 
     async def async_verify_key(self):
@@ -76,7 +76,6 @@ class AsyncPushbullet(Pushbullet):
         raise Exception("Did you really mean to call close() on the async version?")
         super().close()
 
-
     # async def close(self):
     #     super().close()
     #
@@ -89,8 +88,9 @@ class AsyncPushbullet(Pushbullet):
         """Closes all sessions, which may be on different event loops.
         This method is NOT awaited--because there may be different loops involved."""
 
-        for loop in self._aio_sessions.keys():
-            asyncio.run_coroutine_threadsafe(self.close(), loop=loop)
+        # for loop in self._aio_sessions.keys():
+        for loop, session in self._aio_sessions.items():
+            asyncio.run_coroutine_threadsafe(session.close(), loop=loop)
 
     # ################
     # IO Methods

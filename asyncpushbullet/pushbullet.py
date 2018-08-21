@@ -81,7 +81,8 @@ class Pushbullet(object):
     @property
     def session(self) -> requests.Session:
         """ Creates the http session upon first use. """
-        print_function_name()
+
+        # raise Exception("Why is sync pushbullet session being called instead of async?")  # debugging line
 
         session = self._session
         if session is None:

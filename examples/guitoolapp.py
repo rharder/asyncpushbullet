@@ -24,7 +24,7 @@ import tkinter_tools
 sys.path.append("..")  # Since examples are buried one level into source tree
 from asyncpushbullet import Device
 from asyncpushbullet import AsyncPushbullet
-from asyncpushbullet.async_listeners import PushListener
+from asyncpushbullet.async_listeners import PushListener2
 from asyncpushbullet.helpers import print_function_name
 
 __author__ = 'Robert Harder'
@@ -45,7 +45,7 @@ class GuiToolApp():
 
         # Data
         self._pushbullet = None  # type: AsyncPushbullet
-        self.pushbullet_listener = None  # type: PushListener
+        self.pushbullet_listener = None  # type: PushListener2
 
         # General Data
         self.key_var = tk.StringVar()  # API key
@@ -212,25 +212,49 @@ class GuiToolApp():
         self.btn_disconnect.configure(state=tk.DISABLED)
 
         if self.pushbullet is not None:
-            self.pushbullet.close_all()
             self.pushbullet = None
         if self.pushbullet_listener is not None:
-            self.pushbullet_listener.close()
+            pl = self.pushbullet_listener  # type: PushListener2
+            if pl is not None:
+                asyncio.run_coroutine_threadsafe(pl.close(), self.ioloop)
+            self.pushbullet_listener = None
+            # self.pushbullet_listener.close()
 
-        async def _connect():
-
+        async def _listen():
+            pl2 = None  # type: PushListener2
             try:
                 await self.verify_key()
-            except:
-                self.btn_connect.configure(state=tk.NORMAL)
-                self.btn_disconnect.configure(state=tk.DISABLED)
-            else:
-                self.pushbullet_listener = PushListener(self.pushbullet,
-                                                        on_connect=self.pushlistener_connected,
-                                                        on_message=self.push_received,
-                                                        on_close=self.pushlistener_closed)
-                self.btn_connect.configure(state=tk.DISABLED)
-                self.btn_disconnect.configure(state=tk.NORMAL)
+                async with PushListener2(self.pushbullet) as pl2:
+                    self.pushbullet_listener = pl2
+                    await self.pushlistener_connected(pl2)
+
+                    async for push in pl2:
+                        await self.push_received(push, pl2)
+
+            except Exception as ex:
+                pass
+                print("guitool _listen caught exception", ex)
+            finally:
+                # if pl2 is not None:
+                    await self.pushlistener_closed(pl2)
+
+
+
+        #
+        # async def _connect():
+        #
+        #     try:
+        #         await self.verify_key()
+        #     except:
+        #         self.btn_connect.configure(state=tk.NORMAL)
+        #         self.btn_disconnect.configure(state=tk.DISABLED)
+        #     else:
+        #         self.pushbullet_listener = PushListener(self.pushbullet,
+        #                                                 on_connect=self.pushlistener_connected,
+        #                                                 on_message=self.push_received,
+        #                                                 on_close=self.pushlistener_closed)
+        #         self.btn_connect.configure(state=tk.DISABLED)
+        #         self.btn_disconnect.configure(state=tk.NORMAL)
 
             # if await self.verify_key():
             #     self.pushbullet_listener = PushListener(self.pushbullet,
@@ -243,13 +267,15 @@ class GuiToolApp():
             #     self.btn_connect.configure(state=tk.NORMAL)
             #     self.btn_disconnect.configure(state=tk.DISABLED)
 
-        asyncio.run_coroutine_threadsafe(_connect(), self.ioloop)
+        # asyncio.run_coroutine_threadsafe(_connect(), self.ioloop)
+        asyncio.run_coroutine_threadsafe(_listen(), self.ioloop)
 
     def disconnect_button_clicked(self):
         self.status = "Disconnecting from Pushbullet..."
-        self.btn_connect.configure(state=tk.DISABLED)
-        self.btn_disconnect.configure(state=tk.DISABLED)
-        self.pushbullet_listener.close()
+        # self.btn_connect.configure(state=tk.DISABLED)
+        # self.btn_disconnect.configure(state=tk.DISABLED)
+        # self.pushbullet_listener.close()
+        asyncio.run_coroutine_threadsafe(self.pushbullet_listener.close(), self.ioloop)
 
     def load_devices_clicked(self):
         self.btn_load_devices.configure(state=tk.DISABLED)
@@ -289,7 +315,7 @@ class GuiToolApp():
 
     # ########   C A L L B A C K S  ########
 
-    async def pushlistener_connected(self, listener: PushListener):
+    async def pushlistener_connected(self, listener: PushListener2):
         self.status = "Connected to Pushbullet"
         try:
             me = self.pushbullet.user_info
@@ -302,13 +328,13 @@ class GuiToolApp():
             self.btn_connect.configure(state=tk.DISABLED)
             self.btn_disconnect.configure(state=tk.NORMAL)
 
-    async def pushlistener_closed(self, listener: PushListener):
-        print_function_name()
+    async def pushlistener_closed(self, listener: PushListener2):
+        # print_function_name()
         self.status = "Disconnected from Pushbullet"
         self.btn_connect.configure(state=tk.NORMAL)
         self.btn_disconnect.configure(state=tk.DISABLED)
 
-    async def push_received(self, p: dict, listener: PushListener):
+    async def push_received(self, p: dict, listener: PushListener2):
         # print("Push received:", p)
         prev = self.pushes_var.get()
         prev += "{}\n\n".format(pprint.pformat(p))
@@ -327,7 +353,7 @@ class GuiToolApp():
             if getattr(self.lbl_photo, "image_ref", None) is None:
                 async def _load_pic():
                     try:
-                        me = self.pushbullet.user_info
+                        me = await self.pushbullet.async_get_user()
                         if "image_url" in me:
                             image_url = me.get("image_url")
                             try:
