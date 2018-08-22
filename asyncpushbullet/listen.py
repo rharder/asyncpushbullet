@@ -37,6 +37,8 @@ optional arguments:
   -d DEVICE, --device DEVICE
                         Only listen for pushes targeted at given device name
   --list-devices        List registered device names
+  --proxy p             Specify a proxy; otherwise use value of https_proxy or
+                        http_proxy environment variable
   --debug               Turn on debug logging
   -v, --verbose         Turn on verbose logging (INFO messages)
 
@@ -72,6 +74,7 @@ __ERR_CONNECTING_TO_PB__ = 3
 __ERR_FILE_NOT_FOUND__ = 4
 __ERR_DEVICE_NOT_FOUND__ = 5
 __ERR_NOTHING_TO_DO__ = 6
+__ERR_UNKNOWN__ = 99
 
 # sys.argv.append("-h")
 # sys.argv += ["-k", "badkey"]
@@ -89,7 +92,6 @@ DEFAULT_THROTTLE_SECONDS = 10
 def main():
     args = parse_args()
     do_main(args)
-
 
 def do_main(args):
     # Key
@@ -120,13 +122,16 @@ def do_main(args):
         print("Log level: DEBUG")
         logging.basicConfig(level=logging.DEBUG)
 
+    # Proxy
+    proxy = args.proxy or os.environ.get("https_proxy") or os.environ.get("http_proxy")
+
     # List devices?
     if args.list_devices:
         print("Devices:")
 
         pb = None  # type: Pushbullet
         try:
-            pb = Pushbullet(api_key, proxy=args.proxy)
+            pb = Pushbullet(api_key, proxy=proxy)
             pb.verify_key()
         except InvalidKeyError as exc:
             print(exc, file=sys.stderr)
@@ -134,10 +139,10 @@ def do_main(args):
         except PushbulletError as exc:
             print(exc, file=sys.stderr)
             sys.exit(__ERR_CONNECTING_TO_PB__)
-
-        for dev in pb.devices:
-            print("\t", dev.nickname)
-        sys.exit(0)
+        else:
+            for dev in pb.devices:
+                print("\t", dev.nickname)
+            sys.exit(0)
 
     # Throttle
     throttle_count = args.throttle_count
@@ -148,7 +153,7 @@ def do_main(args):
 
     # Create ListenApp
     listen_app = ListenApp(api_key,
-                           proxy=args.proxy,
+                           proxy=proxy,
                            throttle_count=throttle_count,
                            throttle_seconds=throttle_seconds,
                            device=device)
@@ -187,15 +192,15 @@ def do_main(args):
     if len(listen_app.actions) == 0 or args.echo:
         listen_app.add_action(EchoAction())
 
-        # asyncio.set_event_loop(loop)
+    loop = asyncio.get_event_loop()
+
 
     # async def _timeout():
     #     await asyncio.sleep(2)
     #     await listen_app.close()
-
     # loop.create_task(_timeout())
 
-    loop = asyncio.get_event_loop()
+
     exit_code = None
     try:
         exit_code = loop.run_until_complete(listen_app.run())
@@ -277,7 +282,7 @@ class Action:
     def __init__(self):
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
-    async def do(self, push: dict, pb: AsyncPushbullet, device: Device):
+    async def do(self, push: dict, pb: AsyncPushbullet):#, device: Device):
         pass
 
     def __repr__(self):
@@ -287,7 +292,7 @@ class Action:
 class EchoAction(Action):
     """ Echoes pushes in json format to standard out. """
 
-    async def do(self, push: dict, pb: AsyncPushbullet, device:Device):
+    async def do(self, push: dict, pb: AsyncPushbullet):#, device:Device):
         json_push = json.dumps(push)
         print(json_push, end="\n\n", flush=True)
 
@@ -344,7 +349,7 @@ class ExecutableAction(Action):
     def __repr__(self):
         return "{}({} {})".format(super().__repr__(), self.path_to_executable, " ".join(self.args_for_exec))
 
-    async def do(self, push: dict, pb: AsyncPushbullet, device:Device):
+    async def do(self, push: dict, pb: AsyncPushbullet):#, device:Device):
         io_loop = asyncio.get_event_loop()  # Loop handling the pushbullet IO
 
         async def _on_proc_loop():
@@ -384,7 +389,7 @@ class ExecutableAction(Action):
         input_bytes = json_push.encode(__encoding__)
         return input_bytes
 
-    async def handle_process_response(self, stdout_data: bytes, stderr_data: bytes, pb: AsyncPushbullet, device:Device):
+    async def handle_process_response(self, stdout_data: bytes, stderr_data: bytes, pb: AsyncPushbullet):#, device:Device):
         # stdout_data = b"hello world"
         # await asyncio.sleep(1)
 
@@ -486,7 +491,7 @@ class ListenApp:
     async def close(self):
         if self._listener is not None:
             await self._listener.close()
-        self.pb.close_all()
+        self.pb.close_all_threadsafe()
 
     async def _throttle(self):
         """ Makes one tick and stalls if necessary """
@@ -506,12 +511,12 @@ class ListenApp:
 
     async def run(self):
         try:
-            self.app_device = await self.pb.async_get_device(nickname="ListenApp")
-            if self.app_device is None:
-                self.app_device = await self.pb.async_new_device(nickname="ListenApp")
-            token = "randomdata"
-            setattr(self.app_device, "push_token", token)
-            print("ListenApp using device:", repr(self.app_device))
+            # self.app_device = await self.pb.async_get_device(nickname="ListenApp")
+            # if self.app_device is None:
+            #     self.app_device = await self.pb.async_new_device(nickname="ListenApp")
+            # token = "randomdata"
+            # setattr(self.app_device, "push_token", token)
+            # print("ListenApp using device:", repr(self.app_device))
 
             async with PushListener2(self.pb, filter_device_nickname=self.device_name) as pl2:
                 self._listener = pl2
@@ -540,46 +545,18 @@ class ListenApp:
                     for action in self.actions:  # type: Action
                         self.log.debug("Calling action {}".format(repr(action)))
                         try:
-                            await action.do(push, self.pb, self.app_device)
+                            await action.do(push, self.pb)#, self.app_device)
                             await asyncio.sleep(0)
                         except Exception as ex:
                             print("Action {} caused exception {}".format(action, ex))
+
         except Exception as ex:
             print("listenapp.run exception:", ex)
             ex.with_traceback()
-        # loop = asyncio.get_event_loop()
-        #
-        # try:
-        #     await self.pb.async_verify_key()
-        # except InvalidKeyError as exc:
-        #     print(exc, file=sys.stderr)
-        #     await self.pb.close()
-        #     return __ERR_INVALID_API_KEY__
-        # except PushbulletError as exc:
-        #     print(exc, file=sys.stderr)
-        #     await self.pb.close()
-        #     return __ERR_CONNECTING_TO_PB__
-        #
-        # # Warn if device is not known at launch
-        # if self.device_name is not None:
-        #     dev = await self.pb.async_get_device(nickname=self.device_name)
-        #     if dev is None:
-        #         self.log.warning("Device {} not found at launch time.  ".format(self.device_name) +
-        #                          "Will still attempt to filter as pushes are received.")
-        #     del dev
-        #
-        # self._listener = PushListener(self.pb, filter_device_nickname=self.device_name)
-        # self.log.info("Awaiting pushes ...".format(str(self)))
-        # async for push in self._listener:  # type: dict
-        #     self.log.info("Received push {}".format(push))
-        #
-        #     await self._throttle()
-        #
-        #     for action in self.actions:  # type: Action
-        #         self.log.debug("Calling action {}".format(repr(action)))
-        #         loop.create_task(action.do(push, self.pb))
-        #
-        # self.log.debug("run() coroutine exiting")
+            return __ERR_UNKNOWN__  # exit code
+
+        return 0
+
 
 
 if __name__ == "__main__":

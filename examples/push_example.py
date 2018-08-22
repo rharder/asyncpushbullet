@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import os
 import sys
 sys.path.append("..")  # Since examples are buried one level into source tree
 from asyncpushbullet import Pushbullet
@@ -11,7 +11,8 @@ API_KEY = ""  # YOUR API KEY
 
 
 def main():
-    pb = Pushbullet(API_KEY)
+    proxy = os.environ.get("https_proxy") or os.environ.get("http_proxy")
+    pb = Pushbullet(API_KEY, proxy=proxy)
 
     title = "Greetings"
     body = "Welcome to accessing Pushbullet with Python"

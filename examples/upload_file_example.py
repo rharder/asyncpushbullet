@@ -3,6 +3,7 @@
 Demonstrates how to upload and push a file.
 """
 import asyncio
+import os
 import sys
 
 import logging
@@ -14,15 +15,14 @@ __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
 
 API_KEY = ""  # YOUR API KEY
-HTTP_PROXY_HOST = None
-HTTP_PROXY_PORT = None
 
 
 def main():
     """ Uses a callback scheduled on an event loop"""
 
+    proxy = os.environ.get("https_proxy") or os.environ.get("http_proxy")
+    pb = AsyncPushbullet(API_KEY, verify_ssl=False, proxy=proxy)
     loop = asyncio.get_event_loop()
-    pb = AsyncPushbullet(API_KEY, verify_ssl=False, loop=loop)
     loop.run_until_complete(upload_file(pb, __file__))  # Upload this source code file as an example
 
 
@@ -38,7 +38,7 @@ async def upload_file(pb: AsyncPushbullet, filename: str):
     # Push a notification of the upload "as a link":
     await pb.async_push_link("Link to File Arrived!", info["file_url"], body="Please enjoy your file")
 
-    await pb.close()
+    await pb.async_close()
 
 
 if __name__ == '__main__':

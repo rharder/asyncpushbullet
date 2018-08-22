@@ -72,6 +72,7 @@ class Pushbullet(object):
     def close(self):
         if self._session is not None:
             self._session.close()
+            self._session = None
 
     @property
     def session(self) -> requests.Session:

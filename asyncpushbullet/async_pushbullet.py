@@ -71,24 +71,19 @@ class AsyncPushbullet(Pushbullet):
 
         return session
 
-    def close(self):
-        print("Did you mean close_all()?  Calling close on synchronous Pushbullet super class...")
-        raise Exception("Did you really mean to call close() on the async version?")
-        super().close()
+    async def async_close(self):
+        """Closes only the session on the current event loop and the synchronous session in the super class"""
+        super().close()  # synchronous version in superclass
+        loop = asyncio.get_event_loop()
+        if loop in self._aio_sessions:
+            await self._aio_sessions[loop].close()
+            del self._aio_sessions[loop]
 
-    # async def close(self):
-    #     super().close()
-    #
-    #     loop = asyncio.get_event_loop()
-    #     if loop in self._aio_sessions:
-    #         await self._aio_sessions[loop].close()
-    #         del self._aio_sessions[loop]
-
-    def close_all(self):
+    def close_all_threadsafe(self):
         """Closes all sessions, which may be on different event loops.
         This method is NOT awaited--because there may be different loops involved."""
 
-        # for loop in self._aio_sessions.keys():
+        super().close()  # Synchronous closer for superclass
         for loop, session in self._aio_sessions.items():
             asyncio.run_coroutine_threadsafe(session.close(), loop=loop)
 

@@ -5,6 +5,7 @@ Example tkinter app that uploads files and shows incoming pushes.
 It is not necessary to connect to a listener and listen for pushes in order to upload,
 but it makes the example more interesting.
 """
+import os
 import threading
 import tkinter as tk
 import asyncio
@@ -26,7 +27,6 @@ __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
 
 API_KEY = ""  # YOUR API KEY
-PROXY = ""
 
 
 # logging.basicConfig(level=logging.DEBUG)
@@ -46,6 +46,7 @@ class PushApp():
         self.pushes_var = tk.StringVar()
         self.filename_var = tk.StringVar()
         self.btn_upload = None  # type: tk.Button
+        self.proxy = os.environ.get("https_proxy") or os.environ.get("http_proxy")
 
         # View / Control
         self.create_widgets()
@@ -136,7 +137,7 @@ class PushApp():
             try:
                 self.pushbullet = AsyncPushbullet(self.key_var.get(),
                                                   verify_ssl=False,
-                                                  proxy=PROXY)
+                                                  proxy=self.proxy)
 
                 async with PushListener2(self.pushbullet) as pl2:
                     self.pushbullet_listener = pl2
@@ -155,7 +156,7 @@ class PushApp():
     def close(self):
 
         if self.pushbullet is not None:
-            self.pushbullet.close_all()
+            self.pushbullet.close_all_threadsafe()
             self.pushbullet = None
         if self.pushbullet_listener is not None:
             assert self.ioloop is not None
@@ -216,12 +217,6 @@ if __name__ == '__main__':
     if API_KEY == "":
         with open("../api_key.txt") as f:
             API_KEY = f.read().strip()
-    try:
-        if PROXY == "":
-            with open("../proxy.txt") as f:
-                PROXY = f.read().strip()
-    except Exception as e:
-        pass  # No proxy file, that's OK
 
     try:
         main()
