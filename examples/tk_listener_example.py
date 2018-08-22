@@ -110,9 +110,7 @@ class PushApp():
 
         self.ioloop = asyncio.new_event_loop()
         self.ioloop.set_exception_handler(self._ioloop_exc_handler)
-        t = threading.Thread(target=partial(_run, self.ioloop))
-        t.daemon = True
-        t.start()
+        threading.Thread(target=partial(_run, self.ioloop), name="Thread-asyncio", daemon=True).start()
 
     def _ioloop_exc_handler(self, loop: asyncio.BaseEventLoop, context: dict):
         if "exception" in context:

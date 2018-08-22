@@ -46,16 +46,14 @@ class GuiToolApp():
         # Data
         self._pushbullet = None  # type: AsyncPushbullet
         self.pushbullet_listener = None  # type: PushListener2
-
-        # General Data
-        self.key_var = tk.StringVar()  # API key
-        self.pushes_var = tk.StringVar()  # Used in text box to display pushes received
-        self.status_var = tk.StringVar()  # Bound to bottom of window status bar
+        self.key_var = tk.StringVar()  # type: tk.StringVar  # API key
+        self.pushes_var = tk.StringVar()  # type: tk.StringVar  # Used in text box to display pushes received
+        self.status_var = tk.StringVar()  # type: tk.StringVar  # Bound to bottom of window status bar
         self.ioloop = None  # type: asyncio.BaseEventLoop
-        self.proxy = os.environ.get("https_proxy") or os.environ.get("http_proxy")
+        self.proxy = os.environ.get("https_proxy") or os.environ.get("http_proxy")  # type: str
 
         # Related to Devices
-        self.device_detail_var = tk.StringVar()  # Used in text box to display device details
+        self.device_detail_var = tk.StringVar()  # type: tk.StringVar  # Used in text box to display device details
         self.devices_in_listbox = None  # type: Tuple[Device]  # Cached devices that were retrieved
         self.device_tab_index = None  # type: int  # The index for the Devices tab
 
@@ -83,7 +81,7 @@ class GuiToolApp():
         self.status_var.set(str(val))
 
     @property
-    def pushbullet(self):
+    def pushbullet(self) -> AsyncPushbullet:
         current_key = self.key_var.get()
         if self._pushbullet is not None:
             if current_key != self._pushbullet.api_key:
@@ -98,9 +96,9 @@ class GuiToolApp():
         return self._pushbullet
 
     @pushbullet.setter
-    def pushbullet(self, val):
+    def pushbullet(self, val: AsyncPushbullet):
         if val is None and self._pushbullet is not None:
-            self._pushbullet.close_all()
+            self._pushbullet.close_all_threadsafe()
         self._pushbullet = val
 
     def create_io_loop(self):
@@ -112,9 +110,7 @@ class GuiToolApp():
 
         self.ioloop = asyncio.new_event_loop()
         self.ioloop.set_exception_handler(self._ioloop_exc_handler)
-        t = threading.Thread(target=partial(_run, self.ioloop))
-        t.daemon = True
-        t.start()
+        threading.Thread(target=partial(_run, self.ioloop), name="Thread-asyncio", daemon=True).start()
 
     def _ioloop_exc_handler(self, loop: asyncio.BaseEventLoop, context: dict):
         print("_exc_handler", loop, context)
@@ -236,45 +232,12 @@ class GuiToolApp():
                 print("guitool _listen caught exception", ex)
             finally:
                 # if pl2 is not None:
-                    await self.pushlistener_closed(pl2)
+                await self.pushlistener_closed(pl2)
 
-
-
-        #
-        # async def _connect():
-        #
-        #     try:
-        #         await self.verify_key()
-        #     except:
-        #         self.btn_connect.configure(state=tk.NORMAL)
-        #         self.btn_disconnect.configure(state=tk.DISABLED)
-        #     else:
-        #         self.pushbullet_listener = PushListener(self.pushbullet,
-        #                                                 on_connect=self.pushlistener_connected,
-        #                                                 on_message=self.push_received,
-        #                                                 on_close=self.pushlistener_closed)
-        #         self.btn_connect.configure(state=tk.DISABLED)
-        #         self.btn_disconnect.configure(state=tk.NORMAL)
-
-            # if await self.verify_key():
-            #     self.pushbullet_listener = PushListener(self.pushbullet,
-            #                                             on_connect=self.pushlistener_connected,
-            #                                             on_message=self.push_received,
-            #                                             on_close=self.pushlistener_closed)
-            #     self.btn_connect.configure(state=tk.DISABLED)
-            #     self.btn_disconnect.configure(state=tk.NORMAL)
-            # else:
-            #     self.btn_connect.configure(state=tk.NORMAL)
-            #     self.btn_disconnect.configure(state=tk.DISABLED)
-
-        # asyncio.run_coroutine_threadsafe(_connect(), self.ioloop)
         asyncio.run_coroutine_threadsafe(_listen(), self.ioloop)
 
     def disconnect_button_clicked(self):
         self.status = "Disconnecting from Pushbullet..."
-        # self.btn_connect.configure(state=tk.DISABLED)
-        # self.btn_disconnect.configure(state=tk.DISABLED)
-        # self.pushbullet_listener.close()
         asyncio.run_coroutine_threadsafe(self.pushbullet_listener.close(), self.ioloop)
 
     def load_devices_clicked(self):
@@ -388,7 +351,6 @@ class GuiToolApp():
 def main():
     tk1 = tk.Tk()
     program1 = GuiToolApp(tk1)
-
     tk1.mainloop()
 
 

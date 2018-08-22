@@ -236,7 +236,7 @@ Event Loops
 
 ``AsyncPushbullet`` coroutines will work on whichever event loop they
 are called from.  If you call from multiple event loops, you may need
-to use the ``close_all()`` function when your program shuts down to
+to use the ``close_all_threadsafe()`` function when your program shuts down to
 shutdown gracefully on all event loops.
 
 
@@ -247,14 +247,10 @@ Note that the use of SOCKS proxies requires the ``requests[socks]`` package
 (``pip install requests[socks]`` to install), however HTTP proxies (w/ Basic Auth)
 work fine without the ``requests[socks]`` package.
 
-**Proxy support is untested in this new async version**
-
 ::
 
     from asyncpushbullet import AsyncPushbullet
-    pb = AsyncPushbullet(api_key, proxy={"https": "https://user:pass@10.10.1.10:3128/"})
-
-Note that only HTTPS proxies work with Pushbullet.
+    pb = AsyncPushbullet(api_key, proxy="https://user:pass@10.10.1.10:3128/")
 
 
 Pushing a text note
@@ -292,6 +288,7 @@ you can push it like you would anything else.
 ::
 
     async def upload_my_file(pb: AsyncPushbullet, filename: str):
+        # The actual upload
         info = await pb.async_upload_file(filename)
 
         # Push as a file:

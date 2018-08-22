@@ -78,12 +78,14 @@ __ERR_UNKNOWN__ = 99
 
 # sys.argv.append("-h")
 # sys.argv += ["-k", "badkey"]
-# sys.argv += ["--key-file", "../api_key.txt"]
-# sys.argv.append("--echo")
+sys.argv += ["--key-file", "../api_key.txt"]
+sys.argv.append("--echo")
 # sys.argv += ["--proxy", ""]
 # sys.argv.append("--list-devices")
-# sys.argv += ["--exec", r"C:\windows\System32\notepad.exe"]
-# sys.argv += ["--exec", r"C:\windows\System32\clip.exe"]
+sys.argv += ["--exec", r"C:\windows\System32\notepad.exe"]
+sys.argv += ["--exec", r"C:\windows\System32\clip.exe"]
+
+logging.basicConfig(level=logging.DEBUG)
 
 DEFAULT_THROTTLE_COUNT = 10
 DEFAULT_THROTTLE_SECONDS = 10
@@ -162,15 +164,17 @@ def do_main(args):
     proc_loop = None  # type: asyncio.BaseEventLoop
     if sys.platform == 'win32':
         proc_loop = asyncio.ProactorEventLoop()
+        print("On win32--using ProactorEventLoop.")
     else:
         proc_loop = asyncio.new_event_loop()
 
     def _run(loop):
         loop.run_forever()
 
-    t = threading.Thread(target=partial(_run, proc_loop))
-    t.daemon = True
-    t.start()
+    threading.Thread(target=partial(_run, proc_loop), name="Thread-proc", daemon=True).start()
+    # t = threading.Thread(target=partial(_run, proc_loop))
+    # t.daemon = True
+    # t.start()
 
     # Add actions from command line arguments
     if args.exec:
@@ -355,6 +359,7 @@ class ExecutableAction(Action):
         async def _on_proc_loop():
             # Launch process
             try:
+                print("Launching process", self.path_to_executable, self.args_for_exec)
                 proc = await asyncio.create_subprocess_exec(self.path_to_executable,
                                                             *self.args_for_exec,
                                                             stdin=asyncio.subprocess.PIPE,
@@ -377,9 +382,9 @@ class ExecutableAction(Action):
                     proc.terminate()
                 else:
                     # Process response from subprocess
-                    # asyncio.run_coroutine_threadsafe(
-                    #     self.handle_process_response(stdout_data, stderr_data, pb, device),
-                    #     loop=io_loop)
+                    asyncio.run_coroutine_threadsafe(
+                        self.handle_process_response(stdout_data, stderr_data, pb),
+                        loop=io_loop)
                     pass
 
         asyncio.run_coroutine_threadsafe(_on_proc_loop(), self.proc_loop)
@@ -395,6 +400,7 @@ class ExecutableAction(Action):
 
         # There's a problem with a push be sent in response and then that push is responded
         # to etc and then an infinite loop.
+        return
         raise Exception("Not yet implemented.")
 
         # Any stderr output?
