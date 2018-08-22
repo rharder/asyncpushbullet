@@ -169,6 +169,7 @@ def do_main(args):
         proc_loop = asyncio.new_event_loop()
 
     def _run(loop):
+        asyncio.set_event_loop(loop)
         loop.run_forever()
 
     threading.Thread(target=partial(_run, proc_loop), name="Thread-proc", daemon=True).start()

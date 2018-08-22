@@ -113,6 +113,7 @@ class PushApp():
         assert self.ioloop is None  # This should only ever be run once
 
         def _run(loop):
+            asyncio.set_event_loop(loop)
             loop.run_forever()
 
         self.ioloop = asyncio.new_event_loop()
