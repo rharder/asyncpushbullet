@@ -525,7 +525,7 @@ class ListenApp:
             # setattr(self.app_device, "push_token", token)
             # print("ListenApp using device:", repr(self.app_device))
 
-            async with PushListener2(self.pb, filter_device_nickname=self.device_name) as pl2:
+            async with PushListener2(self.pb, only_this_device_nickname=self.device_name) as pl2:
                 self._listener = pl2
 
                 # Warn if device is not known at launch

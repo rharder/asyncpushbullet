@@ -161,6 +161,7 @@ class Pushbullet:
             msg = next(gen)
         return msg
 
+
     def _get_data_with_pagination_generator(self, url: str, item_name: str, **kwargs):
         msg = {}
         items = []
@@ -200,6 +201,7 @@ class Pushbullet:
         """ Helper for generic push """
         msg = self._post_data(Pushbullet.PUSH_URL, data=json.dumps(data))
         return msg
+
 
     @staticmethod
     def _recipient(device: Device = None, chat: Chat = None,
@@ -284,6 +286,7 @@ class Pushbullet:
             x = _get()
         return x
 
+
     def new_device(self, nickname: str, manufacturer: str = None,
                    model: str = None, icon: str = "system") -> Device:
         gen = self._new_device_generator(nickname, manufacturer=manufacturer, model=model, icon=icon)
@@ -295,6 +298,23 @@ class Pushbullet:
 
     def _new_device_generator(self, nickname: str, manufacturer: str = None,
                               model: str = None, icon: str = "system"):
+        """
+        Note about this "xxx_generator" construct:
+        To avoid duplication of code in the synchronous Pushbullet and
+        asynchronous AsyncPushbullet, the generators are used in the
+        pre- and post-manipulation of the data.  For example the
+        pre-manipulation activity is generally setting up the data
+        fields as required by the Pushbullet.com API.
+        As a result the xxx_generator functions typically have two parts
+        to them where they are prepping data and then processing
+        a response.
+
+        The xfer object is used to pass data back and forth to/from
+        the generator and the calling function.
+
+        Yeah, it's weird, it's advanced, it's tricky.
+        And it enables reuse of code across sync and asyncio style functions!
+        """
         data = {"nickname": nickname, "icon": icon}
         data.update({k: v for k, v in
                      (("model", model), ("manufacturer", manufacturer)) if v is not None})
@@ -476,7 +496,7 @@ class Pushbullet:
         msg = xfer.get('msg', {})
         pushes_list = msg.get("pushes", [])
         if len(pushes_list) > 0 and pushes_list[0].get('modified', 0) > self.most_recent_timestamp:
-            self.most_recent_timestamp = pushes_list[0]['modified']
+            self.most_recent_timestamp = pushes_list[0].get('modified')
 
         if self.log.isEnabledFor(logging.INFO):
             self.log.info("Retrieved {} push{}".format(len(pushes_list),
@@ -493,14 +513,14 @@ class Pushbullet:
 
     def dismiss_push(self, iden: str) -> dict:
         if type(iden) is dict and "iden" in iden:
-            iden = iden["iden"]  # In case user passes entire push
+            iden = getattr(iden, "iden")  # In case user passes entire push
         data = {"dismissed": "true"}
         msg = self._post_data("{}/{}".format(self.PUSH_URL, iden), data=json.dumps(data))
         return msg
 
     def delete_push(self, iden: str) -> dict:
         if type(iden) is dict and "iden" in iden:
-            iden = iden["iden"]  # In case user passes entire push
+            iden = getattr(iden, "iden")  # In case user passes entire push
         msg = self._delete_data("{}/{}".format(self.PUSH_URL, iden))
         return msg
 
@@ -548,6 +568,24 @@ class Pushbullet:
                 "ciphertext": self._encrypt_data(data["push"]),
                 "encrypted": "true"
             }
+
+        xfer = {"data": data}
+        yield xfer  # Do IO
+        yield xfer["msg"]
+
+    def push_ephemeral(self, data:dict) -> dict:
+        gen = self._push_ephemeral_generator(data)
+        xfer = next(gen)  # Prep http params
+        data = xfer.get("data")
+        xfer["msg"] = self._post_data(self.EPHEMERALS_URL, data=json.dumps(data))
+        resp = next(gen)  # Post process response
+        return resp
+
+    def _push_ephemeral_generator(self, payload:dict):
+        data = {
+            "type": "push",
+            "push": payload
+        }
 
         xfer = {"data": data}
         yield xfer  # Do IO

@@ -68,12 +68,12 @@ class WebsocketClient():
         await self._socket.send_json(data)
         await asyncio.sleep(0)
 
-    async def flush_incoming(self, timeout=0):
+    async def flush_incoming(self, timeout: float = None):
         """Flushes all messages received to date but not yet processed.
 
         The method will return silently if the timeout period is reached.
 
-        :param int timeout: the timeout in seconds
+        :param float timeout: the timeout in seconds
         """
 
         async def _flush_all():
@@ -86,7 +86,7 @@ class WebsocketClient():
         except asyncio.futures.TimeoutError:
             pass
 
-    async def get_msg(self, timeout: int = None) -> aiohttp.WSMessage:
+    async def get_msg(self, timeout: float = None) -> aiohttp.WSMessage:
         """Returns the next message from the websocket server.
 
          This method may throw a StopAsyncIteration exception if the socket
@@ -144,22 +144,8 @@ class WebsocketClient():
         """
         return WebsocketClient._Iterator(self, timeout=timeout)
 
-    # async def __anext__(self) -> aiohttp.WSMessage:
-    #     if self._socket.closed:
-    #         raise StopAsyncIteration("The websocket has closed.")
-    #
-    #     try:
-    #         msg = await self._queue.get()
-    #     except Exception as e:
-    #         raise StopAsyncIteration(e)
-    #
-    #     if type(msg) == StopAsyncIteration:
-    #         raise msg
-    #
-    #     return msg
-
     class _Iterator:
-        def __init__(self, ws_client, timeout: int = None):
+        def __init__(self, ws_client, timeout: float = None):
             self.timeout = timeout
             self.ws_client = ws_client  # type: WebsocketClient
 

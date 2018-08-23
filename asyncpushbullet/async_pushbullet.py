@@ -346,7 +346,16 @@ class AsyncPushbullet(Pushbullet):
         gen = self._push_sms_generator(device, number, message)
         xfer = next(gen)  # Prep params
         data = xfer.get("data")
-        xfer["msg"] = await self._async_post_data(self.EPHEMERALS_URL, data=data)
+        xfer["msg"] = await self._async_post_data(self.EPHEMERALS_URL, json=data)
+        return next(gen)  # Post process
+
+    async def async_push_ephemeral(self, payload: dict) -> dict:
+        gen = self._push_ephemeral_generator(payload)
+        xfer = next(gen)  # Prep params
+        data = xfer.get("data")
+        # I have not been able to determine why this aiohttp post command
+        # must have a json=.. parameter instead of data=.. like push_note. RH
+        xfer["msg"] = await self._async_post_data(self.EPHEMERALS_URL, json=data)
         return next(gen)  # Post process
 
     # ################

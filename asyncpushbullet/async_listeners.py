@@ -14,26 +14,40 @@ import aiohttp  # pip install aiohttp
 from asyncpushbullet import AsyncPushbullet
 from asyncpushbullet.websocket_client import WebsocketClient
 
-
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
 
-WEBSOCKET_URL = 'wss://stream.pushbullet.com/websocket/'
-
 
 class PushListener2:
+    WEBSOCKET_URL = 'wss://stream.pushbullet.com/websocket/'
 
     def __init__(self, account: AsyncPushbullet,
-                 filter_inactive: bool = True,
-                 filter_dismissed: bool = True,
-                 filter_device_nickname: str = None):
+                 ignore_inactive: bool = True,
+                 ignore_dismissed: bool = True,
+                 only_this_device_nickname: str = None,
+                 ephemerals_only: bool = False):
+        """Creates a Pushlistener2 to await pushes using asyncio.
+
+        Setting ephemerals_only to True means there are no callbacks
+        to pushbullet.com to retrieve data -- ephemerals are special
+        pushes that contain all their data within the websocket stream.
+        They are generally used for device mirroring and universal copy/paste,
+        but they can be used to pass other data programmatically as well.
+
+        :param account: the AsyncPushbullet object that represents the account
+        :param ignore_inactive: ignore inactive pushes, defaults to true
+        :param ignore_dismissed:  ignore dismissed pushes, defaults to true
+        :param only_this_device_nickname: only show pushes from this device
+        :param ephemerals_only: only show ephemeral pushes, default is false
+        """
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
         self.account = account  # type: AsyncPushbullet
         self._last_update = 0  # type: float
-        self._filter_inactive = filter_inactive  # type: bool
-        self._filter_dismissed = filter_dismissed  # type: bool
-        self._filter_device_nickname = filter_device_nickname  # type: str
+        self._ignore_inactive = ignore_inactive  # type: bool
+        self._ignore_dismissed = ignore_dismissed  # type: bool
+        self._only_this_device_nickname = only_this_device_nickname  # type: str
+        self.ephemerals_only = ephemerals_only  # type: bool
         self._ws_client = None  # type: WebsocketClient
         self._loop = None  # type: asyncio.BaseEventLoop
         self._queue = None  # type: asyncio.Queue
@@ -59,7 +73,7 @@ class PushListener2:
                 await self._queue.put(sai)
 
         session = await self.account.aio_session()
-        wc = WebsocketClient(url=WEBSOCKET_URL + self.account.api_key,
+        wc = WebsocketClient(url=self.WEBSOCKET_URL + self.account.api_key,
                              proxy=self.account.proxy,
                              session=session)
         self._ws_client = await wc.__aenter__()
@@ -88,11 +102,15 @@ class PushListener2:
 
     async def _process_pushbullet_message(self, msg: dict):
 
+        # Look for ephemeral message
+        if "type" in msg and "push" in msg:  # Ephemeral
+            await self._queue.put(msg)
+
         # Look for websocket message announcing new pushes
-        if msg == {'type': 'tickle', 'subtype': 'push'}:
+        elif not self.ephemerals_only and msg == {'type': 'tickle', 'subtype': 'push'}:
 
             pushes = await self.account.async_get_pushes(modified_after=self.account.most_recent_timestamp,
-                                                         filter_inactive=self._filter_inactive)
+                                                         filter_inactive=self._ignore_inactive)
             self.log.debug("Retrieved {} pushes".format(len(pushes)))
 
             # Update timestamp for most recent push so we only get "new" pushes
@@ -103,12 +121,12 @@ class PushListener2:
             for push in pushes:
 
                 # Filter dismissed pushes if requested
-                if self._filter_dismissed is not None and bool(push.get("dismissed")):
+                if self._ignore_dismissed is not None and bool(push.get("dismissed")):
                     self.log.debug("Skipped push because it was dismissed: {}".format(push))
                     continue  # skip this push
 
                 # Filter on device if requested
-                if self._filter_device_nickname is not None:
+                if self._only_this_device_nickname is not None:
 
                     # Does push have a target device
                     target_iden = push.get("target_device_iden")
@@ -122,7 +140,7 @@ class PushListener2:
                         self.log.error("Received a target_device_iden in push that did not map to a device: {}"
                                        .format(target_iden))
                         continue  # skip this push
-                    if target_dev.nickname != self._filter_device_nickname:
+                    if target_dev.nickname != self._only_this_device_nickname:
                         continue  # skip push - wrong device
 
                 # Passed all filters - accept push
@@ -150,9 +168,13 @@ class PushListener2:
 
         return push
 
-    async def next_push(self, timeout: int = None) -> dict:
+    async def next_push(self, timeout: float = None) -> dict:
         if timeout is None:
             push = await self._queue.get()
             if type(push) == StopAsyncIteration:
                 raise push
             return push
+        else:
+            push = await asyncio.wait_for(self.next_push(), timeout=timeout)
+            return push
+
