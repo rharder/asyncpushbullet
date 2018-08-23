@@ -7,7 +7,7 @@ import asyncio
 import json
 import logging
 import time
-from typing import AsyncIterator, Tuple
+from typing import AsyncIterator, Tuple, Set, Iterable
 
 import aiohttp  # pip install aiohttp
 
@@ -25,7 +25,7 @@ class PushListener2:
                  ignore_inactive: bool = True,
                  ignore_dismissed: bool = True,
                  only_this_device_nickname: str = None,
-                 types: Tuple[str, ...] = ("push",)):
+                 types: Iterable[str] = ("push",)):
         """Creates a Pushlistener2 to await pushes using asyncio.
 
         The types parameter can be used to limit which kinds of pushes
@@ -54,7 +54,7 @@ class PushListener2:
         self._loop = None  # type: asyncio.BaseEventLoop
         self._queue = None  # type: asyncio.Queue
 
-        self.push_types = types  # type: Tuple[str]
+        self.push_types = set(types)  # type: Set[str]
         self.ephemeral_types = tuple([x.split(":")[-1] for x in self.push_types if len(x.split(":")) > 1])
 
     async def close(self):
