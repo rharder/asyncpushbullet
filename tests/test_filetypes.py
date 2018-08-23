@@ -3,7 +3,7 @@ from __future__ import print_function
 from asyncpushbullet import filetype
 
 
-class TestFiletypes(object):
+class TestFiletypes:
 
     def test_mimetype(self):
         filename = 'tests/test.png'

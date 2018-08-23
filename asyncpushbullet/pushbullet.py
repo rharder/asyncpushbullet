@@ -21,7 +21,7 @@ class NoEncryptionModuleError(Exception):
             "cryptography is required for end-to-end encryption support and could not be imported: " + msg + "\nYou can install it by running 'pip install cryptography'")
 
 
-class Pushbullet(object):
+class Pushbullet:
     DEVICES_URL = "https://api.pushbullet.com/v2/devices"
     CHATS_URL = "https://api.pushbullet.com/v2/chats"
     CHANNELS_URL = "https://api.pushbullet.com/v2/channels"

@@ -5,7 +5,7 @@ import warnings
 from .helpers import use_appropriate_encoding
 
 
-class Channel(object):
+class Channel:
 
     def __init__(self, account, channel_info):
         self._account = account
@@ -43,3 +43,19 @@ class Channel(object):
 
     def __repr__(self):
         return self.__str__()
+
+    @property
+    def name(self):
+        return getattr(self, "name")
+
+    @property
+    def description(self):
+        return getattr(self, "description")
+
+    @property
+    def created(self):
+        return getattr(self, "created")
+
+    @property
+    def modified(self):
+        return getattr(self, "modified")

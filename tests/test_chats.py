@@ -1,12 +1,13 @@
 from __future__ import print_function
 
-import mock
 import time
+
+import mock
 
 from asyncpushbullet import chat
 
 
-class TestChats(object):
+class TestChats:
 
     def setup_class(self):
         self.contact_email = "test.chat@example.com"

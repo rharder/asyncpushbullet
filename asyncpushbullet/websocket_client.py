@@ -158,7 +158,7 @@ class WebsocketClient():
     #
     #     return msg
 
-    class _Iterator(object):
+    class _Iterator:
         def __init__(self, ws_client, timeout: int = None):
             self.timeout = timeout
             self.ws_client = ws_client  # type: WebsocketClient

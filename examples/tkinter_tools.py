@@ -13,7 +13,6 @@ __date__ = "10 Oct 2017"
 __license__ = "Public Domain"
 
 
-
 def bind_tk_var_to_tk_attribute(widget, attr_name, tkvar):
     """
     Helper function to bind an arbitrary tk widget attribute to a tk.xxxVar.
@@ -87,6 +86,7 @@ def bind_tk_var_to_property(obj, prop_name, tkvar):
     :param tk.Variable tkvar: the tk variable from which to get a value
     """
     tkvar.trace("w", lambda _, __, ___, v=tkvar: setattr(obj, prop_name, v.get()))
+
 
 class FormattableTkStringVar(tk.StringVar):
     """
@@ -272,7 +272,7 @@ class ToggledFrame(tk.LabelFrame):
             self.subframe.forget()
 
 
-class ToolTip(object):
+class ToolTip:
     """
     create a tooltip for a given widget
 
@@ -293,7 +293,6 @@ class ToolTip(object):
         if self.textvariable is not None:
             self.textvariable.trace("w", lambda _, __, ___, v=self.textvariable: setattr(self, "text", str(v.get())))
             self.text = str(self.textvariable.get())
-
 
     def enter(self, event=None):
         self.schedule()
@@ -332,4 +331,3 @@ class ToolTip(object):
         self.tw = None
         if tw:
             tw.destroy()
-

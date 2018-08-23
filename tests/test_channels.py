@@ -6,7 +6,7 @@ import time
 from asyncpushbullet import channel
 
 
-class TestChannels(object):
+class TestChannels:
 
     @classmethod
     def setup_class(cls):

@@ -19,11 +19,6 @@ class AsyncPushbullet(Pushbullet):
         Pushbullet.__init__(self, api_key, **kwargs)
         self.loop = loop or asyncio.get_event_loop()
 
-        # self._proxy = kwargs.get("proxy", "")  # type: str
-        # if self._proxy.strip() == "":
-        #     self._proxy = None
-        # if self._proxy is not None:
-        #     self.log.info("Using proxy: {}".format(self._proxy))
         self._aio_sessions = {}  # type: Dict[asyncio.AbstractEventLoop, aiohttp.ClientSession]
         self.verify_ssl = verify_ssl
 
@@ -32,9 +27,7 @@ class AsyncPushbullet(Pushbullet):
         Triggers a call to Pushbullet.com that will throw an
         InvalidKeyError if the key is not valid.
         """
-        # print_function_name(self)
-        # print("VERIFY KEY, OK VERSION")
-        sess = await self.aio_session()
+        _ = await self.aio_session()
 
     async def aio_session(self) -> aiohttp.ClientSession:
         # print_function_name(self)
@@ -319,14 +312,14 @@ class AsyncPushbullet(Pushbullet):
 
     async def async_dismiss_push(self, iden: str) -> dict:
         if type(iden) is dict and "iden" in iden:
-            iden = iden["iden"]  # In case user passes entire push
+            iden = getattr(iden, "iden")  # In case user passes entire push
         data = {"dismissed": "true"}
         msg = await self._async_post_data("{}/{}".format(self.PUSH_URL, iden), data=data)
         return msg
 
-    async def async_delete_push(self, iden) -> dict:
+    async def async_delete_push(self, iden: str) -> dict:
         if type(iden) is dict and "iden" in iden:
-            iden = iden["iden"]  # In case user passes entire push
+            iden = getattr(iden, "iden")  # In case user passes entire push
         msg = await self._async_delete_data("{}/{}".format(self.PUSH_URL, iden))
         return msg
 
@@ -408,6 +401,5 @@ class AsyncPushbullet(Pushbullet):
     #
 
     async def async_get_user(self):
-        # print_function_name()
         self._user_info = await self._async_get_data(self.ME_URL)
         return self._user_info

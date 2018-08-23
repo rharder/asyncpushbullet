@@ -5,5 +5,4 @@ from .errors import PushbulletError, InvalidKeyError, PushError
 
 
 from .async_pushbullet import AsyncPushbullet
-# from .async_listeners import WebsocketListener, PushListener2
-from .async_listeners import WebsocketClient, PushListener2
+from .async_listeners import PushListener2

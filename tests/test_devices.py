@@ -1,12 +1,13 @@
 from __future__ import print_function
 
-import mock
 import time
+
+import mock
 
 from asyncpushbullet import device
 
 
-class TestDevices(object):
+class TestDevices:
 
     def setup_class(cls):
         cls.device_iden = "test_iden"
@@ -60,7 +61,8 @@ class TestDevices(object):
         body = "test body"
         title = "test title"
         self.device.push_file(file_name, file_url, file_type, body=body, title=title)
-        self.account.push_file.assert_called_with(file_name, file_url, file_type, title=title, body=body, device=self.device)
+        self.account.push_file.assert_called_with(file_name, file_url, file_type, title=title, body=body,
+                                                  device=self.device)
 
     def test_push(self):
         data = {"title": "test title"}
