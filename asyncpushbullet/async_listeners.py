@@ -7,7 +7,7 @@ import asyncio
 import json
 import logging
 import time
-from typing import AsyncIterator
+from typing import AsyncIterator, Tuple
 
 import aiohttp  # pip install aiohttp
 
@@ -25,20 +25,23 @@ class PushListener2:
                  ignore_inactive: bool = True,
                  ignore_dismissed: bool = True,
                  only_this_device_nickname: str = None,
-                 ephemerals_only: bool = False):
+                 types: Tuple[str, ...] = ("push",)):
         """Creates a Pushlistener2 to await pushes using asyncio.
 
-        Setting ephemerals_only to True means there are no callbacks
-        to pushbullet.com to retrieve data -- ephemerals are special
-        pushes that contain all their data within the websocket stream.
-        They are generally used for device mirroring and universal copy/paste,
-        but they can be used to pass other data programmatically as well.
+        The types parameter can be used to limit which kinds of pushes
+        are returned in an async for loop or the next_push() call.
+        The default is to show actual pushes only, not ephemerals.
+        The possible values in the tuple at this time are only
+        push, ephemeral, and ephemeral:xxx where xxx is matched to
+        the "type" parameter if the ephemeral payload has that.
+        For instance to listen only for the universal copy/paste
+        pushes, you could pass in the tuple ("ephemeral:clip",).
 
         :param account: the AsyncPushbullet object that represents the account
         :param ignore_inactive: ignore inactive pushes, defaults to true
         :param ignore_dismissed:  ignore dismissed pushes, defaults to true
         :param only_this_device_nickname: only show pushes from this device
-        :param ephemerals_only: only show ephemeral pushes, default is false
+        :param types: the types of pushes to show
         """
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
@@ -47,10 +50,12 @@ class PushListener2:
         self._ignore_inactive = ignore_inactive  # type: bool
         self._ignore_dismissed = ignore_dismissed  # type: bool
         self._only_this_device_nickname = only_this_device_nickname  # type: str
-        self.ephemerals_only = ephemerals_only  # type: bool
         self._ws_client = None  # type: WebsocketClient
         self._loop = None  # type: asyncio.BaseEventLoop
         self._queue = None  # type: asyncio.Queue
+
+        self.push_types = types  # type: Tuple[str]
+        self.ephemeral_types = tuple([x.split(":")[-1] for x in self.push_types if len(x.split(":")) > 1])
 
     async def close(self):
         await self._ws_client.close()
@@ -102,12 +107,29 @@ class PushListener2:
 
     async def _process_pushbullet_message(self, msg: dict):
 
-        # Look for ephemeral message
+        # Look for ephemeral messages
+        # Takes special processing to sort through ephemerals.
+        # Example values in self.push_types: ephemeral, ephemeral:clip
         if "type" in msg and "push" in msg:  # Ephemeral
-            await self._queue.put(msg)
+
+            # If we're looking for ALL ephemerals, that's easy
+            if self.push_types == () or "ephemeral" in self.push_types:
+                await self._queue.put(msg)
+
+            elif len(self.ephemeral_types) > 0:
+
+                # See if there is a sub-type in the ephemeral
+                sub_push = msg.get("push")
+                if type(sub_push) is dict:
+                    sub_type = sub_push.get("type")
+                    if sub_type is not None and sub_type in self.ephemeral_types:
+                        await self._queue.put(msg)
+
+
 
         # Look for websocket message announcing new pushes
-        elif not self.ephemerals_only and msg == {'type': 'tickle', 'subtype': 'push'}:
+        elif ("push" in self.push_types or self.push_types == ()) and \
+                msg == {'type': 'tickle', 'subtype': 'push'}:
 
             pushes = await self.account.async_get_pushes(modified_after=self.account.most_recent_timestamp,
                                                          filter_inactive=self._ignore_inactive)
@@ -177,4 +199,3 @@ class PushListener2:
         else:
             push = await asyncio.wait_for(self.next_push(), timeout=timeout)
             return push
-

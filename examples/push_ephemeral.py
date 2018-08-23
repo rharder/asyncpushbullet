@@ -17,11 +17,11 @@ def main():
     pb = AsyncPushbullet(API_KEY, proxy=proxy)
 
     msg = {"foo": "bar", 42: "23"}
-    msg["io"] = "synchronous"
+    msg["type"] = "synchronous"
     pb.push_ephemeral(msg)  # Synchronous IO
 
     async def _run():
-        msg["io"] = "asynchronous"
+        msg["type"] = "asynchronous"
         await pb.async_push_ephemeral(msg)  # Asynchronous IO
 
         await pb.async_close()

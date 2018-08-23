@@ -30,14 +30,14 @@ def main_new_listener():
     async def _run():
         try:
             account = AsyncPushbullet(api_key=API_KEY, proxy=proxy, verify_ssl=False)
-            async with PushListener2(account, ephemerals_only=False) as pl2:
+            async with PushListener2(account) as pl2:
 
                 # Illustrate waiting for a single push with 3 second timeout
-                try:
-                    push = await pl2.next_push(timeout=3)
-                    print("Push:", push)
-                except futures.TimeoutError:
-                    print("timed out - now listening indefinitely...")
+                # try:
+                #     push = await pl2.next_push(timeout=3)
+                #     print("Push:", push)
+                # except futures.TimeoutError:
+                #     print("timed out - now listening indefinitely...")
 
                 # Wait indefinitely for pushes
                 async for push in pl2:

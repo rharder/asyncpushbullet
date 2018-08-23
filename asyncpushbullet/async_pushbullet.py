@@ -349,7 +349,7 @@ class AsyncPushbullet(Pushbullet):
         xfer["msg"] = await self._async_post_data(self.EPHEMERALS_URL, json=data)
         return next(gen)  # Post process
 
-    async def async_push_ephemeral(self, payload: dict) -> dict:
+    async def async_push_ephemeral(self, payload) -> dict:
         gen = self._push_ephemeral_generator(payload)
         xfer = next(gen)  # Prep params
         data = xfer.get("data")

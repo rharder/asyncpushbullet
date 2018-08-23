@@ -161,7 +161,6 @@ class Pushbullet:
             msg = next(gen)
         return msg
 
-
     def _get_data_with_pagination_generator(self, url: str, item_name: str, **kwargs):
         msg = {}
         items = []
@@ -201,7 +200,6 @@ class Pushbullet:
         """ Helper for generic push """
         msg = self._post_data(Pushbullet.PUSH_URL, data=json.dumps(data))
         return msg
-
 
     @staticmethod
     def _recipient(device: Device = None, chat: Chat = None,
@@ -285,7 +283,6 @@ class Pushbullet:
             self._load_devices()  # Refresh cache once
             x = _get()
         return x
-
 
     def new_device(self, nickname: str, manufacturer: str = None,
                    model: str = None, icon: str = "system") -> Device:
@@ -573,7 +570,7 @@ class Pushbullet:
         yield xfer  # Do IO
         yield xfer["msg"]
 
-    def push_ephemeral(self, data:dict) -> dict:
+    def push_ephemeral(self, data) -> dict:
         gen = self._push_ephemeral_generator(data)
         xfer = next(gen)  # Prep http params
         data = xfer.get("data")
@@ -581,12 +578,8 @@ class Pushbullet:
         resp = next(gen)  # Post process response
         return resp
 
-    def _push_ephemeral_generator(self, payload:dict):
-        data = {
-            "type": "push",
-            "push": payload
-        }
-
+    def _push_ephemeral_generator(self, payload):
+        data = {"type": "push", "push": payload}
         xfer = {"data": data}
         yield xfer  # Do IO
         yield xfer["msg"]
