@@ -24,11 +24,11 @@ if sys.argv[-1] == 'publish':
     sys.exit()
 
 install_reqs = [
-    "requests>=1.0.0",
+    "requests",
     "python-magic",
     "aiohttp",
     "tqdm"#,
-#    "pillow"
+   # "pillow"
 ]
 
 

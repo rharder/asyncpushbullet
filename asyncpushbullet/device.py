@@ -14,6 +14,7 @@ class Device:
     def __init__(self, account, device_info):
         self._account = account
         self.device_iden = device_info.get("iden")
+        self.device_info = device_info
         if not device_info.get("icon", None):
             device_info["icon"] = "system"
         for attr in self.DEVICE_ATTRIBUTES:
@@ -61,54 +62,54 @@ class Device:
                                           .format(self.device_iden), attr_str)
         return _str
 
-    @property
-    def push_token(self):
-        return getattr(self, "push_token")
-
-    @property
-    def app_version(self):
-        return getattr(self, "app_version")
-
-    @property
-    def fingerprint(self):
-        return getattr(self, "fingerprint")
-
-    @property
-    def created(self):
-        return getattr(self, "created")
-
-    @property
-    def modified(self):
-        return getattr(self, "modified")
-
-    @property
-    def active(self):
-        return getattr(self, "active")
-
-    @property
-    def nickname(self):
-        return getattr(self, "nickname")
-
-    @property
-    def generated_nickname(self):
-        return getattr(self, "generated_nickname")
-
-    @property
-    def manufacturer(self):
-        return getattr(self, "manufacturer")
-
-    @property
-    def icon(self):
-        return getattr(self, "icon")
-
-    @property
-    def model(self):
-        return getattr(self, "model")
-
-    @property
-    def has_sms(self):
-        return getattr(self, "has_sms")
-
-    @property
-    def key_fingerprint(self):
-        return getattr(self, "key_fingerprint")
+    # @property
+    # def push_token(self):
+    #     return getattr(self, "push_token")
+    #
+    # @property
+    # def app_version(self):
+    #     return getattr(self, "app_version")
+    #
+    # @property
+    # def fingerprint(self):
+    #     return getattr(self, "fingerprint")
+    #
+    # @property
+    # def created(self):
+    #     return getattr(self, "created")
+    #
+    # @property
+    # def modified(self):
+    #     return getattr(self, "modified")
+    #
+    # @property
+    # def active(self):
+    #     return getattr(self, "active")
+    #
+    # @property
+    # def nickname(self):
+    #     return getattr(self, "nickname")
+    #
+    # @property
+    # def generated_nickname(self):
+    #     return getattr(self, "generated_nickname")
+    #
+    # @property
+    # def manufacturer(self):
+    #     return getattr(self, "manufacturer")
+    #
+    # @property
+    # def icon(self):
+    #     return getattr(self, "icon")
+    #
+    # @property
+    # def model(self):
+    #     return getattr(self, "model")
+    #
+    # @property
+    # def has_sms(self):
+    #     return getattr(self, "has_sms")
+    #
+    # @property
+    # def key_fingerprint(self):
+    #     return getattr(self, "key_fingerprint")

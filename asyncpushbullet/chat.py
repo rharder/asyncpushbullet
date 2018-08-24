@@ -32,42 +32,42 @@ class Chat:
     def __str__(self):
         return "Chat('{0}' <{1}>)".format(self.with_name, self.with_email_normalized)
 
-    @property
-    def active(self):
-        return getattr(self, "active")
-
-    @property
-    def created(self):
-        return getattr(self, "created")
-
-    @property
-    def modified(self):
-        return getattr(self, "modified")
-
-    @property
-    def muted(self):
-        return getattr(self, "muted")
-
-    @property
-    def with_email(self):
-        return getattr(self, "with_email")
-
-    @property
-    def with_email_normalized(self):
-        return getattr(self, "with_email_normalized")
-
-    @property
-    def with_iden(self):
-        return getattr(self, "with_iden")
-
-    @property
-    def with_image_url(self):
-        return getattr(self, "with_image_url")
-
-    @property
-    def with_type(self):
-        return getattr(self, "with_type")
-
-    @property
-    def with_name(self):
-        return getattr(self, "with_name")
+    # @property
+    # def active(self):
+    #     return getattr(self, "active")
+    #
+    # @property
+    # def created(self):
+    #     return getattr(self, "created")
+    #
+    # @property
+    # def modified(self):
+    #     return getattr(self, "modified")
+    #
+    # @property
+    # def muted(self):
+    #     return getattr(self, "muted")
+    #
+    # @property
+    # def with_email(self):
+    #     return getattr(self, "with_email")
+    #
+    # @property
+    # def with_email_normalized(self):
+    #     return getattr(self, "with_email_normalized")
+    #
+    # @property
+    # def with_iden(self):
+    #     return getattr(self, "with_iden")
+    #
+    # @property
+    # def with_image_url(self):
+    #     return getattr(self, "with_image_url")
+    #
+    # @property
+    # def with_type(self):
+    #     return getattr(self, "with_type")
+    #
+    # @property
+    # def with_name(self):
+    #     return getattr(self, "with_name")

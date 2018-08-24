@@ -221,7 +221,7 @@ class GuiToolApp():
             pl2 = None  # type: PushListener2
             try:
                 await self.verify_key()
-                async with PushListener2(self.pushbullet) as pl2:
+                async with PushListener2(self.pushbullet, types=()) as pl2:
                     self.pushbullet_listener = pl2
                     await self.pushlistener_connected(pl2)
 
@@ -259,6 +259,8 @@ class GuiToolApp():
 
             except Exception as ex:
                 self.lb_device.delete(0, tk.END)
+                self.status = "Error retrieving devices: {}".format(ex)
+                ex.with_traceback()
                 raise ex
             finally:
                 self.btn_load_devices.configure(state=tk.NORMAL)
@@ -335,10 +337,10 @@ class GuiToolApp():
                                 self.log.info("Loaded user image from url {}".format(image_url))
 
                     except Exception as ex:
-                        print(ex)
+                        # print(ex)
                         print("To include image support: pip install pillow")
-                        ex.with_traceback()
-                        raise ex
+                        # ex.with_traceback()
+                        # raise ex
 
                 asyncio.get_event_loop().create_task(_load_pic())
 
