@@ -2,6 +2,8 @@
 build/
 dist/
 pushbullet.py.egg-info/
+asyncpushbullet.egg-info/
 .env
 .idea
 api_key.txt
+venv/
