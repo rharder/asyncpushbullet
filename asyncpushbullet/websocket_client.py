@@ -125,7 +125,7 @@ class WebsocketClient():
                 sai = StopAsyncIteration()
                 await self._queue.put(sai)
 
-        asyncio.create_task(_listen_for_messages())
+        asyncio.get_event_loop().create_task(_listen_for_messages())
         await asyncio.sleep(0)
 
         return self

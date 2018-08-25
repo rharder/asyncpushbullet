@@ -14,7 +14,7 @@ API_KEY = ""  # YOUR API KEY
 
 def main():
     proxy = os.environ.get("https_proxy") or os.environ.get("http_proxy")
-    pb = AsyncPushbullet(API_KEY, proxy=proxy)
+    pb = AsyncPushbullet(API_KEY, proxy=proxy, verify_ssl=False)
 
     msg = {"foo": "bar", 42: "23"}
     msg["type"] = "synchronous"

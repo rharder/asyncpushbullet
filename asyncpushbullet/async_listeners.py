@@ -82,7 +82,7 @@ class PushListener2:
                              proxy=self.account.proxy,
                              session=session)
         self._ws_client = await wc.__aenter__()
-        asyncio.create_task(_listen_for_pushes(wc))
+        asyncio.get_event_loop().create_task(_listen_for_pushes(wc))
         await asyncio.sleep(0)
 
         return self
