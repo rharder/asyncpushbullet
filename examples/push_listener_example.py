@@ -30,7 +30,7 @@ def main_new_listener():
     async def _run():
         try:
             account = AsyncPushbullet(api_key=API_KEY, proxy=proxy, verify_ssl=False)
-            async with PushListener2(account, types=["push"]) as pl2:
+            async with PushListener2(account, types=()) as pl2:
 
                 # Illustrate waiting for a single push with 3 second timeout
                 # try:

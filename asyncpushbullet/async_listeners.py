@@ -113,10 +113,10 @@ class PushListener2:
         if "type" in msg and "push" in msg:  # Ephemeral
 
             # If we're looking for ALL ephemerals, that's easy
-            if self.push_types == () or "ephemeral" in self.push_types:
+            if not self.push_types or "ephemeral" in self.push_types:
                 await self._queue.put(msg)
 
-            elif len(self.ephemeral_types) > 0:
+            elif self.ephemeral_types:  # If items in the list
 
                 # See if there is a sub-type in the ephemeral
                 sub_push = msg.get("push")
@@ -128,7 +128,7 @@ class PushListener2:
 
 
         # Look for websocket message announcing new pushes
-        elif ("push" in self.push_types or self.push_types == ()) and \
+        elif ("push" in self.push_types or not self.push_types) and \
                 msg == {'type': 'tickle', 'subtype': 'push'}:
 
             pushes = await self.account.async_get_pushes(modified_after=self.account.most_recent_timestamp,
@@ -181,7 +181,9 @@ class PushListener2:
             raise StopAsyncIteration("The websocket has closed.")
 
         try:
+            print("awaiting next push")
             push = await self.next_push()
+            print("push",push)
         except Exception as e:
             raise StopAsyncIteration(e)
 

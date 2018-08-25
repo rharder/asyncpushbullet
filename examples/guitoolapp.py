@@ -284,7 +284,7 @@ class GuiToolApp():
     async def pushlistener_connected(self, listener: PushListener2):
         self.status = "Connected to Pushbullet"
         try:
-            me = self.pushbullet.user_info
+            me = await self.pushbullet.async_get_user()
             self.status = "Connected to Pushbullet: {}".format(me.get("name"))
 
         except Exception as ex:
