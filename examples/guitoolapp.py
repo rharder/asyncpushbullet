@@ -302,8 +302,11 @@ class GuiToolApp():
 
     async def push_received(self, p: dict, listener: PushListener2):
         # print("Push received:", p)
+        push_type = p.get("type")
+        if push_type == "push":
+            push_type = "ephemeral"
         prev = self.pushes_var.get()
-        prev += "{}\n\n".format(pprint.pformat(p))
+        prev += "Type: {}\n{}\n\n".format(push_type, pprint.pformat(p))
         self.pushes_var.set(prev)
 
     # ########  O T H E R  ########
