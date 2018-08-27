@@ -45,14 +45,17 @@ optional arguments:
 """
 import argparse
 import asyncio
+import io
 import json
 import logging
 import os
+import pprint
 import sys
 import textwrap
 import threading
 import time
 from functools import partial
+from typing import List
 
 from asyncpushbullet import Device
 from asyncpushbullet import InvalidKeyError
@@ -79,11 +82,15 @@ __ERR_UNKNOWN__ = 99
 # sys.argv.append("-h")
 # sys.argv += ["-k", "badkey"]
 sys.argv += ["--key-file", "../api_key.txt"]
-sys.argv.append("--echo")
+# sys.argv.append("--echo")
 # sys.argv += ["--proxy", ""]
 # sys.argv.append("--list-devices")
-sys.argv += ["--exec", r"C:\windows\System32\notepad.exe"]
-sys.argv += ["--exec", r"C:\windows\System32\clip.exe"]
+# sys.argv += ["--exec", r"C:\windows\System32\clip.exe"]
+# sys.argv += ["--exec", r"C:\windows\System32\notepad.exe"]
+sys.argv += ["--exec", r"c:\python37-32\python.exe",
+             r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_exec.py"]
+# sys.argv += ["--exec", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\hello.py"]
+# sys.argv += ["--exec", r"C:\windows\System32\notepad.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_exec.py"]
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -94,6 +101,7 @@ DEFAULT_THROTTLE_SECONDS = 10
 def main():
     args = parse_args()
     do_main(args)
+
 
 def do_main(args):
     # Key
@@ -199,12 +207,10 @@ def do_main(args):
 
     loop = asyncio.get_event_loop()
 
-
     # async def _timeout():
     #     await asyncio.sleep(2)
     #     await listen_app.close()
     # loop.create_task(_timeout())
-
 
     exit_code = None
     try:
@@ -287,7 +293,13 @@ class Action:
     def __init__(self):
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
-    async def do(self, push: dict, pb: AsyncPushbullet):#, device: Device):
+    async def do(self, push: dict, app):  # pb: AsyncPushbullet):#, device: Device):
+        """
+
+        :param push:
+        :param ListenApp app:
+        :return:
+        """
         pass
 
     def __repr__(self):
@@ -297,7 +309,7 @@ class Action:
 class EchoAction(Action):
     """ Echoes pushes in json format to standard out. """
 
-    async def do(self, push: dict, pb: AsyncPushbullet):#, device:Device):
+    async def do(self, push: dict, app):  # pb: AsyncPushbullet):  # , device:Device):
         json_push = json.dumps(push)
         print(json_push, end="\n\n", flush=True)
 
@@ -354,26 +366,27 @@ class ExecutableAction(Action):
     def __repr__(self):
         return "{}({} {})".format(super().__repr__(), self.path_to_executable, " ".join(self.args_for_exec))
 
-    async def do(self, push: dict, pb: AsyncPushbullet):#, device:Device):
+    async def do(self, push: dict, app):  # pb: AsyncPushbullet):  # , device:Device):
         io_loop = asyncio.get_event_loop()  # Loop handling the pushbullet IO
 
         async def _on_proc_loop():
             # Launch process
             try:
-                print("Launching process", self.path_to_executable, self.args_for_exec)
+                print("Launching process", self.path_to_executable, *self.args_for_exec)
                 proc = await asyncio.create_subprocess_exec(self.path_to_executable,
                                                             *self.args_for_exec,
                                                             stdin=asyncio.subprocess.PIPE,
                                                             stdout=asyncio.subprocess.PIPE,
                                                             stderr=asyncio.subprocess.PIPE)
             except Exception as e:
-                self.log.error("Error occurred while trying to launch script. ({}): {}"
+                self.log.error("Error occurred while trying to launch executable. ({}): {}"
                                .format(self.path_to_executable, e))
 
             else:
 
                 # Pass the incoming push via stdin (json form)
-                input_bytes = self.transform_push_to_stdin_data(push)
+                json_push = json.dumps(push)
+                input_bytes = json_push.encode(__encoding__)
 
                 try:
                     stdout_data, stderr_data = await asyncio.wait_for(proc.communicate(input=input_bytes),
@@ -384,29 +397,27 @@ class ExecutableAction(Action):
                 else:
                     # Process response from subprocess
                     asyncio.run_coroutine_threadsafe(
-                        self.handle_process_response(stdout_data, stderr_data, pb),
+                        self.handle_process_response(stdout_data, stderr_data, app),
                         loop=io_loop)
                     pass
 
         asyncio.run_coroutine_threadsafe(_on_proc_loop(), self.proc_loop)
 
-    def transform_push_to_stdin_data(self, push: dict) -> bytes:
-        json_push = json.dumps(push)
-        input_bytes = json_push.encode(__encoding__)
-        return input_bytes
-
-    async def handle_process_response(self, stdout_data: bytes, stderr_data: bytes, pb: AsyncPushbullet):#, device:Device):
+    async def handle_process_response(self, stdout_data: bytes, stderr_data: bytes, app):
+        # pb: AsyncPushbullet):  # , device:Device):
+        print("handle_process_response")
         # stdout_data = b"hello world"
         # await asyncio.sleep(1)
 
         # There's a problem with a push be sent in response and then that push is responded
         # to etc and then an infinite loop.
-        return
-        raise Exception("Not yet implemented.")
+
+        # raise Exception("Not yet implemented.")
 
         # Any stderr output?
         if stderr_data != b"":
             self.log.error("Error from {}: {}".format(repr(self), stderr_data))
+            await app.respond(title="Error", body=str(stderr_data))
 
         # Any stdout output?
         if stdout_data != b"":
@@ -416,29 +427,55 @@ class ExecutableAction(Action):
             resp = {}
             raw_data = None
             try:
+                print("Decoding this:")
                 raw_data = stdout_data.decode(__encoding__, "replace")
+                print(raw_data)
                 resp = json.loads(raw_data)
-            except json.decoder.JSONDecodeError as e:
+            # except json.decoder.JSONDecodeError as e:
+            except Exception as e:
                 resp["body"] = raw_data
+                resp["error"] = str(e)
+                print("NEW RESPONSE:")
+                pprint.pprint(resp)
+
+                pass
 
             # Single push response
-            if "title" in resp or "body" in resp:
-                title = str(resp.get("title"))
-                body = str(resp.get("body"))
-                push_resp = await pb.async_push_note(title=title, body=body, device=device)
-                # push_resp = await device.push_note(title=title, body=body)
-                print("Push Resp:", push_resp)
+            title = str(resp.get("title"))
+            body = str(resp.get("body"))
+            if resp.get("type") == "file":
+                print("SENDING FILE PUSH")
+                file_type = resp.get("file_type")
+                file_url = resp.get("file_url")
+                file_name = resp.get("file_name")
+                await app.respond_file(file_name=file_name,
+                                       file_url=file_url,
+                                       file_type=file_type,
+                                       title=title,
+                                       body=body)
+
+            elif "title" in resp or "body" in resp:
+                print("basic response")
+                await app.respond(body=body, title=title)
+            # push_resp = await pb.async_push_note(title=title, body=body)
+
+            # push_resp = await device.push_note(title=title, body=body)
+            # print("Push Resp:", push_resp)
 
             # Multiple pushes response
-            pushes = resp.get("pushes", [])
-            if type(pushes) == list:
-                for push in pushes:  # type: dict
-                    if type(push) == dict:
-                        title = push.get("title", "no title")
-                        body = push.get("body", "no body")
-                        await pb.async_push_note(title=title, body=body, device=device.device_iden)
-                    else:
-                        self.log.error("A push response was received but was not in dictionary form: {}".format(resp))
+            # pushes = resp.get("pushes", [])
+            # if type(pushes) == list:
+            #     for push in pushes:  # type: dict
+            #         if type(push) == dict:
+            #             title = push.get("title", "no title")
+            #             body = push.get("body", "no body")
+            #             # await pb.async_push_note(title=title, body=body)
+            #         else:
+            #             self.log.error("A push response was received but was not in dictionary form: {}".format(resp))
+            pass
+            pass
+            print("exiting handle_process_response")
+            pass
 
 
 class ExecutableActionSimplified(ExecutableAction):
@@ -459,7 +496,7 @@ class ExecutableActionSimplified(ExecutableAction):
         output_bytes = output.encode(__encoding__)
         return output_bytes
 
-    async def handle_process_response(self, stdout_data: bytes, stderr_data: bytes, pb: AsyncPushbullet):
+    async def handle_process_response(self, stdout_data: bytes, stderr_data: bytes, app):  # pb: AsyncPushbullet):
 
         if stdout_data != b"":
             data = stdout_data.decode(__encoding__, "replace")
@@ -471,7 +508,7 @@ class ExecutableActionSimplified(ExecutableAction):
                 resp = {"pushes": [{"title": title, "body": body}]}
                 stdout_data = json.dumps(resp).encode(__encoding__)
 
-        await super().handle_process_response(stdout_data=stdout_data, stderr_data=stderr_data, pb=pb)
+        await super().handle_process_response(stdout_data=stdout_data, stderr_data=stderr_data, app=app)  # pb=pb)
 
 
 class ListenApp:
@@ -490,6 +527,7 @@ class ListenApp:
         self.actions = []  # type: [Action]
         self._listener = None  # type: PushListener2
         self.app_device = None  # type: Device
+        self.sent_push_idens = []  # type: List[str]
 
     def add_action(self, action: Action):
         self.actions.append(action)
@@ -515,6 +553,22 @@ class ListenApp:
             stall = future_time - time.time()
             self.log.warning("Throttling pushes that are coming too fast. Stalling {:0.1f} seconds ...".format(stall))
             await asyncio.sleep(stall)
+
+    async def respond(self, title=None, body=None, type="note"):
+        """Actions can use this to respond to a push."""
+        print("Responding with title={}, body={}".format(title, body), flush=True)
+        resp = await self.pb.async_push_note(title=title, body=body)
+        self.sent_push_idens.append(resp.get("iden"))
+
+    async def respond_file(self, file_name: str, file_url: str, file_type: str,
+                           body: str = None, title: str = None) -> dict:
+        print("Responding with file push")
+        resp = await self.pb.async_push_file(file_name=file_name,
+                                             file_url=file_url,
+                                             file_type=file_type,
+                                             title=title,
+                                             body=body)
+        self.sent_push_idens.append(resp.get("iden"))
 
     async def run(self):
         try:
@@ -542,6 +596,11 @@ class ListenApp:
 
                     await self._throttle()
 
+                    if push.get("iden") in self.sent_push_idens:
+                        # This is one we sent - ignore it
+                        print("Received a push we sent. Ignoring it.")
+                        continue
+
                     # First ignore pushes that came from this app
                     if "source_device_iden" in push:
                         if push["source_device_iden"] == self.app_device.device_iden:
@@ -552,7 +611,7 @@ class ListenApp:
                     for action in self.actions:  # type: Action
                         self.log.debug("Calling action {}".format(repr(action)))
                         try:
-                            await action.do(push, self.pb)#, self.app_device)
+                            await action.do(push, self)  # self.pb)  # , self.app_device)
                             await asyncio.sleep(0)
                         except Exception as ex:
                             print("Action {} caused exception {}".format(action, ex))
@@ -563,7 +622,6 @@ class ListenApp:
             return __ERR_UNKNOWN__  # exit code
 
         return 0
-
 
 
 if __name__ == "__main__":
