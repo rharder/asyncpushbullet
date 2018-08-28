@@ -171,7 +171,8 @@ def do_main(args):
         proc_loop = asyncio.ProactorEventLoop()
         print("On win32--using ProactorEventLoop.")
     else:
-        proc_loop = asyncio.new_event_loop()
+        proc_loop = asyncio.new_event_loop()  # Processes
+        asyncio.get_child_watcher()  # Main loop
 
     def _run(loop):
         asyncio.set_event_loop(loop)
@@ -200,7 +201,6 @@ def do_main(args):
         listen_app.add_action(EchoAction())
 
     loop = asyncio.get_event_loop()
-    asyncio.get_child_watcher()
 
     exit_code = None
     try:
@@ -436,6 +436,8 @@ class ExecutableAction(Action):
                     # Interpret structures response
                     title = _resp.get("title")
                     body = _resp.get("body")
+                    dev_iden = _resp.get("device_iden")
+                    # device = None if dev_iden is None else Device(None, {"iden":dev_iden})
 
                     if _resp.get("type") == "file":
                         file_type = _resp.get("file_type")
@@ -445,9 +447,10 @@ class ExecutableAction(Action):
                                                file_url=file_url,
                                                file_type=file_type,
                                                title=title,
-                                               body=body)
+                                               body=body,
+                                               device_iden=dev_iden)
                     else:
-                        await app.respond(title=title, body=body)
+                        await app.respond(title=title, body=body, device_iden=dev_iden)
 
                 if type(response) == list:
                     for resp in response:
@@ -539,20 +542,24 @@ class ListenApp:
             self.log.warning("Throttling pushes that are coming too fast. Stalling {:0.1f} seconds ...".format(stall))
             await asyncio.sleep(stall)
 
-    async def respond(self, title=None, body=None, type="note"):
+    async def respond(self, title=None, body=None, type="note", device_iden=None):
         """Actions can use this to respond to a push."""
-        print("Responding with title={}, body={}".format(title, body), flush=True)
-        resp = await self.pb.async_push_note(title=title, body=body)
+        # print("Responding with title={}, body={}".format(title, body), flush=True)
+        device = Device(None, {"iden":device_iden})
+        resp = await self.pb.async_push_note(title=title, body=body, device=device)
         self.sent_push_idens.append(resp.get("iden"))
 
     async def respond_file(self, file_name: str, file_url: str, file_type: str,
-                           body: str = None, title: str = None) -> dict:
-        print("Responding with file push")
+                           body: str = None, title: str = None, device_iden=None):
+        # print("Responding with file push")
+        device = None if device_iden is None else Device(None, {"iden": device_iden})
+        # print("DEVICE:", device)
         resp = await self.pb.async_push_file(file_name=file_name,
                                              file_url=file_url,
                                              file_type=file_type,
                                              title=title,
-                                             body=body)
+                                             body=body,
+                                             device=device)
         self.sent_push_idens.append(resp.get("iden"))
 
     async def run(self):
@@ -587,11 +594,11 @@ class ListenApp:
                         continue
 
                     # First ignore pushes that came from this app
-                    if "source_device_iden" in push:
-                        if push["source_device_iden"] == self.app_device.device_iden:
-                            # Ignore this push
-                            print("Got a push from myself. Ignoring it:", push)
-                            continue  # next push in pl2
+                    # if "source_device_iden" in push:
+                    #     if push["source_device_iden"] == self.app_device.device_iden:
+                    #         # Ignore this push
+                    #         print("Got a push from myself. Ignoring it:", push)
+                    #         continue  # next push in pl2
 
                     for action in self.actions:  # type: Action
                         self.log.debug("Calling action {}".format(repr(action)))

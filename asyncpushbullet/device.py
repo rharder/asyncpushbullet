@@ -9,7 +9,7 @@ from .helpers import use_appropriate_encoding
 class Device:
     DEVICE_ATTRIBUTES = ("push_token", "app_version", "fingerprint", "created", "modified",
                          "active", "nickname", "generated_nickname", "manufacturer", "icon",
-                         "model", "has_sms", "key_fingerprint")
+                         "model", "has_sms", "key_fingerprint", "iden")
 
     def __init__(self, account, device_info):
         self._account = account

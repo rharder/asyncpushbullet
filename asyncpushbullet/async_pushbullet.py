@@ -327,18 +327,30 @@ class AsyncPushbullet(Pushbullet):
         msg = await self._async_delete_data(self.PUSH_URL)
         return msg
 
-    async def async_push_note(self, title: str, body: str, device: Device = None,
-                              chat: Chat = None, email: str = None, channel: Channel = None) -> dict:
+    async def async_push_note(self, title: str,
+                              body: str,
+                              device: Device = None,
+                              chat: Chat = None,
+                              email: str = None,
+                              channel: Channel = None) -> dict:
         data = {"type": "note", "title": title, "body": body}
-        data.update(Pushbullet._recipient(device, chat, email, channel))
+        data.update(Pushbullet._recipient(device=device,
+                                          chat=chat,
+                                          email=email,
+                                          channel=channel))
         msg = await self._async_push(data)
         return msg
 
     async def async_push_link(self, title: str, url: str, body: str = None,
-                              device: Device = None, chat: Chat = None, email: str = None,
+                              device: Device = None,
+                              chat: Chat = None,
+                              email: str = None,
                               channel: Channel = None) -> dict:
         data = {"type": "link", "title": title, "url": url, "body": body}
-        data.update(Pushbullet._recipient(device, chat, email, channel))
+        data.update(Pushbullet._recipient(device=device,
+                                          chat=chat,
+                                          email=email,
+                                          channel=channel))
         msg = await self._async_push(data)
         return msg
 
@@ -395,8 +407,10 @@ class AsyncPushbullet(Pushbullet):
         return next(gen)  # Prep response
 
     async def async_push_file(self, file_name: str, file_url: str, file_type: str,
-                              body: str = None, title: str = None, device: Device = None,
-                              chat: Chat = None, email: str = None,
+                              body: str = None, title: str = None,
+                              device: Device = None,
+                              chat: Chat = None,
+                              email: str = None,
                               channel: Channel = None) -> dict:
         gen = self._push_file_generator(file_name, file_url, file_type, body=body, title=title,
                                         device=device, chat=chat, email=email, channel=channel)
