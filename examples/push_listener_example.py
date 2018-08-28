@@ -17,6 +17,7 @@ __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
 
 API_KEY = ""  # YOUR API KEY
+PROXY = os.environ.get("https_proxy") or os.environ.get("http_proxy")
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
@@ -25,11 +26,10 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 # logging.getLogger("pushbullet.async_listeners").setLevel(logging.DEBUG)
 
 def main_new_listener():
-    proxy = os.environ.get("https_proxy") or os.environ.get("http_proxy")
 
     async def _run():
         try:
-            account = AsyncPushbullet(api_key=API_KEY, proxy=proxy, verify_ssl=False)
+            account = AsyncPushbullet(api_key=API_KEY, proxy=PROXY, verify_ssl=False)
             async with PushListener2(account, types=()) as pl2:
 
                 # Illustrate waiting for a single push with 3 second timeout

@@ -15,13 +15,13 @@ __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
 
 API_KEY = ""  # YOUR API KEY
+PROXY = os.environ.get("https_proxy") or os.environ.get("http_proxy")
 
 
 def main():
     """ Uses a callback scheduled on an event loop"""
 
-    proxy = os.environ.get("https_proxy") or os.environ.get("http_proxy")
-    pb = AsyncPushbullet(API_KEY, verify_ssl=False, proxy=proxy)
+    pb = AsyncPushbullet(API_KEY, verify_ssl=False, proxy=PROXY)
     loop = asyncio.get_event_loop()
     loop.run_until_complete(upload_file(pb, __file__))  # Upload this source code file as an example
 

@@ -10,11 +10,11 @@ __author__ = "Robert Harder"
 __email__ = "rob@iharder.net"
 
 API_KEY = ""  # YOUR API KEY
+PROXY = os.environ.get("https_proxy") or os.environ.get("http_proxy")
 
 
 def main():
-    proxy = os.environ.get("https_proxy") or os.environ.get("http_proxy")
-    pb = AsyncPushbullet(API_KEY, proxy=proxy, verify_ssl=False)
+    pb = AsyncPushbullet(API_KEY, proxy=PROXY, verify_ssl=False)
 
     msg = {"foo": "bar", 42: "23"}
     msg["type"] = "synchronous"

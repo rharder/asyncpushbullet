@@ -125,8 +125,6 @@ class PushListener2:
                     if sub_type is not None and sub_type in self.ephemeral_types:
                         await self._queue.put(msg)
 
-
-
         # Look for websocket message announcing new pushes
         elif ("push" in self.push_types or not self.push_types) and \
                 msg == {'type': 'tickle', 'subtype': 'push'}:
@@ -181,9 +179,8 @@ class PushListener2:
             raise StopAsyncIteration("The websocket has closed.")
 
         try:
-            print("awaiting next push")
             push = await self.next_push()
-            print("push",push)
+
         except Exception as e:
             raise StopAsyncIteration(e)
 

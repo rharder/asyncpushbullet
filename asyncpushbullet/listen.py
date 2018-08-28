@@ -83,9 +83,11 @@ sys.argv += ["--key-file", "../api_key.txt"]
 # sys.argv += ["--proxy", ""]
 # sys.argv.append("--list-devices")
 # sys.argv += ["--exec", r"C:\windows\System32\clip.exe"]
-# sys.argv += ["--exec", r"C:\windows\System32\notepad.exe"]
+# sys.argv += ["--exec", r"C:\windows\System32\notepa
+# d.exe"]
 # sys.argv += ["--exec", r"c:\python37-32\python.exe",
 #              r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_exec.py"]
+
 # sys.argv += ["--exec", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\hello.py"]
 # sys.argv += ["--exec", r"C:\windows\System32\notepad.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_exec.py"]
 
@@ -545,7 +547,7 @@ class ListenApp:
     async def respond(self, title=None, body=None, type="note", device_iden=None):
         """Actions can use this to respond to a push."""
         # print("Responding with title={}, body={}".format(title, body), flush=True)
-        device = Device(None, {"iden":device_iden})
+        device = None if device_iden is None else Device(None, {"iden": device_iden})
         resp = await self.pb.async_push_note(title=title, body=body, device=device)
         self.sent_push_idens.append(resp.get("iden"))
 

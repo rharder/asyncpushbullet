@@ -495,10 +495,7 @@ class Pushbullet:
         if len(pushes_list) > 0 and pushes_list[0].get('modified', 0) > self.most_recent_timestamp:
             self.most_recent_timestamp = pushes_list[0].get('modified')
 
-        if self.log.isEnabledFor(logging.INFO):
-            self.log.info("Retrieved {} push{}".format(len(pushes_list),
-                                                       "es" if len(pushes_list) > 1 else ""))
-        elif self.log.isEnabledFor(logging.DEBUG):
+        if self.log.isEnabledFor(logging.DEBUG):
             self.log.debug("Retrieved {} push{}: {}".format(len(pushes_list),
                                                             "es" if len(pushes_list) > 1 else "",
                                                             pprint.pformat(pushes_list)))

@@ -11,10 +11,11 @@ import sys
 import tempfile
 
 sys.path.append("..")  # Since examples are buried one level into source tree
-from asyncpushbullet import Pushbullet
+from asyncpushbullet import Pushbullet, AsyncPushbullet
 
 __encoding__ = "utf-8"
 API_KEY = ""  # YOUR API KEY
+PROXY = os.environ.get("https_proxy") or os.environ.get("http_proxy")
 
 
 def main():
@@ -46,12 +47,12 @@ def main():
                 # proc = subprocess.run(["notepad.exe", temp_img.name],
                                       stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE,
-                                      timeout=10,
+                                      # timeout=30,
                                       encoding=__encoding__)
 
                 # Upload picture
-                proxy = os.environ.get("https_proxy") or os.environ.get("http_proxy")
-                pb = Pushbullet(API_KEY, proxy=proxy)
+                # pb = Pushbullet(API_KEY, proxy=PROXY)
+                pb = AsyncPushbullet(API_KEY, proxy=PROXY, verify_ssl=False)
                 resp = pb.upload_file(temp_img.name)
                 file_type = resp.get("file_type")
                 file_url = resp.get("file_url")
