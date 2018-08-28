@@ -59,8 +59,8 @@ def main():
             try:
 
                 # PRETEND TO TAKE A PICTURE
-                fakepic = os.path.join(os.path.dirname(os.path.abspath(__file__)), "snapshot.jpg")
-                shutil.copy(fakepic, temp_img.name)
+                # fakepic = os.path.join(os.path.dirname(os.path.abspath(__file__)), "snapshot.jpg")
+                # shutil.copy(fakepic, temp_img.name)
 
                 # Take a picture
                 proc = subprocess.run(["imagesnap", f.name],
