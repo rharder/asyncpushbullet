@@ -19,6 +19,26 @@ PROXY = os.environ.get("https_proxy") or os.environ.get("http_proxy")
 
 
 def main():
+      #   TEMP = """{'active': true,
+      # 'awake_app_guids': ['web-vou977uqosgdtkfm00ohao'],
+      # 'body': 'imagesnap',
+      # 'created': 1535481590.9756641,
+      # 'direction': 'self',
+      # 'dismissed': false,
+      # 'guid': '4hcb7mun0e85ov8as58uo8',
+      # 'iden': 'ujzlLkPSZgqsjAyYJfiSLQ',
+      # 'modified': 1535481590.982829,
+      # 'receiver_email': 'robertharder@gmail.com',
+      # 'receiver_email_normalized': 'robertharder@gmail.com',
+      # 'receiver_iden': 'ujzlLkPSZgq',
+      # 'sender_email': 'robertharder@gmail.com',
+      # 'sender_email_normalized': 'robertharder@gmail.com',
+      # 'sender_iden': 'ujzlLkPSZgq',
+      # 'sender_name': 'Robert Harder',
+      # 'target_device_iden': 'ujzlLkPSZgqsjz5ARsslR6',
+      # 'type': 'note'}""".replace("'",'"')
+      #   recvd_push = json.loads(TEMP)
+
     with io.open(sys.stdin.fileno(), mode="r", encoding="utf-8") as f:
         stdin = f.read()
     try:
@@ -39,17 +59,16 @@ def main():
             try:
 
                 # PRETEND TO TAKE A PICTURE
-                # fakepic = os.path.join(os.path.dirname(os.path.abspath(__file__)), "snapshot.jpg")
-                # shutil.copy(fakepic, temp_img.name)
+                fakepic = os.path.join(os.path.dirname(os.path.abspath(__file__)), "snapshot.jpg")
+                shutil.copy(fakepic, temp_img.name)
 
                 # Take a picture
-                print("ENCODING: ({})".format(__encoding__))
                 proc = subprocess.run(["imagesnap", f.name],
                 # proc = subprocess.run(["notepad.exe", temp_img.name],
                                       stdout=subprocess.PIPE,
-                                      stderr=subprocess.PIPE,
+                                      stderr=subprocess.PIPE)#,
                                       # timeout=30,
-                                      encoding=__encoding__)
+                                      # encoding=__encoding__)
 
                 # Upload picture
                 # pb = Pushbullet(API_KEY, proxy=PROXY)
@@ -60,10 +79,12 @@ def main():
                 file_name = resp.get("file_name")
 
                 # Provide a response via stdout
+                stdout_txt = proc.stdout.decode(__encoding__, "replace")
+                stderr_txt = proc.stderr.decode(__encoding__, "replace")
                 myresp = {
                     "type": "file",
                     "title": "Imagesnap",
-                    "body": "{}\n{}".format(proc.stdout, proc.stderr).strip(),
+                    "body": "{}\n{}".format(stdout_txt, stderr_txt).strip(),
                     "file_name": file_name,
                     "file_type": file_type,
                     "file_url": file_url,
