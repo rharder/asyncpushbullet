@@ -29,9 +29,9 @@ def main():
 async def upload_file(pb: AsyncPushbullet, filename: str):
 
     # This is the actual upload command
-    # info = await pb.async_upload_file(filename)
-    # info = await pb.async_upload_file_to_transfer_sh(filename)
-    info = pb.upload_file_to_transfer_sh(filename)
+    # info = pb.upload_file_to_transfer_sh(filename)  # Synchro to pushbullet
+    info = await pb.async_upload_file(filename)  # Async to pushbullet
+    # info = await pb.async_upload_file_to_transfer_sh(filename)  # Async via transfer.sh
 
     # Push a notification of the upload "as a file":
     await pb.async_push_file(info["file_name"], info["file_url"], info["file_type"],

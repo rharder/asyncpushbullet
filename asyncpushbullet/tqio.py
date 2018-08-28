@@ -26,10 +26,12 @@ class tqio(io.BufferedReader):
         self.slow_it_down = slow_it_down
 
     def __enter__(self):
+        print(end="", flush=True)
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
+        print(flush=True)
 
     def read(self, *args, **kwargs):
         if self.slow_it_down:
