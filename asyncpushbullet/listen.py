@@ -600,7 +600,9 @@ class ListenApp:
                     for action in self.actions:  # type: Action
                         self.log.debug("Calling action {}".format(repr(action)))
                         try:
-                            asyncio.create_task(action.do(push, self))
+                            loop = asyncio.get_event_loop()
+                            loop.create_task(action.do(push, self))
+                            # asyncio.create_task(action.do(push, self))
                             # await action.do(push, self)  # self.pb)  # , self.app_device)
                             # await asyncio.sleep(0)
                         except Exception as ex:
