@@ -3,11 +3,9 @@
 Demonstrates how to consume new pushes in an asyncio for loop.
 """
 import asyncio
-import logging
 import os
 import pprint
 import sys
-from concurrent import futures
 
 sys.path.append("..")  # Since examples are buried one level into source tree
 from asyncpushbullet import AsyncPushbullet
@@ -19,25 +17,12 @@ __email__ = "rob@iharder.net"
 API_KEY = ""  # YOUR API KEY
 PROXY = os.environ.get("https_proxy") or os.environ.get("http_proxy")
 
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
-
-# logging.basicConfig(level=logging.DEBUG)
-# logging.getLogger("pushbullet.async_listeners").setLevel(logging.DEBUG)
-
-def main_new_listener():
-
+def main():
     async def _run():
         try:
             account = AsyncPushbullet(api_key=API_KEY, proxy=PROXY, verify_ssl=False)
-            async with PushListener2(account, types=()) as pl2:
-
-                # Illustrate waiting for a single push with 3 second timeout
-                # try:
-                #     push = await pl2.next_push(timeout=3)
-                #     print("Push:", push)
-                # except futures.TimeoutError:
-                #     print("timed out - now listening indefinitely...")
+            async with PushListener2(account) as pl2:
 
                 # Wait indefinitely for pushes
                 async for push in pl2:
@@ -56,7 +41,7 @@ if __name__ == '__main__':
             API_KEY = f.read().strip()
 
     try:
-        main_new_listener()
+        main()
     except KeyboardInterrupt:
         print("Quitting")
         pass

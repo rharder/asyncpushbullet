@@ -1,4 +1,5 @@
 import asyncio
+import os
 import pprint
 from typing import List, Dict
 
@@ -7,6 +8,7 @@ import aiohttp
 from asyncpushbullet import Device
 from asyncpushbullet.channel import Channel
 from asyncpushbullet.chat import Chat
+from asyncpushbullet.filetype import get_file_type
 from asyncpushbullet.tqio import tqio
 from .pushbullet import Pushbullet
 
@@ -375,8 +377,34 @@ class AsyncPushbullet(Pushbullet):
     # Files
     #
 
+    async def async_upload_file_to_transfer_sh(self, file_path: str, file_type: str = None,
+                                               show_progress: bool = True) -> dict:
+        """Uploads a file to the https://transfer.sh service.
+
+        This returns the same dictionary data as the async_upload_file function, which
+        uploads to the pushbullet service.
+        """
+        file_name = os.path.basename(file_path)
+        if not file_type:
+            file_type = get_file_type(file_path)
+        upload_url = "https://transfer.sh/"
+
+        if show_progress:
+            with tqio(file_path) as f:
+                upload_resp = await self._async_post_data(upload_url, data={"file": f})
+        else:
+            with open(file_path, "rb") as f:
+                upload_resp = await self._async_post_data(upload_url, data={"file": f})
+
+        file_url = upload_resp.get("raw", b'').decode("ascii")
+        msg = {"file_name": file_name,
+               "file_type": file_type,
+               "file_url": file_url}
+
+        return msg
+
     async def async_upload_file(self, file_path: str, file_type: str = None,
-                                suppress_progress: bool = False) -> dict:
+                                show_progress: bool = True) -> dict:
         """
         Uploads a file to pushbullet storage and returns a dict with information
         about how the uploaded file:
@@ -395,17 +423,20 @@ class AsyncPushbullet(Pushbullet):
         xfer["msg"] = await self._async_post_data(self.UPLOAD_REQUEST_URL, data=data)
         next(gen)  # Prep upload params
 
-        file_name = xfer["data"]["file_name"]
-        file_type = xfer["data"]["file_type"]
+        # file_name = xfer["data"]["file_name"]
+        # file_type = xfer["data"]["file_type"]
 
-        if suppress_progress:
-            with open(file_path, "rb") as f:
-                xfer["msg"] = await self._async_post_data(xfer["upload_url"], data={"file": f})
-        else:
+        if show_progress:
             with tqio(file_path) as f:
                 xfer["msg"] = await self._async_post_data(xfer["upload_url"], data={"file": f})
+        else:
+            with open(file_path, "rb") as f:
+                xfer["msg"] = await self._async_post_data(xfer["upload_url"], data={"file": f})
 
-        return next(gen)  # Prep response
+        pprint.pprint(xfer)
+        resp = next(gen)
+        pprint.pprint(resp)
+        return resp
 
     async def async_push_file(self, file_name: str, file_url: str, file_type: str,
                               body: str = None, title: str = None,

@@ -119,7 +119,7 @@ class Pushbullet:
             pass
         finally:
             if msg is None:
-                msg = resp.raw
+                msg = resp.content
 
         return self._interpret_response(resp.status_code, resp.headers, msg)
 
@@ -584,6 +584,22 @@ class Pushbullet:
     # ################
     # Files
     #
+
+    def upload_file_to_transfer_sh(self, file_path: str, file_type: str = None) -> dict:
+        file_name = os.path.basename(file_path)
+        if not file_type:
+            file_type = get_file_type(file_path)
+        upload_url = "https://transfer.sh/"
+
+        with open(file_path, "rb") as f:
+            upload_resp = self._post_data(upload_url, files={"file": f})
+
+        file_url = upload_resp.get("raw", b'').decode("ascii")
+        msg = {"file_name": file_name,
+               "file_type": file_type,
+               "file_url": file_url}
+
+        return msg
 
     def upload_file(self, file_path: str, file_type: str = None) -> dict:
         gen = self._upload_file_generator(file_path, file_type=file_type)

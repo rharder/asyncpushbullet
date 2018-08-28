@@ -2,17 +2,14 @@
 """
 Example tkinter app that shows pushes as they arrive.
 """
+import asyncio
+import logging
 import os
+import sys
 import threading
 import tkinter as tk
-import asyncio
-
-import logging
-
-import sys
 from functools import partial
 
-# from tkinter_tools import BindableTextArea
 from tkinter_tools import BindableTextArea
 
 sys.path.append("..")  # Since examples are buried one level into source tree
@@ -23,8 +20,9 @@ __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
 
 API_KEY = ""  # YOUR API KEY
+PROXY = os.environ.get("https_proxy") or os.environ.get("http_proxy")
 
-logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 
 
 class PushApp():
@@ -39,7 +37,7 @@ class PushApp():
         self.key_var = tk.StringVar()  # API key
         self.pushes_var = tk.StringVar()
         self.ioloop = None  # type: asyncio.BaseEventLoop
-        self.proxy = os.environ.get("https_proxy") or os.environ.get("http_proxy")
+        self.proxy_var = tk.StringVar()
 
         # View / Control
         self.create_widgets()
@@ -47,7 +45,7 @@ class PushApp():
         # Connections
         self.create_io_loop()
         self.key_var.set(API_KEY)
-
+        self.proxy_var.set(PROXY)
 
     def create_widgets(self):
         """
@@ -84,7 +82,7 @@ class PushApp():
             try:
                 self.pushbullet = AsyncPushbullet(self.key_var.get(),
                                                   verify_ssl=False,
-                                                  proxy=self.proxy)
+                                                  proxy=self.proxy_var.get())
 
                 async with PushListener2(self.pushbullet) as pl2:
                     self.pushbullet_listener = pl2
@@ -99,7 +97,6 @@ class PushApp():
                 await self.disconnected(self.pushbullet_listener)
 
         asyncio.run_coroutine_threadsafe(_listen(), self.ioloop)
-
 
     def create_io_loop(self):
         """Creates a new thread to manage an asyncio event loop specifically for IO to/from Pushbullet."""
@@ -149,7 +146,6 @@ class PushApp():
 def main():
     tk1 = tk.Tk()
     program1 = PushApp(tk1)
-
     tk1.mainloop()
 
 

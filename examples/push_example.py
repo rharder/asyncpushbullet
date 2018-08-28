@@ -9,11 +9,11 @@ __author__ = "Robert Harder"
 __email__ = "rob@iharder.net"
 
 API_KEY = ""  # YOUR API KEY
+PROXY = os.environ.get("https_proxy") or os.environ.get("http_proxy")
 
 
 def main():
-    proxy = os.environ.get("https_proxy") or os.environ.get("http_proxy")
-    pb = Pushbullet(API_KEY, proxy=proxy)
+    pb = Pushbullet(API_KEY, proxy=PROXY)
 
     title = "Greetings"
     body = "Welcome to accessing Pushbullet with Python"

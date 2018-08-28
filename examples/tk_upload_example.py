@@ -5,14 +5,12 @@ Example tkinter app that uploads files and shows incoming pushes.
 It is not necessary to connect to a listener and listen for pushes in order to upload,
 but it makes the example more interesting.
 """
+import asyncio
+import logging
 import os
+import sys
 import threading
 import tkinter as tk
-import asyncio
-
-import logging
-
-import sys
 from functools import partial
 from tkinter import filedialog
 
@@ -21,12 +19,11 @@ from tkinter_tools import BindableTextArea
 sys.path.append("..")  # Since examples are buried one level into source tree
 from asyncpushbullet import AsyncPushbullet, PushListener2
 
-# from asyncpushbullet.async_listeners import PushListener
-
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
 
 API_KEY = ""  # YOUR API KEY
+PROXY = os.environ.get("https_proxy") or os.environ.get("http_proxy")
 
 
 # logging.basicConfig(level=logging.DEBUG)
@@ -46,7 +43,7 @@ class PushApp():
         self.pushes_var = tk.StringVar()
         self.filename_var = tk.StringVar()
         self.btn_upload = None  # type: tk.Button
-        self.proxy = os.environ.get("https_proxy") or os.environ.get("http_proxy")
+        self.proxy_var = tk.StringVar()
 
         # View / Control
         self.create_widgets()
@@ -55,6 +52,7 @@ class PushApp():
         self.create_io_loop()
         self.key_var.set(API_KEY)
         self.filename_var.set(__file__)
+        self.proxy_var.set(PROXY)
 
     def create_widgets(self):
         """
@@ -79,6 +77,13 @@ class PushApp():
         btn_connect = tk.Button(self.window, text="Connect", command=self.connect_button_clicked)
         btn_connect.grid(row=row, column=1, sticky=tk.W)
         row += 1
+
+        # Proxy, if we want to show it
+        # lbl_proxy = tk.Label(self.window, text="Proxy")
+        # lbl_proxy.grid(row=row, column=0, sticky=tk.W)
+        # txt_proxy = tk.Entry(self.window, textvariable=self.proxy_var)
+        # txt_proxy.grid(row=row, column=1, sticky=tk.W + tk.E)
+        # row += 1
 
         # File: [    ]
         lbl_file = tk.Label(self.window, text="File:")
@@ -107,7 +112,6 @@ class PushApp():
         txt_data = BindableTextArea(self.window, textvariable=self.pushes_var, width=80, height=10)
         txt_data.grid(row=row, column=0, columnspan=2)
 
-
     def create_io_loop(self):
         """Creates a new thread to manage an asyncio event loop specifically for IO to/from Pushbullet."""
         assert self.ioloop is None  # This should only ever be run once
@@ -126,8 +130,6 @@ class PushApp():
         self.status = str(context)
         # Handle this more robustly in real-world code
 
-
-
     def connect_button_clicked(self):
         self.pushes_var.set("Connecting...")
         self.close()
@@ -136,7 +138,7 @@ class PushApp():
             try:
                 self.pushbullet = AsyncPushbullet(self.key_var.get(),
                                                   verify_ssl=False,
-                                                  proxy=self.proxy)
+                                                  proxy=self.proxy_var.get())
 
                 async with PushListener2(self.pushbullet) as pl2:
                     self.pushbullet_listener = pl2
@@ -162,8 +164,6 @@ class PushApp():
             pl = self.pushbullet_listener
             asyncio.run_coroutine_threadsafe(pl.close(), self.ioloop)
             self.pushbullet_listener = None
-
-
 
     def browse_button_clicked(self):
         print("browse_button_clicked")
