@@ -45,11 +45,9 @@ optional arguments:
 """
 import argparse
 import asyncio
-import io
 import json
 import logging
 import os
-import pprint
 import sys
 import textwrap
 import threading
@@ -57,13 +55,13 @@ import time
 from functools import partial
 from typing import List
 
+sys.path.append("..")
 from asyncpushbullet import Device
 from asyncpushbullet import InvalidKeyError
 from asyncpushbullet import PushListener2
 from asyncpushbullet import Pushbullet
 from asyncpushbullet import PushbulletError
 
-sys.path.append("..")
 from asyncpushbullet import AsyncPushbullet
 
 __author__ = "Robert Harder"
@@ -471,7 +469,6 @@ class ExecutableAction(Action):
             pass
             # Nothing sent back in stdout or stderr: send no push
             # print("NOTHING RETUREND FROM EXECUTABLE")
-
 
 
 class ExecutableActionSimplified(ExecutableAction):
