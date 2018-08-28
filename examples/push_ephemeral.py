@@ -16,8 +16,7 @@ PROXY = os.environ.get("https_proxy") or os.environ.get("http_proxy")
 def main():
     pb = AsyncPushbullet(API_KEY, proxy=PROXY, verify_ssl=False)
 
-    msg = {"foo": "bar", 42: "23"}
-    msg["type"] = "synchronous"
+    msg = {"foo": "bar", 42: "23", "type": "synchronous"}
     pb.push_ephemeral(msg)  # Synchronous IO
 
     async def _run():

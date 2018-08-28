@@ -167,6 +167,12 @@ class PushListener2:
                 self.log.debug("Adding to push queue: {}".format(push))
                 await self._queue.put(push)
 
+        elif "type" in msg and msg["type"] in self.push_types:
+            # According to the API, there are no other types, but this can
+            # be used to catch "nop" if you really want to.
+            await self._queue.put(msg)
+
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self._ws_client.__aexit__(exc_type, exc_val, exc_tb)
         await self._ws_client.close()
