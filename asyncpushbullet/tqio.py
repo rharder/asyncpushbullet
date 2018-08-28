@@ -1,7 +1,9 @@
 """
 Show upload progress using tqdm and aiohttp.
+Example in tqio_upload_progress.py.
 
 PasteBin: http://pastebin.com/ksEfNJZN
+Source: https://github.com/rharder/handy
 """
 import os
 import time
@@ -15,9 +17,12 @@ __license__ = "Public Domain"
 
 
 class tqio(io.BufferedReader):
-    def __init__(self, file_path, slow_it_down=False):
+    SLOW_DELAY = 0.1
+
+    def __init__(self, file_path, descr=None, slow_it_down=False):
         super().__init__(open(file_path, "rb"))
-        self.t = tqdm(desc="Upload",
+        print(end="", flush=True)  # Flush output buffer to help tqdm
+        self.t = tqdm(desc=descr,
                       unit="bytes",
                       unit_scale=True,
                       total=os.path.getsize(file_path))
@@ -26,18 +31,17 @@ class tqio(io.BufferedReader):
         self.slow_it_down = slow_it_down
 
     def __enter__(self):
-        print(end="", flush=True)
+        print(end="", flush=True)  # Flush output buffer to help tqdm
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
-        print(flush=True)
 
     def read(self, *args, **kwargs):
         if self.slow_it_down:
             chunk = super().read(64)
             self.t.update(len(chunk))
-            time.sleep(.1)
+            time.sleep(self.SLOW_DELAY)
             return chunk
         else:
             # Keep these three lines after getting
@@ -46,7 +50,16 @@ class tqio(io.BufferedReader):
             self.t.update(len(chunk))
             return chunk
 
+
+    def readline(self, *args, **kwargs):
+        line = super().readline(*args, **kwargs)
+        self.t.update(len(line))
+        if self.slow_it_down:
+            time.sleep(self.SLOW_DELAY)
+        return line
+
     def close(self, *args, **kwargs):
         self.t.close()
         super().close()
+
 

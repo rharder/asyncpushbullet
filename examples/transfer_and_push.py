@@ -24,8 +24,8 @@ __ERR_DEVICE_NOT_FOUND__ = 5
 __ERR_NOTHING_TO_DO__ = 6
 __ERR_UNKNOWN__ = 99
 
-# sys.argv += ["--key-file", "../api_key.txt"]
-# sys.argv += [__file__, os.path.join(os.path.dirname(os.path.abspath(__file__)), "snapshot.jpg")]
+sys.argv += ["--key-file", "../api_key.txt"]
+sys.argv += [__file__, os.path.join(os.path.dirname(os.path.abspath(__file__)), "snapshot.jpg")]
 
 
 def main():
@@ -106,6 +106,7 @@ async def upload_file(pb: AsyncPushbullet, filename: str):
 
     info = await pb.async_upload_file_to_transfer_sh(filename)  # Async via transfer.sh
 
+    print(flush=True)
 
     # Push a notification of the upload "as a file":
     await pb.async_push_file(info["file_name"], info["file_url"], info["file_type"],
