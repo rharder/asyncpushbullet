@@ -61,7 +61,6 @@ from asyncpushbullet import InvalidKeyError
 from asyncpushbullet import PushListener2
 from asyncpushbullet import Pushbullet
 from asyncpushbullet import PushbulletError
-
 from asyncpushbullet import AsyncPushbullet
 
 __author__ = "Robert Harder"
@@ -179,9 +178,6 @@ def do_main(args):
         loop.run_forever()
 
     threading.Thread(target=partial(_run, proc_loop), name="Thread-proc", daemon=True).start()
-    # t = threading.Thread(target=partial(_run, proc_loop))
-    # t.daemon = True
-    # t.start()
 
     # Add actions from command line arguments
     if args.exec:
@@ -604,8 +600,9 @@ class ListenApp:
                     for action in self.actions:  # type: Action
                         self.log.debug("Calling action {}".format(repr(action)))
                         try:
-                            await action.do(push, self)  # self.pb)  # , self.app_device)
-                            await asyncio.sleep(0)
+                            asyncio.create_task(action.do(push, self))
+                            # await action.do(push, self)  # self.pb)  # , self.app_device)
+                            # await asyncio.sleep(0)
                         except Exception as ex:
                             print("Action {} caused exception {}".format(action, ex))
 

@@ -45,7 +45,7 @@ def main():
                 # proc = subprocess.run(["notepad.exe", f.name],
                                       stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE,
-                                      timeout=30,
+                                      timeout=10,
                                       encoding=__encoding__)
 
                 # Upload picture
