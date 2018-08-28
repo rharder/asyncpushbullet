@@ -404,78 +404,74 @@ class ExecutableAction(Action):
         asyncio.run_coroutine_threadsafe(_on_proc_loop(), self.proc_loop)
 
     async def handle_process_response(self, stdout_data: bytes, stderr_data: bytes, app):
-        # pb: AsyncPushbullet):  # , device:Device):
-        print("handle_process_response")
-        # stdout_data = b"hello world"
-        # await asyncio.sleep(1)
+        """
 
-        # There's a problem with a push be sent in response and then that push is responded
-        # to etc and then an infinite loop.
-
-        # raise Exception("Not yet implemented.")
+        :param bytes stdout_data:
+        :param bytes stderr_data:
+        :param ListenApp app:
+        :return:
+        """
 
         # Any stderr output?
         if stderr_data != b"":
+            stderr_txt = stderr_data.decode(__encoding__, "replace")
             self.log.error("Error from {}: {}".format(repr(self), stderr_data))
-            await app.respond(title="Error", body=str(stderr_data))
+        else:
+            stderr_txt = None  # type: str
 
         # Any stdout output?
         if stdout_data != b"":
             self.log.info("Response from {}: {}".format(repr(self), stdout_data))
+            stdout_txt = stdout_data.decode(__encoding__, "replace")
+        else:
+            stdout_txt = None  # type: str
 
-            # Requesting a response push?
-            resp = {}
-            raw_data = None
+        # If there's anything to respond with, send a push back
+        if stderr_txt is not None:
+            title = "Error"
+            body = "Stderr: {}\nStdout: {}".format(stderr_txt, stdout_txt)
+            await app.respond(title=title, body=body)
+
+        elif stdout_txt is not None:
+            # See if we got a structured response with JSON data
             try:
-                print("Decoding this:")
-                raw_data = stdout_data.decode(__encoding__, "replace")
-                print(raw_data)
-                resp = json.loads(raw_data)
-            # except json.decoder.JSONDecodeError as e:
-            except Exception as e:
-                resp["body"] = raw_data
-                resp["error"] = str(e)
-                print("NEW RESPONSE:")
-                pprint.pprint(resp)
+                response = json.loads(stdout_txt)
+            except json.decoder.JSONDecodeError as e:
+                # Not json, just respond with a simple push
+                title = "Response"
+                body = stdout_txt
+                await app.respond(title=title, body=body)
+            else:
+                def _hndl_resp(_resp):
+                    # Interpret structures response
+                    title = _resp.get("title")
+                    body = _resp.get("body")
 
-                pass
+                    if _resp.get("type") == "file":
+                        file_type = _resp.get("file_type")
+                        file_url = _resp.get("file_url")
+                        file_name = _resp.get("file_name")
+                        await app.respond_file(file_name=file_name,
+                                               file_url=file_url,
+                                               file_type=file_type,
+                                               title=title,
+                                               body=body)
+                    else:
+                        await app.respond(title=title, body=body)
 
-            # Single push response
-            title = str(resp.get("title"))
-            body = str(resp.get("body"))
-            if resp.get("type") == "file":
-                print("SENDING FILE PUSH")
-                file_type = resp.get("file_type")
-                file_url = resp.get("file_url")
-                file_name = resp.get("file_name")
-                await app.respond_file(file_name=file_name,
-                                       file_url=file_url,
-                                       file_type=file_type,
-                                       title=title,
-                                       body=body)
-
-            elif "title" in resp or "body" in resp:
-                print("basic response")
-                await app.respond(body=body, title=title)
-            # push_resp = await pb.async_push_note(title=title, body=body)
-
-            # push_resp = await device.push_note(title=title, body=body)
-            # print("Push Resp:", push_resp)
-
-            # Multiple pushes response
-            # pushes = resp.get("pushes", [])
-            # if type(pushes) == list:
-            #     for push in pushes:  # type: dict
-            #         if type(push) == dict:
-            #             title = push.get("title", "no title")
-            #             body = push.get("body", "no body")
-            #             # await pb.async_push_note(title=title, body=body)
-            #         else:
-            #             self.log.error("A push response was received but was not in dictionary form: {}".format(resp))
+                if type(response) == list:
+                    for resp in response:
+                        _hndl_resp(resp)
+                elif type(response) == dict:
+                    _hndl_resp(response)
+                else:
+                    # Not sure what was returned
+                    await app.respond(title="Response", body=str(response))
+        else:
             pass
-            pass
-            print("exiting handle_process_response")
-            pass
+            # Nothing sent back in stdout or stderr: send no push
+            # print("NOTHING RETUREND FROM EXECUTABLE")
+
 
 
 class ExecutableActionSimplified(ExecutableAction):
