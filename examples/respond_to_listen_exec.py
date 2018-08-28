@@ -66,9 +66,9 @@ def main():
                 proc = subprocess.run(["imagesnap", f.name],
                 # proc = subprocess.run(["notepad.exe", temp_img.name],
                                       stdout=subprocess.PIPE,
-                                      stderr=subprocess.PIPE)#,
-                                      # timeout=30,
-                                      # encoding=__encoding__)
+                                      stderr=subprocess.PIPE,
+                                      timeout=30,
+                                      encoding=__encoding__)
 
                 # Upload picture
                 # pb = Pushbullet(API_KEY, proxy=PROXY)
@@ -79,8 +79,8 @@ def main():
                 file_name = resp.get("file_name")
 
                 # Provide a response via stdout
-                stdout_txt = proc.stdout.decode(__encoding__, "replace")
-                stderr_txt = proc.stderr.decode(__encoding__, "replace")
+                stdout_txt = proc.stdout#.decode(__encoding__, "replace")
+                stderr_txt = proc.stderr#.decode(__encoding__, "replace")
                 myresp = {
                     "type": "file",
                     "title": "Imagesnap",
