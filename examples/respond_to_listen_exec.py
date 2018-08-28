@@ -43,6 +43,7 @@ def main():
                 # shutil.copy(fakepic, temp_img.name)
 
                 # Take a picture
+                print("ENCODING: ({})".format(__encoding__))
                 proc = subprocess.run(["imagesnap", f.name],
                 # proc = subprocess.run(["notepad.exe", temp_img.name],
                                       stdout=subprocess.PIPE,
