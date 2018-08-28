@@ -87,8 +87,8 @@ sys.argv += ["--key-file", "../api_key.txt"]
 # sys.argv.append("--list-devices")
 # sys.argv += ["--exec", r"C:\windows\System32\clip.exe"]
 # sys.argv += ["--exec", r"C:\windows\System32\notepad.exe"]
-sys.argv += ["--exec", r"c:\python37-32\python.exe",
-             r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_exec.py"]
+# sys.argv += ["--exec", r"c:\python37-32\python.exe",
+#              r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_exec.py"]
 # sys.argv += ["--exec", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\hello.py"]
 # sys.argv += ["--exec", r"C:\windows\System32\notepad.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_exec.py"]
 

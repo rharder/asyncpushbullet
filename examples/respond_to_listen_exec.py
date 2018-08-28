@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 
+sys.path.append("..")  # Since examples are buried one level into source tree
 from asyncpushbullet import Pushbullet
 
 __encoding__ = "utf-8"
