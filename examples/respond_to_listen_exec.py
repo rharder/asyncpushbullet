@@ -41,6 +41,7 @@ def main():
 
     with io.open(sys.stdin.fileno(), mode="r", encoding="utf-8") as f:
         stdin = f.read()
+    del f
     try:
         recvd_push = json.loads(stdin)
     except json.decoder.JSONDecodeError as e:
@@ -63,7 +64,7 @@ def main():
                 # shutil.copy(fakepic, temp_img.name)
 
                 # Take a picture
-                proc = subprocess.run(["imagesnap", f.name],
+                proc = subprocess.run(["imagesnap", temp_img.name],
                 # proc = subprocess.run(["notepad.exe", temp_img.name],
                                       stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE,
@@ -91,9 +92,9 @@ def main():
                     "file_url": file_url,
                     "received_push": recvd_push
                 }
-                # dev_iden = recvd_push.get("source_device_iden")
-                # if dev_iden is not None:
-                #     myresp["device_iden"] = dev_iden
+                dev_iden = recvd_push.get("source_device_iden")
+                if dev_iden is not None:
+                    myresp["device_iden"] = dev_iden
 
                 with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "response.json"), "w") as fout:
                     fout.write(json.dumps(myresp, indent=4))

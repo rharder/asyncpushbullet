@@ -555,15 +555,14 @@ class ListenApp:
 
     async def respond_file(self, file_name: str, file_url: str, file_type: str,
                            body: str = None, title: str = None, device_iden=None):
-        # print("Responding with file push")
-        # device = None if device_iden is None else Device(None, {"iden": device_iden})
-        # print("DEVICE:", device)
+
+        device = None if device_iden is None else Device(None, {"iden": device_iden})
         resp = await self.pb.async_push_file(file_name=file_name,
                                              file_url=file_url,
                                              file_type=file_type,
                                              title=title,
-                                             body=body)#,
-                                             # device=device)
+                                             body=body,
+                                             device=device)
         self.sent_push_idens.append(resp.get("iden"))
 
     async def run(self):
@@ -597,21 +596,15 @@ class ListenApp:
                         print("Received a push we sent. Ignoring it.")
                         continue
 
-                    # First ignore pushes that came from this app
-                    # if "source_device_iden" in push:
-                    #     if push["source_device_iden"] == self.app_device.device_iden:
-                    #         # Ignore this push
-                    #         print("Got a push from myself. Ignoring it:", push)
-                    #         continue  # next push in pl2
-
                     for action in self.actions:  # type: Action
                         self.log.debug("Calling action {}".format(repr(action)))
                         try:
-                            loop = asyncio.get_event_loop()
-                            loop.create_task(action.do(push, self))
-                            # asyncio.create_task(action.do(push, self))
-                            # await action.do(push, self)  # self.pb)  # , self.app_device)
-                            # await asyncio.sleep(0)
+                            # loop = asyncio.get_event_loop()
+                            # loop.create_task(action.do(push, self))
+
+                            await action.do(push, self)  # self.pb)  # , self.app_device)
+                            await asyncio.sleep(0)
+
                         except Exception as ex:
                             print("Action {} caused exception {}".format(action, ex))
 
