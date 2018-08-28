@@ -200,11 +200,7 @@ def do_main(args):
         listen_app.add_action(EchoAction())
 
     loop = asyncio.get_event_loop()
-
-    # async def _timeout():
-    #     await asyncio.sleep(2)
-    #     await listen_app.close()
-    # loop.create_task(_timeout())
+    asyncio.get_child_watcher()
 
     exit_code = None
     try:
