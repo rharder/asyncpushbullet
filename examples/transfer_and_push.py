@@ -24,8 +24,8 @@ __ERR_DEVICE_NOT_FOUND__ = 5
 __ERR_NOTHING_TO_DO__ = 6
 __ERR_UNKNOWN__ = 99
 
-sys.argv += ["--key-file", "../api_key.txt"]
-sys.argv += [__file__, os.path.join(os.path.dirname(os.path.abspath(__file__)), "snapshot.jpg")]
+# sys.argv += ["--key-file", "../api_key.txt"]
+# sys.argv += [__file__, os.path.join(os.path.dirname(os.path.abspath(__file__)), "snapshot.jpg")]
 
 
 def main():
