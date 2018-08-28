@@ -101,7 +101,6 @@ def parse_args():
 
 
 async def upload_file(pb: AsyncPushbullet, filename: str):
-
     print("Uploading to transfer.sh: {}".format(filename), flush=True)
 
     info = await pb.async_upload_file_to_transfer_sh(filename)  # Async via transfer.sh
@@ -110,7 +109,12 @@ async def upload_file(pb: AsyncPushbullet, filename: str):
 
     # Push a notification of the upload "as a file":
     await pb.async_push_file(info["file_name"], info["file_url"], info["file_type"],
-                             title="File: {}".format(info["file_name"]), body=None)
+                             title="File: {}".format(info["file_name"]),
+                             body=info["file_url"])
+
+    # await pb.async_push_link(title="File: {}".format(info["file_name"]),
+    #                          body=None,
+    #                          url=info["file_url"])
 
     await pb.async_close()
 
