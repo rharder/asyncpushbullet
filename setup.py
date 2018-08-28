@@ -8,19 +8,23 @@ with open("./asyncpushbullet/__version__.py") as version_file:
     version = version_file.read().split("\"")[1]
 
 if len(sys.argv) < 2:
-    cmd = input("Command (test or publish): ")
+    cmd = input("Command (build | test | publish): ")
     sys.argv.append(cmd)
+
+
+if sys.argv[-1] == 'build':
+    print("BUILD")
+    os.system('python3 setup.py sdist bdist_wheel')
+    sys.exit()
 
 if sys.argv[-1] == 'test':
     print("TEST")
-    os.system('python setup.py register -r pypitest')
-    os.system('python setup.py sdist upload -r pypitest')
+    os.system('twine upload --repository-url https://test.pypi.org/legacy/ dist/*')
     sys.exit()
 
 if sys.argv[-1] == 'publish':
     print("PUBLISH")
-    os.system('python setup.py register -r pypi')
-    os.system('python setup.py sdist upload -r pypi')
+    os.system('twine upload --repository-url https://upload.pypi.org/legacy/ dist/*')
     sys.exit()
 
 install_reqs = [
@@ -65,5 +69,8 @@ setup(
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Utilities"
     ],
-    install_requires=install_reqs
+    install_requires=install_reqs,
+    extras_require = {
+        'GUI': ["pillow"]
+    }
 )
