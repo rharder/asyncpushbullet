@@ -27,7 +27,7 @@ def main():
         raise e
     else:
 
-        if recvd_push.get("body") == "imagesnap":
+        if recvd_push.get("body", "").lower().strip() == "imagesnap":
             # Take a picture and upload
             # Simulate it for now
 
@@ -42,7 +42,7 @@ def main():
 
                 # Take a picture
                 proc = subprocess.run(["imagesnap", f.name],
-                # proc = subprocess.run(["notepad.exe", f.name],
+                                      # proc = subprocess.run(["notepad.exe", f.name],
                                       stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE,
                                       timeout=10,
