@@ -442,7 +442,7 @@ class ExecutableAction(Action):
                 body = stdout_txt
                 await app.respond(title=title, body=body)
             else:
-                def _hndl_resp(_resp):
+                async def _hndl_resp(_resp):
                     # Interpret structures response
                     title = _resp.get("title")
                     body = _resp.get("body")
@@ -461,9 +461,9 @@ class ExecutableAction(Action):
 
                 if type(response) == list:
                     for resp in response:
-                        _hndl_resp(resp)
+                        await _hndl_resp(resp)
                 elif type(response) == dict:
-                    _hndl_resp(response)
+                    await _hndl_resp(response)
                 else:
                     # Not sure what was returned
                     await app.respond(title="Response", body=str(response))
