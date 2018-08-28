@@ -49,7 +49,6 @@ def main():
     else:
 
         if recvd_push.get("body", "").lower().strip() == "imagesnap":
-            # Take a picture and upload
             # Simulate it for now
 
             # Temp file to house the image file
@@ -58,6 +57,7 @@ def main():
 
             try:
 
+                # Take a picture and upload
                 # PRETEND TO TAKE A PICTURE
                 # fakepic = os.path.join(os.path.dirname(os.path.abspath(__file__)), "snapshot.jpg")
                 # shutil.copy(fakepic, temp_img.name)
@@ -71,9 +71,10 @@ def main():
                                       encoding=__encoding__)
 
                 # Upload picture
-                # pb = Pushbullet(API_KEY, proxy=PROXY)
                 pb = AsyncPushbullet(API_KEY, proxy=PROXY, verify_ssl=False)
-                resp = pb.upload_file(temp_img.name)
+
+                resp = pb.upload_file(temp_img.name)  # Upload here
+
                 file_type = resp.get("file_type")
                 file_url = resp.get("file_url")
                 file_name = resp.get("file_name")
@@ -90,14 +91,15 @@ def main():
                     "file_url": file_url,
                     "received_push": recvd_push
                 }
-                dev_iden = recvd_push.get("source_device_iden")
-                if dev_iden is not None:
-                    myresp["device_iden"] = dev_iden
+                # dev_iden = recvd_push.get("source_device_iden")
+                # if dev_iden is not None:
+                #     myresp["device_iden"] = dev_iden
 
                 with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "response.json"), "w") as fout:
                     fout.write(json.dumps(myresp, indent=4))
 
                 print(json.dumps(myresp), flush=True)
+
             except Exception as e:
                 raise e
                 # print("Error:", e, file=sys.stderr)

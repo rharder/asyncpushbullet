@@ -433,12 +433,14 @@ class ExecutableAction(Action):
                 title = "Response"
                 body = stdout_txt
                 await app.respond(title=title, body=body)
+
             else:
+
                 async def _hndl_resp(_resp):
                     # Interpret structures response
                     title = _resp.get("title")
                     body = _resp.get("body")
-                    dev_iden = _resp.get("device_iden")
+                    # dev_iden = _resp.get("device_iden")
                     # device = None if dev_iden is None else Device(None, {"iden":dev_iden})
 
                     if _resp.get("type") == "file":
@@ -449,10 +451,10 @@ class ExecutableAction(Action):
                                                file_url=file_url,
                                                file_type=file_type,
                                                title=title,
-                                               body=body,
-                                               device_iden=dev_iden)
+                                               body=body)#,
+                                               # device_iden=dev_iden)
                     else:
-                        await app.respond(title=title, body=body, device_iden=dev_iden)
+                        await app.respond(title=title, body=body)#, device_iden=dev_iden)
 
                 if type(response) == list:
                     for resp in response:
@@ -554,14 +556,14 @@ class ListenApp:
     async def respond_file(self, file_name: str, file_url: str, file_type: str,
                            body: str = None, title: str = None, device_iden=None):
         # print("Responding with file push")
-        device = None if device_iden is None else Device(None, {"iden": device_iden})
+        # device = None if device_iden is None else Device(None, {"iden": device_iden})
         # print("DEVICE:", device)
         resp = await self.pb.async_push_file(file_name=file_name,
                                              file_url=file_url,
                                              file_type=file_type,
                                              title=title,
-                                             body=body,
-                                             device=device)
+                                             body=body)#,
+                                             # device=device)
         self.sent_push_idens.append(resp.get("iden"))
 
     async def run(self):
