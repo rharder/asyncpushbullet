@@ -70,13 +70,14 @@ __ERR_UNKNOWN__ = 99
 # sys.argv += ["-t", "foo"]
 
 
-def main():
-    # return main_file_transfer_mode()
+def main_pbpush():
+    """Intended entry point for pbpush"""
     args = parse_args()
     do_main(args)
 
 
-def main_file_transfer_mode():
+def main_pbtransfer():
+    """Intended entry point for pbtransfer"""
     args = parse_args_file_transfer_mode()
     do_main(args)
 
@@ -300,4 +301,4 @@ def parse_args_file_transfer_mode():
 
 
 if __name__ == "__main__":
-    main()
+    main_pbpush()
