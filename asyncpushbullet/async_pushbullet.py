@@ -28,6 +28,15 @@ class AsyncPushbullet(Pushbullet):
         self._aio_sessions = {}  # type: Dict[asyncio.AbstractEventLoop, aiohttp.ClientSession]
         self.verify_ssl = verify_ssl
 
+    async def __aenter__(self):
+        await self.async_verify_key()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.async_close()
+        # await self._ws_client.__aexit__(exc_type, exc_val, exc_tb)
+        # await self._ws_client.close()
+
     async def async_verify_key(self):
         """
         Triggers a call to Pushbullet.com that will throw an
@@ -436,9 +445,7 @@ class AsyncPushbullet(Pushbullet):
             with open(file_path, "rb") as f:
                 xfer["msg"] = await self._async_post_data(xfer["upload_url"], data={"file": f})
 
-        pprint.pprint(xfer)
         resp = next(gen)
-        pprint.pprint(resp)
         return resp
 
     async def async_push_file(self, file_name: str, file_url: str, file_type: str,

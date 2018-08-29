@@ -21,9 +21,10 @@ PROXY = os.environ.get("https_proxy") or os.environ.get("http_proxy")
 
 def main():
 
-    with io.open(sys.stdin.fileno(), mode="r", encoding="utf-8") as f:
-        stdin = f.read()
-    del f
+    # with io.open(sys.stdin.fileno(), mode="r", encoding="utf-8") as f:
+    #     stdin = f.read()
+    # del f
+    stdin = sys.stdin.read()
     try:
         recvd_push = json.loads(stdin)
     except json.decoder.JSONDecodeError as e:

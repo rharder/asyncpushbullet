@@ -79,8 +79,8 @@ setup(
         'GUI': ["pillow"]
     },
     entry_points={
-        "console_scripts": ["pbtransfer=asyncpushbullet.command_line_transfer_and_push:main",
-                            "pbpush=asyncpushbullet.command_line_push:main",
+        "console_scripts": ["pbpush=asyncpushbullet.command_line_push:main",
+                            "pbtransfer=asyncpushbullet.command_line_push:main_file_transfer_mode",
                             "pblisten=asyncpushbullet.command_line_listen:main"
                             ]
     }

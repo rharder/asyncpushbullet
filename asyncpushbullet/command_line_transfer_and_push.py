@@ -30,6 +30,7 @@ __ERR_UNKNOWN__ = 99
 
 
 def main():
+    raise Exception("This file is deprecated. ({})".format(__file__))
     args = parse_args()
     do_main(args)
 
