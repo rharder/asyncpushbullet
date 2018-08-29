@@ -3,24 +3,26 @@
 """
 A command line script for sending pushes.
 
-usage: push.py [-h] [-k KEY] [--key-file KEY_FILE] [-t TITLE] [-b BODY]
-               [-d DEVICE] [-u URL] [-f FILE] [--transfer.sh] [--list-devices]
-               [-q]
+usage: command_line_push.py [-h] [-k KEY] [--key-file KEY_FILE]
+                            [--proxy PROXY] [-t TITLE] [-b BODY] [-d DEVICE]
+                            [--list-devices] [-u URL] [-f FILE]
+                            [--transfer.sh] [-q]
 
 optional arguments:
   -h, --help            show this help message and exit
   -k KEY, --key KEY     Your Pushbullet.com API key
   --key-file KEY_FILE   Text file containing your Pushbullet.com API key
+  --proxy PROXY         Optional web proxy
   -t TITLE, --title TITLE
                         Title of your push
   -b BODY, --body BODY  Body of your push (- means read from stdin)
   -d DEVICE, --device DEVICE
                         Destination device nickname
+  --list-devices        List registered device names
   -u URL, --url URL     URL of link being pushed
   -f FILE, --file FILE  Pathname to file to push
-  --transfer.sh         Use transfer.sh website for uploading files (use with
-                        --file)
-  --list-devices        List registered device names
+  --transfer.sh         Use www.transfer.sh website for uploading files (use
+                        with --file)
   -q, --quiet           Suppress all output
 
 """
@@ -58,6 +60,8 @@ __ERR_NOTHING_TO_DO__ = 6
 
 # sys.argv += ["-t", "foo"]
 # sys.argv += ["--key-file", "../api_key.txt"]
+
+
 # sys.argv += ["--key", "badkey"]
 
 # sys.argv.append("--quiet")
@@ -89,20 +93,22 @@ def do_main(args):
             file=sys.stderr)
         sys.exit(__ERR_API_KEY_NOT_GIVEN__)
 
+    # Proxy
+    proxy = args.proxy or os.environ.get("https_proxy") or os.environ.get("http_proxy")
+
     # Make connection
-    pb = None  # type: AsyncPushbullet
+    pb = AsyncPushbullet(api_key, proxy=proxy)  # type: AsyncPushbullet
+
     loop = asyncio.get_event_loop()
     try:
-        pb = AsyncPushbullet(api_key)
-        # pb.verify_key()
         loop.run_until_complete(pb.async_verify_key())
     except InvalidKeyError as exc:
         print(exc, file=sys.stderr)
-        loop.run_until_complete(pb.close())
+        pb.close_all_threadsafe()
         sys.exit(__ERR_INVALID_API_KEY__)
     except PushbulletError as exc:
         print(exc, file=sys.stderr)
-        loop.run_until_complete(pb.close())
+        pb.close_all_threadsafe()
         sys.exit(__ERR_CONNECTING_TO_PB__)
 
     # List devices?
@@ -110,12 +116,11 @@ def do_main(args):
         print("Devices:")
         for dev in pb.devices:
             print("\t", dev.nickname)
-        loop.run_until_complete(pb.close())
-        loop.close()
+        pb.close_all_threadsafe()
         sys.exit(0)
 
     # Transfer file?
-    elif args.file:
+    if args.file:
         if not os.path.isfile(args.file):
             print("File not found:", args.file, file=sys.stderr)
             sys.exit(__ERR_FILE_NOT_FOUND__)
@@ -162,16 +167,20 @@ def do_main(args):
 
         if not args.quiet:
             print("Pushing file ... {}".format(file_url))
-        resp = loop.run_until_complete(pb.async_push_file(file_name=file_name,
-                            file_type=file_type,
-                            file_url=file_url,
-                            title=args.title, body=args.body or file_name, device=dev))
+        resp = loop.run_until_complete(pb.async_push_file(
+            file_name=file_name,
+            file_type=file_type,
+            file_url=file_url,
+            title=args.title or "File: {}".format(file_name),
+            body=args.body or file_url,
+            device=dev))
 
         if not args.quiet:
             print(resp)
 
-        loop.run_until_complete(pb.close())
-        loop.close()
+        # loop.run_until_complete(pb.close())
+        pb.close_all_threadsafe()
+        # loop.close()
 
 
     # Push note
@@ -209,6 +218,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-k", "--key", help="Your Pushbullet.com API key")
     parser.add_argument("--key-file", help="Text file containing your Pushbullet.com API key")
+    parser.add_argument("--proxy", help="Optional web proxy")
     parser.add_argument("-t", "--title", help="Title of your push")
     parser.add_argument("-b", "--body", help="Body of your push (- means read from stdin)")
     parser.add_argument("-d", "--device", help="Destination device nickname")
@@ -234,7 +244,6 @@ def nostdout():
     sys.stdout = io.TextIOBase()
     yield
     sys.stdout = save_stdout
-
 
 
 if __name__ == "__main__":

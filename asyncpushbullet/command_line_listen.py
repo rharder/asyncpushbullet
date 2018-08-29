@@ -3,7 +3,7 @@
 """
 A command line script for listening for pushes.
 
-usage: listen.py [-h] [-k KEY] [--key-file KEY_FILE] [-e] [-x EXEC [EXEC ...]]
+usage: command_line_listen.py [-h] [-k KEY] [--key-file KEY_FILE] [-e] [-x EXEC [EXEC ...]]
                  [-s EXEC_SIMPLE [EXEC_SIMPLE ...]]
                  [--throttle-count THROTTLE_COUNT]
                  [--throttle-seconds THROTTLE_SECONDS] [-d DEVICE]

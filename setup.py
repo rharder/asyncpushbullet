@@ -11,28 +11,33 @@ if len(sys.argv) < 2:
     cmd = input("Command (build | test | publish): ")
     sys.argv.append(cmd)
 
-
 if sys.argv[-1] == 'build':
     print("BUILD")
-    os.system('python3 setup.py sdist bdist_wheel')
+    try:
+        os.system('python3 setup.py sdist bdist_wheel')
+    except:
+        os.system('python3 setup.py sdist bdist_wheel')
+
     sys.exit()
 
 if sys.argv[-1] == 'test':
     print("TEST")
-    os.system('twine upload --repository-url https://test.pypi.org/legacy/ dist/*')
+    # os.system('twine upload --repository-url https://test.pypi.org/legacy/ dist/*')
+    os.system('twine upload -r pypitest dist/*')
     sys.exit()
 
 if sys.argv[-1] == 'publish':
     print("PUBLISH")
-    os.system('twine upload --repository-url https://upload.pypi.org/legacy/ dist/*')
+    # os.system('twine upload --repository-url https://upload.pypi.org/legacy/ dist/*')
+    os.system('twine upload -r pypi dist/*')
     sys.exit()
 
 install_reqs = [
     "requests",
     "python-magic",
     "aiohttp",
-    "tqdm"#,
-   # "pillow"
+    "tqdm"  # ,
+    # "pillow"
 ]
 
 
@@ -70,7 +75,13 @@ setup(
         "Topic :: Utilities"
     ],
     install_requires=install_reqs,
-    extras_require = {
+    extras_require={
         'GUI': ["pillow"]
+    },
+    entry_points={
+        "console_scripts": ["pbtransfer=asyncpushbullet.command_line_transfer_and_push:main",
+                            "pbpush=asyncpushbullet.command_line_push:main",
+                            "pblisten=asyncpushbullet.command_line_listen:main"
+                            ]
     }
 )
