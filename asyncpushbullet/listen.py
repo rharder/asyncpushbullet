@@ -84,7 +84,7 @@ ENCODING = "utf-8"
 # sys.argv.append("-v")
 # sys.argv.append("--debug")
 # sys.argv += ["-k", "badkey"]
-sys.argv += ["--key-file", "../api_key.txt"]
+# sys.argv += ["--key-file", "../api_key.txt"]
 
 
 # sys.argv.append("--echo")
