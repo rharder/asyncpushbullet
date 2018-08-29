@@ -187,7 +187,7 @@ def do_main(args):
         for cmd_opts in args.exec:
             cmd_path = cmd_opts[0]
             cmd_args = cmd_opts[1:]
-            action = ExecutableAction(cmd_path, cmd_args, loop=proc_loop)
+            action = ExecutableAction(cmd_path, cmd_args, loop=proc_loop, timeout=12)
             listen_app.add_action(action)
 
     # Add actions from command line arguments

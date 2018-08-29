@@ -30,7 +30,6 @@ def main():
     else:
 
         if recvd_push.get("body", "").lower().strip() == "imagesnap":
-            # Simulate it for now
 
             # Temp file to house the image file
             temp_img = tempfile.NamedTemporaryFile(delete=False, suffix=".jpg")
@@ -48,7 +47,7 @@ def main():
                 # proc = subprocess.run(["notepad.exe", temp_img.name],
                                       stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE,
-                                      timeout=30,
+                                      timeout=10,
                                       encoding=__encoding__)
 
                 # Upload picture
