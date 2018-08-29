@@ -20,16 +20,22 @@ PROXY = os.environ.get("https_proxy") or os.environ.get("http_proxy")
 
 def main():
     async def _run():
-        try:
+        while True:
             account = AsyncPushbullet(api_key=API_KEY, proxy=PROXY, verify_ssl=False)
-            async with PushListener2(account) as pl2:
+            try:
+                print("Connectiong to Pushbullet...", end="", flush=True)
+                async with PushListener2(account) as pl2:
+                    print("Connected.", flush=True)
 
-                # Wait indefinitely for pushes
-                async for push in pl2:
-                    print("Push:", pprint.pformat(push))
+                    # Wait indefinitely for pushes
+                    async for push in pl2:
+                        print("Push:", pprint.pformat(push))
 
-        except Exception as ex:
-            print("_run() exception:", ex)
+            except Exception as ex:
+                print("_run() exception:", ex)
+
+            print("Disconnected.  Waiting 10 seconds and trying again...")
+            await asyncio.sleep(10)
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(_run())

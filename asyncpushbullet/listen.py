@@ -48,6 +48,7 @@ import asyncio
 import json
 import logging
 import os
+import pprint
 import sys
 import textwrap
 import threading
@@ -90,7 +91,7 @@ sys.argv += ["--key-file", "../api_key.txt"]
 # sys.argv += ["--exec", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\hello.py"]
 # sys.argv += ["--exec", r"C:\windows\System32\notepad.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_exec.py"]
 
-logging.basicConfig(level=logging.DEBUG)
+# logging.basicConfig(level=logging.DEBUG)
 
 DEFAULT_THROTTLE_COUNT = 10
 DEFAULT_THROTTLE_SECONDS = 10
@@ -301,8 +302,9 @@ class EchoAction(Action):
     """ Echoes pushes in json format to standard out. """
 
     async def do(self, push: dict, app):  # pb: AsyncPushbullet):  # , device:Device):
-        json_push = json.dumps(push)
-        print(json_push, end="\n\n", flush=True)
+        # json_push = json.dumps(push)
+        # print(json_push, end="\n\n", flush=True)
+        print("Echo push:", pprint.pformat(push))
 
 
 class ExecutableAction(Action):
@@ -336,10 +338,10 @@ class ExecutableAction(Action):
             self.transport = transport
 
         def pipe_data_received(self, fd, data):
-            print("pipe_data_received", data)
+            print("_ProcessProtocol.pipe_data_received", data)
 
         def process_exited(self):
-            print("process_exited")
+            print("_ProcessProtocol.process_exited")
 
     def __init__(self, path_to_executable, args_for_exec=(), loop: asyncio.BaseEventLoop = None, timeout=30):
         super().__init__()
@@ -374,24 +376,30 @@ class ExecutableAction(Action):
                                .format(self.path_to_executable, e))
 
             else:
-
                 # Pass the incoming push via stdin (json form)
                 json_push = json.dumps(push)
                 input_bytes = json_push.encode(__encoding__)
 
                 try:
+                    print("Awaiting process completion", self.path_to_executable, *self.args_for_exec)
                     stdout_data, stderr_data = await asyncio.wait_for(proc.communicate(input=input_bytes),
                                                                       timeout=self.timeout)
                 except asyncio.futures.TimeoutError as e:
                     self.log.error("Execution time out after {} seconds. {}".format(self.timeout, repr(self)))
                     proc.terminate()
                 else:
-                    # Process response from subprocess
+                    # Handle the response from the subprocess
+                    # This goes back on the io_loop since it may involve
+                    # responding to pushbullet.
                     asyncio.run_coroutine_threadsafe(
                         self.handle_process_response(stdout_data, stderr_data, app),
                         loop=io_loop)
-                    pass
+                finally:
+                    print("Process complete", self.path_to_executable, *self.args_for_exec)
 
+        # This Action's do() function must process on the alternate event loop
+        # This is necessary mostly for the windows world where we have to have
+        # a different event loop, a ProactorLoop, to handle subprocesses.
         asyncio.run_coroutine_threadsafe(_on_proc_loop(), self.proc_loop)
 
     async def handle_process_response(self, stdout_data: bytes, stderr_data: bytes, app):
@@ -519,6 +527,8 @@ class ListenApp:
         self._listener = None  # type: PushListener2
         self.app_device = None  # type: Device
         self.sent_push_idens = []  # type: List[str]
+        self.persistent_connection = True
+        self.persistent_connection_wait_interval = 10  # seconds between retry
 
     def add_action(self, action: Action):
         self.actions.append(action)
@@ -565,54 +575,55 @@ class ListenApp:
         self.sent_push_idens.append(resp.get("iden"))
 
     async def run(self):
-        try:
-            # self.app_device = await self.pb.async_get_device(nickname="ListenApp")
-            # if self.app_device is None:
-            #     self.app_device = await self.pb.async_new_device(nickname="ListenApp")
-            # token = "randomdata"
-            # setattr(self.app_device, "push_token", token)
-            # print("ListenApp using device:", repr(self.app_device))
+        exit_code = 0
+        while self.persistent_connection:
+            try:
+                async with PushListener2(self.pb, only_this_device_nickname=self.device_name) as pl2:
+                    self._listener = pl2
 
-            async with PushListener2(self.pb, only_this_device_nickname=self.device_name) as pl2:
-                self._listener = pl2
+                    # Warn if device is not known at launch
+                    if self.device_name is not None:
+                        dev = await self.pb.async_get_device(nickname=self.device_name)
+                        if dev is None:
+                            self.log.warning("Device {} not found at launch time.  ".format(self.device_name) +
+                                             "Will still attempt to filter as pushes are received.")
+                        del dev
 
-                # Warn if device is not known at launch
-                if self.device_name is not None:
-                    dev = await self.pb.async_get_device(nickname=self.device_name)
-                    if dev is None:
-                        self.log.warning("Device {} not found at launch time.  ".format(self.device_name) +
-                                         "Will still attempt to filter as pushes are received.")
-                    del dev
+                    print("Awaiting pushes...")
+                    async for push in pl2:
+                        self.log.info("Received push {}".format(push))
 
-                print("Awaiting pushes...")
-                async for push in pl2:
-                    self.log.info("Received push {}".format(push))
+                        await self._throttle()
 
-                    await self._throttle()
+                        if push.get("iden") in self.sent_push_idens:
+                            # This is one we sent - ignore it
+                            # print("Received a push we sent. Ignoring it.")
+                            continue
 
-                    if push.get("iden") in self.sent_push_idens:
-                        # This is one we sent - ignore it
-                        print("Received a push we sent. Ignoring it.")
-                        continue
+                        for action in self.actions:  # type: Action
+                            self.log.debug("Calling action {}".format(repr(action)))
+                            try:
+                                # loop = asyncio.get_event_loop()
+                                # loop.create_task(action.do(push, self))
 
-                    for action in self.actions:  # type: Action
-                        self.log.debug("Calling action {}".format(repr(action)))
-                        try:
-                            # loop = asyncio.get_event_loop()
-                            # loop.create_task(action.do(push, self))
+                                await action.do(push, self)  # self.pb)  # , self.app_device)
+                                await asyncio.sleep(0)
 
-                            await action.do(push, self)  # self.pb)  # , self.app_device)
-                            await asyncio.sleep(0)
+                            except Exception as ex:
+                                print("Action {} caused exception {}".format(action, ex))
 
-                        except Exception as ex:
-                            print("Action {} caused exception {}".format(action, ex))
+            except Exception as ex:
+                print("listenapp.run exception:", ex)
+                ex.with_traceback()
+                exit_code = __ERR_UNKNOWN__  # exit code
+            else:
+                pass
+            finally:
+                print("ListenApp.run() try block exiting. self.persistent_connection =", self.persistent_connection)
+                if self.persistent_connection:
+                    await asyncio.sleep(self.persistent_connection_wait_interval)
 
-        except Exception as ex:
-            print("listenapp.run exception:", ex)
-            ex.with_traceback()
-            return __ERR_UNKNOWN__  # exit code
-
-        return 0
+        return exit_code
 
 
 if __name__ == "__main__":

@@ -39,7 +39,7 @@ class AsyncPushbullet(Pushbullet):
         loop = asyncio.get_event_loop()
         session = self._aio_sessions.get(loop)  # type: aiohttp.ClientSession
 
-        if session is None:
+        if session is None or session.closed:
             # print("Session is None, creating new one")
             headers = {"Access-Token": self.api_key}
 
