@@ -82,8 +82,8 @@ def main():
                 print(json.dumps(myresp), flush=True)
 
             except Exception as e:
-                raise e
-                # print("Error:", e, file=sys.stderr)
+                # raise e
+                print("Error:", e, file=sys.stderr)
 
             finally:
 
