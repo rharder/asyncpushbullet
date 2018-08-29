@@ -3,6 +3,8 @@
 """
 A command line script for sending pushes.
 
+This file contains entry points for both pbpush and pbtransfer.
+
 usage: command_line_push.py [-h] [-k KEY] [--key-file KEY_FILE]
                             [--proxy PROXY] [-t TITLE] [-b BODY] [-d DEVICE]
                             [--list-devices] [-u URL] [-f FILE]
@@ -72,13 +74,13 @@ __ERR_UNKNOWN__ = 99
 
 def main_pbpush():
     """Intended entry point for pbpush"""
-    args = parse_args()
+    args = parse_args_pbpush()
     do_main(args)
 
 
 def main_pbtransfer():
     """Intended entry point for pbtransfer"""
-    args = parse_args_file_transfer_mode()
+    args = parse_args_pbtransfer()
     do_main(args)
 
 
@@ -97,13 +99,6 @@ def do_main(args):
 
 
 async def _run(args):
-    # Collect a few flags
-    # quiet = getattr(args, "quiet")
-    # use_transfer_sh = getattr(args, "transfer_sh")
-    # title = getattr(args, "title")
-    # body = getattr(args, "body")
-    # quiet = getattr(args, "quiet")
-
     # Key
     api_key = ""
     if "PUSHBULLET_API_KEY" in os.environ:
@@ -242,7 +237,8 @@ async def _transfer_file(pb: AsyncPushbullet,
                                  device=target_device)
 
 
-def parse_args():
+def parse_args_pbpush():
+
     parser = argparse.ArgumentParser()
     parser.add_argument("-k", "--key", help="Your Pushbullet.com API key")
     parser.add_argument("--key-file", help="Text file containing your Pushbullet.com API key")
@@ -266,7 +262,8 @@ def parse_args():
     return args
 
 
-def parse_args_file_transfer_mode():
+def parse_args_pbtransfer():
+
     parser = argparse.ArgumentParser()
     parser.add_argument("-k", "--key", help="Your Pushbullet.com API key")
     parser.add_argument("--key-file", help="Text file containing your Pushbullet.com API key")
@@ -291,14 +288,5 @@ def parse_args_file_transfer_mode():
     return args
 
 
-#
-# @contextlib.contextmanager
-# def nostdout():
-#     save_stdout = sys.stdout
-#     sys.stdout = io.TextIOBase()
-#     yield
-#     sys.stdout = save_stdout
-
-
 if __name__ == "__main__":
-    main_pbpush()
+    main_pbpush()  # Default
