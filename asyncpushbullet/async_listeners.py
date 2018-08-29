@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Asynchronous listeners for connecting to Pushbullet's realtime event stream.
 
@@ -7,7 +8,7 @@ import asyncio
 import json
 import logging
 import time
-from typing import AsyncIterator, Tuple, Set, Iterable
+from typing import AsyncIterator, Set, Iterable
 
 import aiohttp  # pip install aiohttp
 
@@ -171,7 +172,6 @@ class PushListener2:
             # According to the API, there are no other types, but this can
             # be used to catch "nop" if you really want to.
             await self._queue.put(msg)
-
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self._ws_client.__aexit__(exc_type, exc_val, exc_tb)

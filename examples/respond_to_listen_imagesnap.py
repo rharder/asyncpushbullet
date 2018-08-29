@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Experimental script that responds to a ListenApp exec command.
 """
@@ -13,7 +14,7 @@ import tempfile
 sys.path.append("..")  # Since examples are buried one level into source tree
 from asyncpushbullet import Pushbullet, AsyncPushbullet
 
-__encoding__ = "utf-8"
+ENCODING = "utf-8"
 API_KEY = ""  # YOUR API KEY
 PROXY = os.environ.get("https_proxy") or os.environ.get("http_proxy")
 
@@ -44,11 +45,11 @@ def main():
 
                 # Take a picture
                 proc = subprocess.run(["imagesnap", temp_img.name],
-                # proc = subprocess.run(["notepad.exe", temp_img.name],
+                                      # proc = subprocess.run(["notepad.exe", temp_img.name],
                                       stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE,
                                       timeout=10,
-                                      encoding=__encoding__)
+                                      encoding=ENCODING)
 
                 # Upload picture
                 pb = AsyncPushbullet(API_KEY, proxy=PROXY, verify_ssl=False)

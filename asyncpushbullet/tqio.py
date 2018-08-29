@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Show upload progress using tqdm and aiohttp.
 Example in tqio_upload_progress.py.
@@ -5,11 +6,11 @@ Example in tqio_upload_progress.py.
 PasteBin: http://pastebin.com/ksEfNJZN
 Source: https://github.com/rharder/handy
 """
+import io
 import os
 import time
 
-import io
-from tqdm import tqdm
+from tqdm import tqdm  # pip install tqdm
 
 __author__ = "Robert Harder"
 __email__ = "rob@iharder.net"

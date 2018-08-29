@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 A command line script for listening for pushes.
 
@@ -38,7 +39,7 @@ optional arguments:
                         Only listen for pushes targeted at given device name
   --list-devices        List registered device names
   --proxy p             Specify a proxy; otherwise use value of https_proxy or
-                        http_proxy environment variable
+                        http_proxy environment variables
   --debug               Turn on debug logging
   -v, --verbose         Turn on verbose logging (INFO messages)
 
@@ -60,13 +61,11 @@ sys.path.append("..")
 from asyncpushbullet import Device
 from asyncpushbullet import InvalidKeyError
 from asyncpushbullet import PushListener2
-from asyncpushbullet import Pushbullet
 from asyncpushbullet import PushbulletError
 from asyncpushbullet import AsyncPushbullet
 
 __author__ = "Robert Harder"
 __email__ = "rob@iHarder.net"
-__encoding__ = "utf-8"
 
 # Exit codes
 __ERR_API_KEY_NOT_GIVEN__ = 1
@@ -77,24 +76,25 @@ __ERR_DEVICE_NOT_FOUND__ = 5
 __ERR_NOTHING_TO_DO__ = 6
 __ERR_UNKNOWN__ = 99
 
+DEFAULT_THROTTLE_COUNT = 10
+DEFAULT_THROTTLE_SECONDS = 10
+ENCODING = "utf-8"
+
 # sys.argv.append("-h")
+# sys.argv.append("-v")
+# sys.argv.append("--debug")
 # sys.argv += ["-k", "badkey"]
 sys.argv += ["--key-file", "../api_key.txt"]
+
+
 # sys.argv.append("--echo")
 # sys.argv += ["--proxy", ""]
 # sys.argv.append("--list-devices")
-# sys.argv += ["--exec", r"C:\windows\System32\clip.exe"]
+# sys.argv += ["--exec-simple", r"C:\windows\System32\clip.exe"]
 # sys.argv += ["--exec", r"C:\windows\System32\notepad.exe"]
 
-# sys.argv += ["--exec", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_exec.py"]
-
-# sys.argv += ["--exec", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\hello.py"]
-# sys.argv += ["--exec", r"C:\windows\System32\notepad.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_exec.py"]
-
-# logging.basicConfig(level=logging.DEBUG)
-
-DEFAULT_THROTTLE_COUNT = 10
-DEFAULT_THROTTLE_SECONDS = 10
+# sys.argv += ["--exec", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_imagesnap.py"]
+# sys.argv += ["--exec-simple", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_exec_simple.py"]
 
 
 def main():
@@ -121,15 +121,14 @@ def do_main(args):
             file=sys.stderr)
         sys.exit(__ERR_API_KEY_NOT_GIVEN__)
 
-    # Verbose?
-    if args.verbose:
-        print("Log level: INFO")
-        logging.basicConfig(level=logging.INFO)
-
-    # Debug?
-    if args.debug:
+    # Logging levels
+    if args.debug:  # Debug?
         print("Log level: DEBUG")
         logging.basicConfig(level=logging.DEBUG)
+
+    elif args.verbose:  # Verbose?
+        print("Log level: INFO")
+        logging.basicConfig(level=logging.INFO)
 
     # Proxy
     proxy = args.proxy or os.environ.get("https_proxy") or os.environ.get("http_proxy")
@@ -138,9 +137,9 @@ def do_main(args):
     if args.list_devices:
         print("Devices:")
 
-        pb = None  # type: Pushbullet
+        pb = None  # type: AsyncPushbullet
         try:
-            pb = Pushbullet(api_key, proxy=proxy)
+            pb = AsyncPushbullet(api_key, proxy=proxy)
             pb.verify_key()
         except InvalidKeyError as exc:
             print(exc, file=sys.stderr)
@@ -187,7 +186,7 @@ def do_main(args):
         for cmd_opts in args.exec:
             cmd_path = cmd_opts[0]
             cmd_args = cmd_opts[1:]
-            action = ExecutableAction(cmd_path, cmd_args, loop=proc_loop, timeout=12)
+            action = ExecutableAction(cmd_path, cmd_args, loop=proc_loop)
             listen_app.add_action(action)
 
     # Add actions from command line arguments
@@ -200,6 +199,7 @@ def do_main(args):
 
     # Default action if none specified
     if len(listen_app.actions) == 0 or args.echo:
+        print("No actions specified -- defaulting to Echo.")
         listen_app.add_action(EchoAction())
 
     loop = asyncio.get_event_loop()
@@ -377,11 +377,12 @@ class ExecutableAction(Action):
 
             else:
                 # Pass the incoming push via stdin (json form)
-                json_push = json.dumps(push)
-                input_bytes = json_push.encode(__encoding__)
+                input_bytes = self.transform_push_to_stdin_data(push)
 
                 try:
-                    print("Awaiting process completion", self.path_to_executable, *self.args_for_exec)
+                    # print("Awaiting process completion", self.path_to_executable, *self.args_for_exec)
+                    self.log.debug(
+                        "Awaiting process completion {}".format([self.path_to_executable, *self.args_for_exec]))
                     stdout_data, stderr_data = await asyncio.wait_for(proc.communicate(input=input_bytes),
                                                                       timeout=self.timeout)
                 except asyncio.futures.TimeoutError as e:
@@ -391,16 +392,25 @@ class ExecutableAction(Action):
                     # Handle the response from the subprocess
                     # This goes back on the io_loop since it may involve
                     # responding to pushbullet.
+                    if stdout_data == b'' and stderr_data == b'':
+                        self.log.info("Nothing was returned from executable {}".format(
+                            [self.path_to_executable, *self.args_for_exec]))
                     asyncio.run_coroutine_threadsafe(
                         self.handle_process_response(stdout_data, stderr_data, app),
                         loop=io_loop)
                 finally:
-                    print("Process complete", self.path_to_executable, *self.args_for_exec)
+                    self.log.debug("Process complete {}".format([self.path_to_executable, *self.args_for_exec]))
+                    # print("Process complete", self.path_to_executable, *self.args_for_exec)
 
         # This Action's do() function must process on the alternate event loop
         # This is necessary mostly for the windows world where we have to have
         # a different event loop, a ProactorLoop, to handle subprocesses.
         asyncio.run_coroutine_threadsafe(_on_proc_loop(), self.proc_loop)
+
+    def transform_push_to_stdin_data(self, push: dict) -> bytes:
+        json_push = json.dumps(push)
+        input_bytes = json_push.encode(ENCODING)
+        return input_bytes
 
     async def handle_process_response(self, stdout_data: bytes, stderr_data: bytes, app):
         """
@@ -413,7 +423,7 @@ class ExecutableAction(Action):
 
         # Any stderr output?
         if stderr_data != b"":
-            stderr_txt = stderr_data.decode(__encoding__, "replace")
+            stderr_txt = stderr_data.decode(ENCODING, "replace")
             self.log.error("Error from {}: {}".format(repr(self), stderr_data))
         else:
             stderr_txt = None  # type: str
@@ -421,7 +431,7 @@ class ExecutableAction(Action):
         # Any stdout output?
         if stdout_data != b"":
             self.log.info("Response from {}: {}".format(repr(self), stdout_data))
-            stdout_txt = stdout_data.decode(__encoding__, "replace")
+            stdout_txt = stdout_data.decode(ENCODING, "replace")
         else:
             stdout_txt = None  # type: str
 
@@ -447,8 +457,6 @@ class ExecutableAction(Action):
                     # Interpret structures response
                     title = _resp.get("title")
                     body = _resp.get("body")
-                    # dev_iden = _resp.get("device_iden")
-                    # device = None if dev_iden is None else Device(None, {"iden":dev_iden})
 
                     if _resp.get("type") == "file":
                         file_type = _resp.get("file_type")
@@ -458,10 +466,9 @@ class ExecutableAction(Action):
                                                file_url=file_url,
                                                file_type=file_type,
                                                title=title,
-                                               body=body)#,
-                                               # device_iden=dev_iden)
+                                               body=body)
                     else:
-                        await app.respond(title=title, body=body)#, device_iden=dev_iden)
+                        await app.respond(title=title, body=body)
 
                 if type(response) == list:
                     for resp in response:
@@ -492,20 +499,20 @@ class ExecutableActionSimplified(ExecutableAction):
         title = str(push.get("title", "")).strip().replace("\n", " ")
         body = str(push.get("body", ""))
         output = "{}\n{}".format(title, body)
-        output_bytes = output.encode(__encoding__)
+        output_bytes = output.encode(ENCODING)
         return output_bytes
 
     async def handle_process_response(self, stdout_data: bytes, stderr_data: bytes, app):  # pb: AsyncPushbullet):
 
         if stdout_data != b"":
-            data = stdout_data.decode(__encoding__, "replace")
+            data = stdout_data.decode(ENCODING, "replace")
             lines = data.splitlines()
             if len(lines) > 0:
                 title = lines.pop(0).rstrip()
                 body_lines = [line.rstrip() for line in lines]
                 body = "\n".join(body_lines)
-                resp = {"pushes": [{"title": title, "body": body}]}
-                stdout_data = json.dumps(resp).encode(__encoding__)
+                resp = {"title": title, "body": body}
+                stdout_data = json.dumps(resp).encode(ENCODING)
 
         await super().handle_process_response(stdout_data=stdout_data, stderr_data=stderr_data, app=app)  # pb=pb)
 
@@ -578,7 +585,9 @@ class ListenApp:
         exit_code = 0
         while self.persistent_connection:
             try:
+                print("Connecting to pushbullet...", end="", flush=True)
                 async with PushListener2(self.pb, only_this_device_nickname=self.device_name) as pl2:
+                    print("Connected.", flush=True)
                     self._listener = pl2
 
                     # Warn if device is not known at launch
@@ -611,16 +620,22 @@ class ListenApp:
 
                             except Exception as ex:
                                 print("Action {} caused exception {}".format(action, ex))
+            except InvalidKeyError as ex:
+                exit_code = __ERR_INVALID_API_KEY__
+                print(ex, file=sys.stderr, flush=True)
+                self.persistent_connection = False  # Invalid key results in immediate exit
 
             except Exception as ex:
-                print("listenapp.run exception:", ex)
-                ex.with_traceback()
+                print(ex, file=sys.stderr, flush=True)
                 exit_code = __ERR_UNKNOWN__  # exit code
+
             else:
-                pass
+                print("Connection closed.")
+
             finally:
-                print("ListenApp.run() try block exiting. self.persistent_connection =", self.persistent_connection)
+                # print("ListenApp.run() try block exiting. self.persistent_connection =", self.persistent_connection)
                 if self.persistent_connection:
+                    print("Waiting {} seconds to try again...".format(self.persistent_connection_wait_interval))
                     await asyncio.sleep(self.persistent_connection_wait_interval)
 
         return exit_code

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Tool for managing Pushbullet account
 """
@@ -26,7 +27,6 @@ sys.path.append("..")  # Since examples are buried one level into source tree
 from asyncpushbullet import Device
 from asyncpushbullet import AsyncPushbullet
 from asyncpushbullet.async_listeners import PushListener2
-from asyncpushbullet.helpers import print_function_name
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Demonstrates how to consume new pushes in an asyncio for loop.
 """

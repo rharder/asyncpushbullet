@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""The non-asyncio version of the Pushbullet clas.
+If you are not using the asyncio capabilities of this package,
+it is recommended that you stick with Igor's own package."""
+
 import datetime
 import json
 import logging
@@ -6,7 +11,6 @@ import pprint
 
 import requests
 
-from asyncpushbullet.helpers import print_function_name
 from ._compat import standard_b64encode
 from .channel import Channel
 from .chat import Chat

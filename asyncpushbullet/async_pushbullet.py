@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+"""Asyncio version of Pushbullet class."""
+
 import asyncio
 import os
 import pprint

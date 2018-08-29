@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Demonstrates how to upload and push a file,
 intended to be turned into a handy command line script

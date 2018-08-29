@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 A collection of functions and classes to help with tkinter.
 Source: https://github.com/rharder/handy

@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 def _magic_get_file_type(filename):
     with open(filename, "rb") as f:
         file_type = magic.from_buffer(f.read(1024), mime=True)
@@ -21,6 +23,7 @@ try:
     import magic
 except Exception:
     import mimetypes
+
     get_file_type = _guess_file_type
 else:
     get_file_type = _magic_get_file_type

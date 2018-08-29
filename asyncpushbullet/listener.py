@@ -1,13 +1,16 @@
+# -*- coding: utf-8 -*-
+"""Used with non-asyncio Pushbullet class.
+If you are not using the asyncio capabilities of this package,
+it is recommended that you stick with Igor's own package."""
+
 __author__ = 'Igor Maculan <n3wtron@gmail.com>'
 
+import json
 import logging
 import time
-import json
 from threading import Thread
 
-import requests
 import websocket
-
 
 log = logging.getLogger('pushbullet.Listener')
 

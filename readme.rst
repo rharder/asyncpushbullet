@@ -4,7 +4,7 @@ asyncpushbullet
 .. http://rst.ninjs.org/ Online reStructuredText editor
 
 .. image:: https://img.shields.io/pypi/pyversions/asyncpushbullet.svg
-    :target: https://pypi.python.org/pypi/asyncpushbullet
+    :target: https://pypi.python.org/pypi/asyncpushbulletF
     :alt: Python versions supported
 
 .. image:: https://img.shields.io/pypi/v/asyncpushbullet.svg
@@ -501,7 +501,7 @@ Note that Pushbullet supportes End-To-End encryption only in SMS, notification m
 Error checking
 ^^^^^^^^^^^^^^
 
-If the Pushbullet api returns an error code a ``PushError`` an __
+If the Pushbullet api returns an error code an __
 ``InvalidKeyError`` or a ``PushbulletError`` is raised. The first __
 two are both subclasses of ``PushbulletError``
 

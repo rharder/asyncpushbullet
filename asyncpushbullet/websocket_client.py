@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Handy class for consuming websockets as a client.
 
@@ -10,7 +11,7 @@ August 2018 - Initial creation
 import asyncio
 from typing import AsyncIterator
 
-import aiohttp
+import aiohttp  # pip install aiohttp
 
 __author__ = "Robert Harder"
 __email__ = "rob@iharder.net"
