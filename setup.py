@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import shutil
 import sys
 
 from setuptools import setup
@@ -13,6 +14,13 @@ if len(sys.argv) < 2:
 
 if sys.argv[-1] == 'build':
     print("BUILD")
+    for path in ("./build", "./dist"):
+        try:
+            print("Removing {} ...".format(path), flush=True)
+            shutil.rmtree(path)
+        except:
+            print("Could not remove {}".format(path), file=sys.stderr, flush=True)
+
     try:
         os.system('python3 setup.py sdist bdist_wheel')
     except:
