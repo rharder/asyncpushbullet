@@ -14,12 +14,14 @@ if len(sys.argv) < 2:
 
 if sys.argv[-1] == 'build':
     print("BUILD")
-    for path in ("./build", "./dist"):
+    for path in ("./build", "./dist", "./asyncpushbullet.egg-info"):
         try:
-            print("Removing {} ...".format(path), flush=True)
+            print("Removing {} ...".format(path), end="", flush=True)
             shutil.rmtree(path)
         except:
-            print("Could not remove {}".format(path), file=sys.stderr, flush=True)
+            print("Could not remove {}".format(path), flush=True)
+        else:
+            print("Removed.")
 
     try:
         os.system('python3 setup.py sdist bdist_wheel')

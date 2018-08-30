@@ -34,9 +34,6 @@ __email__ = "rob@iharder.net"
 API_KEY = ""  # YOUR API KEY
 
 
-# logging.basicConfig(level=logging.DEBUG)
-
-
 class GuiToolApp():
     def __init__(self, root):
         self.window = root
@@ -71,6 +68,7 @@ class GuiToolApp():
 
         # Connections / Bindings
         self.key_var.set(API_KEY)
+        self.connect_button_clicked()
 
     @property
     def status(self):
