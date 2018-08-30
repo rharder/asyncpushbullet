@@ -40,7 +40,7 @@ class WebsocketClient():
     async def _create_session(self) -> aiohttp.ClientSession:
         aio_connector = None  # type: aiohttp.TCPConnector
         if self.verify_ssl is not None and self.verify_ssl is False:
-            aio_connector = aiohttp.TCPConnector(ssl=False, loop=asyncio.get_event_loop())
+            aio_connector = aiohttp.TCPConnector(ssl=False)#, loop=asyncio.get_event_loop())
         session = aiohttp.ClientSession(headers=self.headers, connector=aio_connector)
         return session
 

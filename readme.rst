@@ -234,10 +234,11 @@ or ::
 Event Loops
 ^^^^^^^^^^^
 
-``AsyncPushbullet`` coroutines will work on whichever event loop they
-are called from.  If you call from multiple event loops, you may need
-to use the ``close_all_threadsafe()`` function when your program shuts down to
-shutdown gracefully on all event loops.
+
+``AsyncPushbullet`` expects its async functions to operate on only one event loop.
+Create a new ``AsyncPushbullet`` object if you need to operate on multiple
+event loops.  If you need to close an ``AsyncPushbullet`` from another loop
+or thread, use the ``close_all_threadsafe()``.
 
 
 Using a proxy

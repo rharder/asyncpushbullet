@@ -21,11 +21,13 @@ __email__ = "rob@iharder.net"
 
 class AsyncPushbullet(Pushbullet):
     def __init__(self, api_key: str = None, verify_ssl: bool = None,
-                 loop: asyncio.AbstractEventLoop = None, **kwargs):
+                 #loop: asyncio.AbstractEventLoop = None,
+                 **kwargs):
         Pushbullet.__init__(self, api_key, **kwargs)
-        self.loop = loop or asyncio.get_event_loop()
+        self.loop = None  # type: asyncio.BaseEventLoop #= loop or asyncio.get_event_loop()
 
-        self._aio_sessions = {}  # type: Dict[asyncio.AbstractEventLoop, aiohttp.ClientSession]
+        # self._aio_sessions = {}  # type: Dict[asyncio.AbstractEventLoop, aiohttp.ClientSession]
+        self._aio_session = None  # type: aiohttp.ClientSession
         self.verify_ssl = verify_ssl
 
     async def __aenter__(self):
@@ -46,22 +48,26 @@ class AsyncPushbullet(Pushbullet):
         # print_function_name(self)
 
         # Sessions are created/handled on a per-loop basis
-        loop = asyncio.get_event_loop()
-        session = self._aio_sessions.get(loop)  # type: aiohttp.ClientSession
+        # loop = asyncio.get_event_loop()
+        # session = self._aio_sessions.get(loop)  # type: aiohttp.ClientSession
+        session = self._aio_session
 
         if session is None or session.closed:
+            self.loop = asyncio.get_event_loop()
+
             # print("Session is None, creating new one")
             headers = {"Access-Token": self.api_key}
 
             aio_connector = None  # type: aiohttp.TCPConnector
             if self.verify_ssl is not None and self.verify_ssl is False:
                 self.log.info("SSL/TLS verification disabled")
-                aio_connector = aiohttp.TCPConnector(verify_ssl=False, loop=loop)
+                aio_connector = aiohttp.TCPConnector(verify_ssl=False)#, loop=loop)
 
             session = aiohttp.ClientSession(headers=headers, connector=aio_connector)  # , trust_env=True)
             # print("created new session id:", id(session))
             self.log.debug("Created new session: {}".format(session))
-            self._aio_sessions[loop] = session  # Save session for this loop
+            # self._aio_sessions[loop] = session  # Save session for this loop
+            self._aio_session = session
 
             try:
                 # This will recursively call aio_session() but that's OK
@@ -72,7 +78,8 @@ class AsyncPushbullet(Pushbullet):
 
             except Exception as ex:
                 await session.close()
-                del self._aio_sessions[loop]
+                # del self._aio_sessions[loop]
+                self._aio_session = None
                 raise ex
 
         return session
@@ -80,18 +87,25 @@ class AsyncPushbullet(Pushbullet):
     async def async_close(self):
         """Closes only the session on the current event loop and the synchronous session in the super class"""
         super().close()  # synchronous version in superclass
-        loop = asyncio.get_event_loop()
-        if loop in self._aio_sessions:
-            await self._aio_sessions[loop].close()
-            del self._aio_sessions[loop]
+        if self._aio_session:
+            await self._aio_session.close()
+            self._aio_session = None
+            self.loop = None
+        # loop = asyncio.get_event_loop()
+        # if loop in self._aio_sessions:
+        #     await self._aio_sessions[loop].close()
+        #     del self._aio_sessions[loop]
 
     def close_all_threadsafe(self):
         """Closes all sessions, which may be on different event loops.
         This method is NOT awaited--because there may be different loops involved."""
 
         super().close()  # Synchronous closer for superclass
-        for loop, session in self._aio_sessions.items():
-            asyncio.run_coroutine_threadsafe(session.close(), loop=loop)
+        if self._aio_session:
+            assert self.loop is not None
+            asyncio.run_coroutine_threadsafe(self.async_close(), loop=self.loop)
+        # for loop, session in self._aio_sessions.items():
+        #     asyncio.run_coroutine_threadsafe(session.close(), loop=loop)
 
     # ################
     # IO Methods
@@ -99,7 +113,7 @@ class AsyncPushbullet(Pushbullet):
 
     async def _async_http(self, aiohttp_func, url: str, **kwargs) -> dict:
 
-        try:
+        # try:
             async with aiohttp_func(url, proxy=self.proxy, **kwargs) as resp:  # Do HTTP
                 code = resp.status
                 msg = None
@@ -113,20 +127,14 @@ class AsyncPushbullet(Pushbullet):
                         msg = await resp.read()
 
                 return self._interpret_response(code, resp.headers, msg)
-        except Exception as ex:
-            print(ex)
-            ex.with_traceback()
-            await asyncio.sleep(10)
+        # except Exception as ex:
+        #     self.log.warning(ex)
+            # ex.with_traceback()
+            # await asyncio.sleep(10)
 
-    async def _async_get_data(self, url: str, session=None, **kwargs) -> dict:
-        # print_function_name()
-        # await asyncio.sleep(1)
-        session = session or await self.aio_session()
-        # session = await self.aio_session()
-        # session = kwargs["session"] if "session" in kwargs else await self.aio_session()
-        # print("_async_get_data session id:", id(session))
-
-        # session = session or await self.aio_session()
+    # async def _async_get_data(self, url: str, session=None, **kwargs) -> dict:
+    async def _async_get_data(self, url: str, **kwargs) -> dict:
+        session = await self.aio_session()
         msg = await self._async_http(session.get, url, **kwargs)
         return msg
 

@@ -89,7 +89,7 @@ class GuiToolApp():
                 self._pushbullet = None
         if self._pushbullet is None:
             self._pushbullet = AsyncPushbullet(api_key=current_key,
-                                               loop=self.ioloop,
+                                               # loop=self.ioloop,
                                                verify_ssl=False,
                                                proxy=self.proxy)
 

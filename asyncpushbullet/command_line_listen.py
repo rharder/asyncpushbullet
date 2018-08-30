@@ -84,9 +84,9 @@ ENCODING = "utf-8"
 # sys.argv.append("-v")
 # sys.argv.append("--debug")
 # sys.argv += ["-k", "badkey"]
-# sys.argv += ["--key-file", "../api_key.txt"]
+sys.argv += ["--key-file", "../api_key.txt"]
 # sys.argv += ["--device", "Kanga"]
-# sys.argv.append("--echo")
+sys.argv.append("--echo")
 # sys.argv += ["--proxy", ""]
 # sys.argv.append("--list-devices")
 # sys.argv += ["--exec-simple", r"C:\windows\System32\clip.exe"]
@@ -542,7 +542,8 @@ class ListenApp:
     async def close(self):
         if self._listener is not None:
             await self._listener.close()
-        self.pb.close_all_threadsafe()
+        # self.pb.close_all_threadsafe()
+        await self.pb.async_close()
 
     async def _throttle(self):
         """ Makes one tick and stalls if necessary """
