@@ -12,7 +12,7 @@ from typing import AsyncIterator, Set, Iterable
 
 import aiohttp  # pip install aiohttp
 
-from asyncpushbullet import AsyncPushbullet
+from asyncpushbullet import AsyncPushbullet, PushbulletError
 from asyncpushbullet.websocket_client import WebsocketClient
 
 __author__ = 'Robert Harder'
@@ -46,7 +46,7 @@ class PushListener2:
         """
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
-        self.account = account  # type: AsyncPushbullet
+        self.pb = account  # type: AsyncPushbullet
         self._last_update = 0  # type: float
         self._ignore_inactive = ignore_inactive  # type: bool
         self._ignore_dismissed = ignore_dismissed  # type: bool
@@ -55,6 +55,9 @@ class PushListener2:
         self._loop = None  # type: asyncio.BaseEventLoop
         self._queue = None  # type: asyncio.Queue
 
+        # Push types are what should be allowed through.
+        # Ephemerals can be sub-typed like so: ephemeral:clip
+        # The ephemeral_types variable contains the post-colon words
         self.push_types = set(types)  # type: Set[str]
         self.ephemeral_types = tuple([x.split(":")[-1] for x in self.push_types if len(x.split(":")) > 1])
 
@@ -63,6 +66,14 @@ class PushListener2:
 
     async def __aenter__(self):
         self._queue = asyncio.Queue()
+
+        # Are we filtering on device?
+        if self._only_this_device_nickname is not None:
+            device = await self.pb.async_get_device(nickname=self._only_this_device_nickname)
+            if device is None:
+                self.log.warning(
+                    "Filtering on device name that does not yet exist: {}".format(self._only_this_device_nickname))
+            del device
 
         async def _listen_for_pushes(_wc: WebsocketClient):
             try:
@@ -78,9 +89,9 @@ class PushListener2:
                 sai = StopAsyncIteration()
                 await self._queue.put(sai)
 
-        session = await self.account.aio_session()
-        wc = WebsocketClient(url=self.WEBSOCKET_URL + self.account.api_key,
-                             proxy=self.account.proxy,
+        session = await self.pb.aio_session()
+        wc = WebsocketClient(url=self.WEBSOCKET_URL + self.pb.api_key,
+                             proxy=self.pb.proxy,
                              session=session)
         self._ws_client = await wc.__aenter__()
         asyncio.get_event_loop().create_task(_listen_for_pushes(wc))
@@ -104,6 +115,7 @@ class PushListener2:
             await self._queue.put(StopAsyncIteration(err_msg))
 
         else:
+            self.log.debug("WebSocket message: {}".format(msg.data))
             await self._process_pushbullet_message(json.loads(msg.data))
 
     async def _process_pushbullet_message(self, msg: dict):
@@ -126,52 +138,74 @@ class PushListener2:
                     if sub_type is not None and sub_type in self.ephemeral_types:
                         await self._queue.put(msg)
 
-        # Look for websocket message announcing new pushes
-        elif ("push" in self.push_types or not self.push_types) and \
-                msg == {'type': 'tickle', 'subtype': 'push'}:
+        # Various tickles
+        elif msg.get("type") == "tickle" and msg.get("subtype") == "push":
+            return await self._process_pushbullet_message_tickle_push(msg)
 
-            pushes = await self.account.async_get_pushes(modified_after=self.account.most_recent_timestamp,
-                                                         filter_inactive=self._ignore_inactive)
-            self.log.debug("Retrieved {} pushes".format(len(pushes)))
-
-            # Update timestamp for most recent push so we only get "new" pushes
-            if len(pushes) > 0 and pushes[0].get('modified', 0) > self.account.most_recent_timestamp:
-                self.account.most_recent_timestamp = pushes[0]['modified']
-
-            # Process each push
-            for push in pushes:
-
-                # Filter dismissed pushes if requested
-                if self._ignore_dismissed is not None and bool(push.get("dismissed")):
-                    self.log.debug("Skipped push because it was dismissed: {}".format(push))
-                    continue  # skip this push
-
-                # Filter on device if requested
-                if self._only_this_device_nickname is not None:
-
-                    # Does push have a target device
-                    target_iden = push.get("target_device_iden")
-                    if target_iden is None:
-                        self.log.debug("Skipped push because it was not target device: {}".format(push))
-                        continue  # skip push
-
-                    # Does target device have the right nickname?
-                    target_dev = await self.account.async_get_device(iden=target_iden)
-                    if target_dev is None:
-                        self.log.error("Received a target_device_iden in push that did not map to a device: {}"
-                                       .format(target_iden))
-                        continue  # skip this push
-                    if target_dev.nickname != self._only_this_device_nickname:
-                        continue  # skip push - wrong device
-
-                # Passed all filters - accept push
-                self.log.debug("Adding to push queue: {}".format(push))
-                await self._queue.put(push)
+        elif msg.get("type") == "tickle" and msg.get("subtype") == "device":
+            return await self._process_pushbullet_message_tickle_device(msg)
 
         elif "type" in msg and msg["type"] in self.push_types:
             # According to the API, there are no other types, but this can
             # be used to catch "nop" if you really want to.
             await self._queue.put(msg)
+
+        elif not self.push_types:  # means show everything
+            # will also show unhandled tickle types
+            await self._queue.put(msg)
+
+    async def _process_pushbullet_message_tickle_push(self, msg: dict):
+        """When we received a tickle regarding a push."""
+        pushes = await self.pb.async_get_pushes(modified_after=self.pb.most_recent_timestamp,
+                                                filter_inactive=self._ignore_inactive)
+        self.log.debug("Retrieved {} pushes".format(len(pushes)))
+
+        # Update timestamp for most recent push so we only get "new" pushes
+        if len(pushes) > 0 and pushes[0].get('modified', 0) > self.pb.most_recent_timestamp:
+            self.pb.most_recent_timestamp = pushes[0]['modified']
+
+        # Process each push
+        for push in pushes:
+
+            # Filter dismissed pushes if requested
+            if self._ignore_dismissed is not None and bool(push.get("dismissed")):
+                self.log.debug("Skipped push because it was dismissed: {}".format(push))
+                continue  # skip this push
+
+            # Filter on device if requested
+            if self._only_this_device_nickname is not None:
+
+                # Does push have no target at all?
+                target_iden = push.get("target_device_iden")
+                if target_iden is None:
+                    self.log.info("Skipped push because it had no target device: {}".format(push))
+                    continue  # skip push
+
+                # Does target device not exist?
+                # This would be a strange problem but could happen if
+                # clients have cached devices.
+                target_dev = await self.pb.async_get_device(iden=target_iden)
+                if target_dev is None:
+                    self.log.warning(
+                        "Skipped push because the target_device_iden did not map to any known device: {}"
+                            .format(push))
+                    continue  # skip this push
+
+                # Does target device have the wrong name?
+                if target_dev.nickname != self._only_this_device_nickname:
+                    self.log.debug("Skipped push that was not to target device {}: {}".format(
+                        self._only_this_device_nickname, push
+                    ))
+                    continue  # skip push - wrong device
+
+            # Passed all filters - accept push
+            self.log.debug("Adding to push queue: {}".format(push))
+            await self._queue.put(push)
+
+    async def _process_pushbullet_message_tickle_device(self, msg: dict):
+        """When we received a tickle regarding a push."""
+        # Just refresh the cache of devices
+        await self.pb.async_get_devices(flush_cache=True)
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self._ws_client.__aexit__(exc_type, exc_val, exc_tb)

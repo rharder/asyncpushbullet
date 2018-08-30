@@ -34,8 +34,6 @@ class AsyncPushbullet(Pushbullet):
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.async_close()
-        # await self._ws_client.__aexit__(exc_type, exc_val, exc_tb)
-        # await self._ws_client.close()
 
     async def async_verify_key(self):
         """
@@ -70,7 +68,7 @@ class AsyncPushbullet(Pushbullet):
                 # because self._aio_session caches it until we determine
                 # if the key is valid in the line below.
                 # Other purpose: Establish a timestamp for the most recent push
-                _ = await self.async_get_pushes(limit=1)  # May throw invalid key error here
+                _ = await self.async_get_pushes(limit=1, filter_inactive=False)  # May throw invalid key error here
 
             except Exception as ex:
                 await session.close()
@@ -101,27 +99,24 @@ class AsyncPushbullet(Pushbullet):
 
     async def _async_http(self, aiohttp_func, url: str, **kwargs) -> dict:
 
-        # print_function_name(self)
+        try:
+            async with aiohttp_func(url, proxy=self.proxy, **kwargs) as resp:  # Do HTTP
+                code = resp.status
+                msg = None
+                try:
+                    if code != 204:  # 204 would be "No content"
+                        msg = await resp.json()
+                except:
+                    pass
+                finally:
+                    if msg is None:
+                        msg = await resp.read()
 
-        # async with aiohttp_func(url, **kwargs) as resp:  # Do HTTP
-        # try:
-        async with aiohttp_func(url, proxy=self.proxy, **kwargs) as resp:  # Do HTTP
-            code = resp.status
-            msg = None
-            try:
-                if code != 204:  # 204 would be "No content"
-                    msg = await resp.json()
-            except:
-                pass
-            finally:
-                if msg is None:
-                    msg = await resp.read()
-
-            return self._interpret_response(code, resp.headers, msg)
-        # except Exception as ex:
-        #     print(ex)
-        #     ex.with_traceback()
-        #     await asyncio.sleep(10)
+                return self._interpret_response(code, resp.headers, msg)
+        except Exception as ex:
+            print(ex)
+            ex.with_traceback()
+            await asyncio.sleep(10)
 
     async def _async_get_data(self, url: str, session=None, **kwargs) -> dict:
         # print_function_name()
@@ -168,20 +163,31 @@ class AsyncPushbullet(Pushbullet):
     #
 
     async def _async_load_devices(self):
-        self._devices = []
+        devices = []
         msg = await self._async_get_data_with_pagination(self.DEVICES_URL, "devices", params={"active": "true"})
         device_list = msg.get('devices', [])
         for device_info in device_list:
             if device_info.get("active"):
                 d = Device(self, device_info)
-                self._devices.append(d)
-        self.log.info("Found {} active devices".format(len(self._devices)))
+                devices.append(d)
+        self.log.info("Found {} active devices".format(len(devices)))
+        self._devices = devices
 
-    async def async_get_devices(self) -> List[Device]:
-        await self._async_load_devices()
+    async def async_get_devices(self, flush_cache: bool = False) -> List[Device]:
+        """Returns a list of Device objects known by Pushbullet.
+
+        This returns immediately with a cached copy of the devices, if available.
+        If not available, or if flush_cache=True, then a call will be made to
+        Pushbullet.com to retrieve a fresh list of devices.
+
+        :param bool flush_cache: whether or not to flush the cache first
+        :return: list of Device objects
+        """
+        if self._devices is None or flush_cache:
+            await self._async_load_devices()
         return self._devices
 
-    async def async_get_device(self, nickname: str = None, iden: str = None) -> Device:
+    async def async_get_device(self, nickname: str = None, iden: str = None, flush_cache=False) -> Device:
         """
         Attempts to retrieve a device based on the given nickname or iden.
         First looks in the cached copy of the data and then refreshes the
@@ -189,8 +195,8 @@ class AsyncPushbullet(Pushbullet):
         Returns None if the device is still not found.
         """
 
-        if self._devices is None:
-            self._devices = []
+        if self._devices is None or flush_cache:
+            await self._async_load_devices()
 
         def _get():
             if nickname:
@@ -312,7 +318,8 @@ class AsyncPushbullet(Pushbullet):
         """Retrieve pushes with a default limit of 10 (None means unlimited)."""
         # print_function_name(self)
         gen = self._get_pushes_generator(modified_after=modified_after,
-                                         limit=limit, filter_inactive=filter_inactive)
+                                         limit=limit,
+                                         filter_inactive=filter_inactive)
         xfer = next(gen)  # Prep http params
         data = xfer.get('data', {})
         xfer["msg"] = await self._async_get_data_with_pagination(self.PUSH_URL, "pushes", params=data)

@@ -170,6 +170,7 @@ class Pushbullet:
         items = []
         limit = kwargs.get("params", {}).get("limit")
         xfer = {"kwargs": kwargs, "get_more": True}
+        empty_rounds_in_a_row = 0
         while xfer["get_more"]:
             yield xfer  # Do IO
 
@@ -177,12 +178,26 @@ class Pushbullet:
             items_this_round = msg.get(item_name, [])
             items += items_this_round
 
+            # Check for empty data being returned.
+            # This seems to happen if the last transaction on the pushbullet
+            # account was not push-related, such as adding or removing a device.
+            # If too many empty rounds come in a row, something is wrong, and we
+            # don't want to get stuck in an infinite loop.
+            if len(items_this_round) > 0:
+                empty_rounds_in_a_row = 0
+            else:
+                empty_rounds_in_a_row += 1
+            if empty_rounds_in_a_row > 3:
+                self.log.warning("Received {} rounds of empty data from pusbhullet -- something is not right.".format(empty_rounds_in_a_row))
+                xfer["get_more"] = False
+
             # Need subsequent calls to get rest of data?
-            if "cursor" in msg and len(items_this_round) > 0 \
-                    and (limit is None or len(items) < limit):
+            # if "cursor" in msg and len(items_this_round) > 0 and (limit is None or len(items) < limit):
+            if "cursor" in msg and (limit is None or len(items) < limit):
                 if "params" in xfer["kwargs"]:
                     xfer["kwargs"]["params"].update({"cursor": msg["cursor"]})
                 else:
+                    xfer["kwargs"]["params"] = {"cursor": msg["cursor"]}
                     xfer["kwargs"]["params"] = {"cursor": msg["cursor"]}
                     self.log.info("Paging for more {} ({})".format(item_name, len(items)))
             else:
@@ -491,6 +506,8 @@ class Pushbullet:
             data["limit"] = int(limit)
         if filter_inactive:
             data['active'] = "true"
+        else:
+            data['active'] = "false"
         xfer = {"data": data}
         yield xfer  # Do IO
 
@@ -501,7 +518,7 @@ class Pushbullet:
 
         if self.log.isEnabledFor(logging.DEBUG):
             self.log.debug("Retrieved {} push{}: {}".format(len(pushes_list),
-                                                            "es" if len(pushes_list) > 1 else "",
+                                                            "" if len(pushes_list) == 1 else "es",
                                                             pprint.pformat(pushes_list)))
         yield pushes_list
 

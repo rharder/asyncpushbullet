@@ -85,14 +85,12 @@ ENCODING = "utf-8"
 # sys.argv.append("--debug")
 # sys.argv += ["-k", "badkey"]
 # sys.argv += ["--key-file", "../api_key.txt"]
-
-
+# sys.argv += ["--device", "Kanga"]
 # sys.argv.append("--echo")
 # sys.argv += ["--proxy", ""]
 # sys.argv.append("--list-devices")
 # sys.argv += ["--exec-simple", r"C:\windows\System32\clip.exe"]
 # sys.argv += ["--exec", r"C:\windows\System32\notepad.exe"]
-
 # sys.argv += ["--exec", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_imagesnap.py"]
 # sys.argv += ["--exec-simple", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_exec_simple.py"]
 
@@ -285,10 +283,10 @@ class Action:
     def __init__(self):
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
-    async def do(self, push: dict, app):  # pb: AsyncPushbullet):#, device: Device):
+    async def do(self, push: dict, app):
         """
 
-        :param push:
+        :param dict push:
         :param ListenApp app:
         :return:
         """
@@ -585,20 +583,27 @@ class ListenApp:
         exit_code = 0
         while self.persistent_connection:
             try:
+                # If filtering on device, find or create device with that name
+                if self.device_name is not None:
+                    dev = await self.pb.async_get_device(nickname=self.device_name)
+                    if dev is None:
+                        dev = await self.pb.async_new_device(nickname=self.device_name)
+                        if dev is None:
+                            self.log.error("Device {} was not found and could not be created.")
+                        else:
+                            self.log.info("Device {} was not found, so we created it.".format(self.device_name))
+
                 print("Connecting to pushbullet...", end="", flush=True)
                 async with PushListener2(self.pb, only_this_device_nickname=self.device_name) as pl2:
                     print("Connected.", flush=True)
                     self._listener = pl2
 
-                    # Warn if device is not known at launch
-                    if self.device_name is not None:
-                        dev = await self.pb.async_get_device(nickname=self.device_name)
-                        if dev is None:
-                            self.log.warning("Device {} not found at launch time.  ".format(self.device_name) +
-                                             "Will still attempt to filter as pushes are received.")
-                        del dev
+                    if self.device_name is None:
+                        print("Awaiting pushes...")
+                    else:
+                        print("Awaiting pushes to device {}...".format(self.device_name))
 
-                    print("Awaiting pushes...")
+                    # print("Awaiting pushes...")
                     async for push in pl2:
                         self.log.info("Received push {}".format(push))
 
@@ -612,14 +617,13 @@ class ListenApp:
                         for action in self.actions:  # type: Action
                             self.log.debug("Calling action {}".format(repr(action)))
                             try:
-                                # loop = asyncio.get_event_loop()
-                                # loop.create_task(action.do(push, self))
-
-                                await action.do(push, self)  # self.pb)  # , self.app_device)
+                                await action.do(push, self)
                                 await asyncio.sleep(0)
 
                             except Exception as ex:
                                 print("Action {} caused exception {}".format(action, ex))
+                                ex.with_traceback()
+
             except InvalidKeyError as ex:
                 exit_code = __ERR_INVALID_API_KEY__
                 print(ex, file=sys.stderr, flush=True)
