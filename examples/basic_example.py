@@ -13,12 +13,15 @@ from asyncpushbullet import AsyncPushbullet, InvalidKeyError, PushbulletError, P
 
 API_KEY = ""  # YOUR API KEY
 PROXY = os.environ.get("https_proxy") or os.environ.get("http_proxy")
+EXIT_INVALID_KEY = 1
+EXIT_PUSHBULLET_ERROR = 2
+EXIT_OTHER = 3
 
 
 def main():
     async def _run():
         try:
-            async with AsyncPushbullet(API_KEY, proxy=PROXY) as pb:
+            async with AsyncPushbullet(API_KEY, proxy="Z" + PROXY) as pb:
 
                 # List devices
                 devices = await pb.async_get_devices()
@@ -47,19 +50,25 @@ def main():
                     async for push in pl:
                         print("Push received:", push)
 
-
         except InvalidKeyError as ke:
             print(ke, file=sys.stderr)
+            return EXIT_INVALID_KEY
 
         except PushbulletError as pe:
             print(pe, file=sys.stderr)
+            return EXIT_PUSHBULLET_ERROR
+
+        except Exception as ex:
+            print(ex, file=sys.stderr)
+            traceback.print_tb(sys.exc_info()[2])
+            return EXIT_OTHER
 
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(_run())
+    return loop.run_until_complete(_run())
 
 
 if __name__ == "__main__":
     if API_KEY == "":
         with open("../api_key.txt") as f:
             API_KEY = f.read().strip()
-    main()
+    sys.exit(main())
