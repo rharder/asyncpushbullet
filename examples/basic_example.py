@@ -21,7 +21,7 @@ EXIT_OTHER = 3
 def main():
     async def _run():
         try:
-            async with AsyncPushbullet(API_KEY, proxy="Z" + PROXY) as pb:
+            async with AsyncPushbullet(API_KEY, proxy=PROXY) as pb:
 
                 # List devices
                 devices = await pb.async_get_devices()
