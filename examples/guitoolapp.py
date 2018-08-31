@@ -26,7 +26,7 @@ import tkinter_tools
 sys.path.append("..")  # Since examples are buried one level into source tree
 from asyncpushbullet import Device
 from asyncpushbullet import AsyncPushbullet
-from asyncpushbullet.async_listeners import PushListener2
+from asyncpushbullet.async_listeners import PushListener
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
@@ -42,7 +42,7 @@ class GuiToolApp():
 
         # Data
         self._pushbullet = None  # type: AsyncPushbullet
-        self.pushbullet_listener = None  # type: PushListener2
+        self.pushbullet_listener = None  # type: PushListener
         self.key_var = tk.StringVar()  # type: tk.StringVar  # API key
         self.pushes_var = tk.StringVar()  # type: tk.StringVar  # Used in text box to display pushes received
         self.status_var = tk.StringVar()  # type: tk.StringVar  # Bound to bottom of window status bar
@@ -210,16 +210,16 @@ class GuiToolApp():
         if self.pushbullet is not None:
             self.pushbullet = None
         if self.pushbullet_listener is not None:
-            pl = self.pushbullet_listener  # type: PushListener2
+            pl = self.pushbullet_listener  # type: PushListener
             if pl is not None:
                 asyncio.run_coroutine_threadsafe(pl.close(), self.ioloop)
             self.pushbullet_listener = None
 
         async def _listen():
-            pl2 = None  # type: PushListener2
+            pl2 = None  # type: PushListener
             try:
                 await self.verify_key()
-                async with PushListener2(self.pushbullet, types=()) as pl2:
+                async with PushListener(self.pushbullet, types=()) as pl2:
                     self.pushbullet_listener = pl2
                     await self.pushlistener_connected(pl2)
 
@@ -279,7 +279,7 @@ class GuiToolApp():
 
     # ########   C A L L B A C K S  ########
 
-    async def pushlistener_connected(self, listener: PushListener2):
+    async def pushlistener_connected(self, listener: PushListener):
         self.status = "Connected to Pushbullet"
         try:
             me = await self.pushbullet.async_get_user()
@@ -292,13 +292,13 @@ class GuiToolApp():
             self.btn_connect.configure(state=tk.DISABLED)
             self.btn_disconnect.configure(state=tk.NORMAL)
 
-    async def pushlistener_closed(self, listener: PushListener2):
+    async def pushlistener_closed(self, listener: PushListener):
         # print_function_name()
         self.status = "Disconnected from Pushbullet"
         self.btn_connect.configure(state=tk.NORMAL)
         self.btn_disconnect.configure(state=tk.DISABLED)
 
-    async def push_received(self, p: dict, listener: PushListener2):
+    async def push_received(self, p: dict, listener: PushListener):
         # print("Push received:", p)
         push_type = p.get("type")
         if push_type == "push":

@@ -18,7 +18,7 @@ from tkinter import filedialog
 from tkinter_tools import BindableTextArea
 
 sys.path.append("..")  # Since examples are buried one level into source tree
-from asyncpushbullet import AsyncPushbullet, PushListener2
+from asyncpushbullet import AsyncPushbullet, PushListener
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
@@ -39,7 +39,7 @@ class PushApp():
         # Data
         self.ioloop = None  # type: asyncio.AbstractEventLoop
         self.pushbullet = None  # type: AsyncPushbullet
-        self.pushbullet_listener = None  # type: PushListener2
+        self.pushbullet_listener = None  # type: PushListener
         self.key_var = tk.StringVar()  # API key
         self.pushes_var = tk.StringVar()
         self.filename_var = tk.StringVar()
@@ -141,7 +141,7 @@ class PushApp():
                                                   verify_ssl=False,
                                                   proxy=self.proxy_var.get())
 
-                async with PushListener2(self.pushbullet) as pl2:
+                async with PushListener(self.pushbullet) as pl2:
                     self.pushbullet_listener = pl2
                     await self.connected(pl2)
 
@@ -191,15 +191,15 @@ class PushApp():
         self.btn_upload["state"] = tk.NORMAL
         self.pushes_var.set(self.pushes_var.get() + "Uploaded\n")
 
-    async def connected(self, listener: PushListener2):
+    async def connected(self, listener: PushListener):
         self.btn_upload["state"] = tk.NORMAL
         self.pushes_var.set(self.pushes_var.get() + "Connected\n")
 
-    async def disconnected(self, listener: PushListener2):
+    async def disconnected(self, listener: PushListener):
         self.btn_upload["state"] = tk.DISABLED
         self.pushes_var.set(self.pushes_var.get() + "Disconnected\n")
 
-    async def push_received(self, p: dict, listener: PushListener2):
+    async def push_received(self, p: dict, listener: PushListener):
         print("Push received:", p)
         prev = self.pushes_var.get()
         prev += "{}\n\n".format(p)

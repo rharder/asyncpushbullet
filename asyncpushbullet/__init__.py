@@ -5,4 +5,4 @@ from .errors import PushbulletError, InvalidKeyError
 
 
 from .async_pushbullet import AsyncPushbullet
-from .async_listeners import PushListener2
+from .async_listeners import PushListener

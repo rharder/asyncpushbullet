@@ -22,6 +22,17 @@ def main():
         devices = await pb.async_get_devices()
         pprint.pprint(devices)
 
+        # Name of a device?
+        if devices:
+            name = devices[0].nickname
+            this_device = await pb.async_get_device(nickname=name)
+            print("Retrieved device by it's name {}: {}".format(name, this_device))
+
+        # Do we have a device named foobar?  Returns None if not found.
+        name = "foobar"
+        this_device = await pb.async_get_device(nickname=name)
+        print("Retrieved device by it's name {}: {}".format(name, this_device))
+
         await pb.async_close()
 
     loop = asyncio.get_event_loop()

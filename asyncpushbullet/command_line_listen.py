@@ -60,7 +60,7 @@ from typing import List
 sys.path.append("..")
 from asyncpushbullet import Device
 from asyncpushbullet import InvalidKeyError
-from asyncpushbullet import PushListener2
+from asyncpushbullet import PushListener
 from asyncpushbullet import PushbulletError
 from asyncpushbullet import AsyncPushbullet
 
@@ -224,20 +224,18 @@ def parse_args():
                         help=textwrap.dedent("""
                         ACTION: Execute a script to receive push as json via stdin.
                         Your script can write json to stdout to send pushes back.
-
-        {
-            "pushes" :
-                [
-                    {
-                        "title" = "Fish Food Served",
-                        "body" = "Your automated fish feeding gadget has fed your fish. "
-                     }
-                ]
-        }
+        [
+            {
+                "title" : "Fish Food Served",
+                "body" : "Your automated fish feeding gadget has fed your fish. "
+            },
+            { "title" : "Second push", "body" : "Second body" }
+        ]
+        
 
     Or simpler form for a single push:
 
-        { "title" = "title here", "body" = "body here"}
+        { "title" : "title here", "body" : "body here"}
                         """))
     parser.add_argument("-s", "--exec-simple", nargs="+", action="append",
                         help=textwrap.dedent("""
@@ -529,7 +527,7 @@ class ListenApp:
         self.device_name = device
         self._throttle_timestamps = []  # type: [float]
         self.actions = []  # type: [Action]
-        self._listener = None  # type: PushListener2
+        self._listener = None  # type: PushListener
         self.app_device = None  # type: Device
         self.sent_push_idens = []  # type: List[str]
         self.persistent_connection = True
@@ -595,7 +593,7 @@ class ListenApp:
                             self.log.info("Device {} was not found, so we created it.".format(self.device_name))
 
                 print("Connecting to pushbullet...", end="", flush=True)
-                async with PushListener2(self.pb, only_this_device_nickname=self.device_name) as pl2:
+                async with PushListener(self.pb, only_this_device_nickname=self.device_name) as pl2:
                     print("Connected.", flush=True)
                     self._listener = pl2
 

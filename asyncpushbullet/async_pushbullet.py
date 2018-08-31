@@ -271,6 +271,20 @@ class AsyncPushbullet(Pushbullet):
             x = _get()
         return x
 
+    async def async_get_chats(self, flush_cache: bool = False) -> List[Device]:
+        """Returns a list of Chat objects known by Pushbullet.
+
+        This returns immediately with a cached copy of the chats, if available.
+        If not available, or if flush_cache=True, then a call will be made to
+        Pushbullet.com to retrieve a fresh list of chats.
+
+        :param bool flush_cache: whether or not to flush the cache first
+        :return: list of Chat objects
+        """
+        if self._chats is None or flush_cache:
+            await self._async_load_chats()
+        return self._chats
+
     async def async_new_chat(self, email: str) -> Chat:
         gen = self._new_chat_generator(email)
         xfer = next(gen)  # Prep http params
@@ -316,6 +330,20 @@ class AsyncPushbullet(Pushbullet):
             await self._async_load_channels()  # Refresh cache once
             x = _get()
         return x
+
+    async def async_get_channels(self, flush_cache: bool = False) -> List[Device]:
+        """Returns a list of Channel objects known by Pushbullet.
+
+        This returns immediately with a cached copy of the channels, if available.
+        If not available, or if flush_cache=True, then a call will be made to
+        Pushbullet.com to retrieve a fresh list of channels.
+
+        :param bool flush_cache: whether or not to flush the cache first
+        :return: list of Channel objects
+        """
+        if self._channels is None or flush_cache:
+            await self._async_load_channels()
+        return self._channels
 
     # ################
     # Pushes

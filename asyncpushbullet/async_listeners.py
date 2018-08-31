@@ -19,7 +19,7 @@ __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
 
 
-class PushListener2:
+class PushListener:
     WEBSOCKET_URL = 'wss://stream.pushbullet.com/websocket/'
 
     def __init__(self, account: AsyncPushbullet,

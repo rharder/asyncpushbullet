@@ -2,6 +2,7 @@
 
 from __future__ import unicode_literals
 
+import pprint
 from typing import Dict
 
 from .helpers import use_appropriate_encoding
@@ -13,7 +14,7 @@ class Chat:
 
     def __init__(self, account, chat_info):
         self._account = account
-        self._chat_info = chat_info
+        self.chat_info = chat_info
         self.iden = chat_info.get("iden")
 
         # Transfer attributes
@@ -33,6 +34,16 @@ class Chat:
     @use_appropriate_encoding
     def __str__(self):
         return "Chat('{0}' <{1}>)".format(self.with_name, self.with_email_normalized)
+
+
+    @use_appropriate_encoding
+    def __repr__(self):
+        attr_map = {k: self.__getattribute__(k) for k in self.CHAT_ATTRIBUTES}
+        attr_str = pprint.pformat(attr_map)
+        _str = "Chat('{}' <{}> :\n{})".format(self.with_name, self.with_email_normalized, attr_str)
+        # _str = "Chat('{}',\n{})".format(self.nickname or "nameless (iden: {})"
+        #                                   .format(self.device_iden), attr_str)
+        return _str
 
     # @property
     # def active(self):

@@ -10,7 +10,7 @@ import sys
 
 sys.path.append("..")  # Since examples are buried one level into source tree
 from asyncpushbullet import AsyncPushbullet
-from asyncpushbullet.async_listeners import PushListener2
+from asyncpushbullet.async_listeners import PushListener
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
@@ -25,7 +25,7 @@ def main():
             account = AsyncPushbullet(api_key=API_KEY, proxy=PROXY, verify_ssl=False)
             try:
                 print("Connectiong to Pushbullet...", end="", flush=True)
-                async with PushListener2(account) as pl2:
+                async with PushListener(account) as pl2:
                     print("Connected.", flush=True)
 
                     # Wait indefinitely for pushes

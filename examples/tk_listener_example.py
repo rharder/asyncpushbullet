@@ -15,7 +15,7 @@ from tkinter_tools import BindableTextArea
 
 sys.path.append("..")  # Since examples are buried one level into source tree
 from asyncpushbullet import AsyncPushbullet
-from asyncpushbullet.async_listeners import PushListener2
+from asyncpushbullet.async_listeners import PushListener
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
@@ -34,7 +34,7 @@ class PushApp():
 
         # Data
         self.pushbullet = None  # type: AsyncPushbullet
-        self.pushbullet_listener = None  # type: PushListener2
+        self.pushbullet_listener = None  # type: PushListener
         self.key_var = tk.StringVar()  # API key
         self.pushes_var = tk.StringVar()
         self.ioloop = None  # type: asyncio.BaseEventLoop
@@ -85,7 +85,7 @@ class PushApp():
                                                   verify_ssl=False,
                                                   proxy=self.proxy_var.get())
 
-                async with PushListener2(self.pushbullet) as pl2:
+                async with PushListener(self.pushbullet) as pl2:
                     self.pushbullet_listener = pl2
                     await self.connected(pl2)
 
@@ -131,13 +131,13 @@ class PushApp():
     def disconnect_button_clicked(self):
         self.close()
 
-    async def connected(self, listener: PushListener2):
+    async def connected(self, listener: PushListener):
         print("Connected to websocket")
 
-    async def disconnected(self, listener: PushListener2):
+    async def disconnected(self, listener: PushListener):
         print("Disconnected from websocket")
 
-    async def push_received(self, p: dict, listener: PushListener2):
+    async def push_received(self, p: dict, listener: PushListener):
         print("Push received:", p)
         prev = self.pushes_var.get()
         prev += "{}\n\n".format(p)

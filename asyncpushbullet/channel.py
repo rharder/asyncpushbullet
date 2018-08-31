@@ -11,6 +11,7 @@ class Channel:
 
     def __init__(self, account, channel_info):
         self._account = account
+        self.channel_info = channel_info
         self.channel_tag = channel_info.get("tag")
 
         for attr in ("name", "description", "created", "modified"):
