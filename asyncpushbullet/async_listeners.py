@@ -75,7 +75,10 @@ class PushListener:
                     "Filtering on device name that does not yet exist: {}".format(self._only_this_device_nickname))
             del device
 
-        async def _listen_for_pushes(_wc: WebsocketClient):
+        # push = await pb.async_push_note(title="Success", body="I did it!")
+        await self._process_pushbullet_message_tickle_push()
+
+        async def _listen_for_websocket_messages(_wc: WebsocketClient):
             try:
 
                 # Stay here for a while receiving messages
@@ -94,7 +97,7 @@ class PushListener:
                              proxy=self.pb.proxy,
                              session=session)
         self._ws_client = await wc.__aenter__()
-        asyncio.get_event_loop().create_task(_listen_for_pushes(wc))
+        asyncio.get_event_loop().create_task(_listen_for_websocket_messages(wc))
         await asyncio.sleep(0)
 
         return self
@@ -140,7 +143,7 @@ class PushListener:
 
         # Various tickles
         elif msg.get("type") == "tickle" and msg.get("subtype") == "push":
-            return await self._process_pushbullet_message_tickle_push(msg)
+            return await self._process_pushbullet_message_tickle_push()
 
         elif msg.get("type") == "tickle" and msg.get("subtype") == "device":
             return await self._process_pushbullet_message_tickle_device(msg)
@@ -154,7 +157,7 @@ class PushListener:
             # will also show unhandled tickle types
             await self._queue.put(msg)
 
-    async def _process_pushbullet_message_tickle_push(self, msg: dict):
+    async def _process_pushbullet_message_tickle_push(self):#, msg: dict):
         """When we received a tickle regarding a push."""
         pushes = await self.pb.async_get_pushes(modified_after=self.pb.most_recent_timestamp,
                                                 filter_inactive=self._ignore_inactive)

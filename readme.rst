@@ -240,7 +240,13 @@ Here is a well-behaved example right off the bat to take a look at:
 
 .. code-block:: python
 
-    from asyncpushbullet import AsyncPushbullet, InvalidKeyError, PushbulletError
+    # !/usr/bin/env python3
+    # -*- coding: utf-8 -*-
+    import asyncio
+    import os
+    import sys
+
+    from asyncpushbullet import AsyncPushbullet, InvalidKeyError, PushbulletError, PushListener
 
     API_KEY = "whatever your key is"
     PROXY = os.environ.get("https_proxy") or os.environ.get("http_proxy")
@@ -261,6 +267,20 @@ Here is a well-behaved example right off the bat to take a look at:
                     push = await pb.async_push_note(title="Success", body="I did it!")
                     print("Push sent:", push)
 
+                    # Ways to listen for pushes
+                    async with PushListener(pb) as pl:
+                        # This will retrieve the previous push because it occurred
+                        # after the enclosing AsyncPushbullet connection was made
+                        push = await pl.next_push()
+                        print("Previous push, now received:", push)
+
+                        # Get pushes forever
+                        print("Awaiting pushes forever...")
+                        async for push in pl:
+                            print("Push received:", push)
+
+
+
             except InvalidKeyError as ke:
                 print(ke, file=sys.stderr)
 
@@ -273,7 +293,6 @@ Here is a well-behaved example right off the bat to take a look at:
 
     if __name__ == "__main__":
         main()
-
 
 Authentication
 ^^^^^^^^^^^^^^
