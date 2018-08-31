@@ -131,14 +131,14 @@ class Pushbullet:
         """ Interpret the HTTP response headers, raise exceptions, etc. """
         # print_function_name()
         if code in (401, 403):
-            err_msg = "{} Invalid API Key: {}".format(code, self.api_key)
-            raise InvalidKeyError(err_msg)
+            err_msg = "Invalid API Key: {}".format(self.api_key)
+            raise InvalidKeyError(code, err_msg)
 
         elif code == 429:
             epoch = int(headers.get("X-Ratelimit-Reset", 0))
             epoch_time = datetime.datetime.fromtimestamp(epoch).strftime('%c')
             err_msg = "Too Many Requests. You have been ratelimited until {}".format(epoch_time)
-            self.log.error(err_msg)
+            self.log.error("{} {}".format(code, msg))
             raise PushbulletError(code, err_msg)
 
         elif code not in (200, 204):  # 200 OK, 204 Empty response (file upload)

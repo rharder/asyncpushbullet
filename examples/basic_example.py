@@ -1,8 +1,12 @@
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+A basic, complete example of using AsyncPushbullet to interact with the Pushbullet.com service.
+"""
 import asyncio
 import os
 import sys
+import traceback
 
 sys.path.append("..")  # Since examples are buried one level into source tree
 from asyncpushbullet import AsyncPushbullet, InvalidKeyError, PushbulletError, PushListener
@@ -33,11 +37,15 @@ def main():
                     push = await pl.next_push()
                     print("Previous push, now received:", push)
 
-                    # Get pushes forever
+                    # Alternately get pushes with a 3 second inter-push timeout
+                    print("Awaiting pushes with 3 second inter-push timeout...")
+                    async for push in pl.timeout(3):
+                        print("Push received:", push)
+
+                    # Alternately get pushes forever
                     print("Awaiting pushes forever...")
                     async for push in pl:
                         print("Push received:", push)
-
 
 
         except InvalidKeyError as ke:
@@ -48,7 +56,6 @@ def main():
 
     loop = asyncio.get_event_loop()
     loop.run_until_complete(_run())
-
 
 
 if __name__ == "__main__":

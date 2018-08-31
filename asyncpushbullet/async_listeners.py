@@ -61,6 +61,12 @@ class PushListener:
         self.push_types = set(types)  # type: Set[str]
         self.ephemeral_types = tuple([x.split(":")[-1] for x in self.push_types if len(x.split(":")) > 1])
 
+    @property
+    def closed(self):
+        if self._ws_client is None:
+            raise PushbulletError("No underlying websocket to close -- has this websocket connected yet?")
+        return self._ws_client.closed
+
     async def close(self):
         await self._ws_client.close()
 
@@ -75,7 +81,7 @@ class PushListener:
                     "Filtering on device name that does not yet exist: {}".format(self._only_this_device_nickname))
             del device
 
-        # push = await pb.async_push_note(title="Success", body="I did it!")
+        # Load pushes that arrived since parent AsyncPushbullet was connected
         await self._process_pushbullet_message_tickle_push()
 
         async def _listen_for_websocket_messages(_wc: WebsocketClient):
@@ -144,20 +150,20 @@ class PushListener:
         # Various tickles
         elif msg.get("type") == "tickle" and msg.get("subtype") == "push":
             return await self._process_pushbullet_message_tickle_push()
+            # TODO: tickles should maybe be passed along too if they are requested
+            # TODO: but what to do about push tickles, which are handled specially?
 
         elif msg.get("type") == "tickle" and msg.get("subtype") == "device":
             return await self._process_pushbullet_message_tickle_device(msg)
 
         elif "type" in msg and msg["type"] in self.push_types:
-            # According to the API, there are no other types, but this can
-            # be used to catch "nop" if you really want to.
             await self._queue.put(msg)
 
         elif not self.push_types:  # means show everything
             # will also show unhandled tickle types
             await self._queue.put(msg)
 
-    async def _process_pushbullet_message_tickle_push(self):#, msg: dict):
+    async def _process_pushbullet_message_tickle_push(self):  # , msg: dict):
         """When we received a tickle regarding a push."""
         pushes = await self.pb.async_get_pushes(modified_after=self.pb.most_recent_timestamp,
                                                 filter_inactive=self._ignore_inactive)
@@ -215,22 +221,15 @@ class PushListener:
         await self._ws_client.close()
 
     def __aiter__(self) -> AsyncIterator[dict]:
-        return self
+        return PushListener._Iterator(self)
 
-    async def __anext__(self) -> dict:
-        if self._ws_client.closed:
-            raise StopAsyncIteration("The websocket has closed.")
+    def timeout(self, timeout=None):
+        """Enables the async for loop to have a timeout.
 
-        try:
-            push = await self.next_push()
-
-        except Exception as e:
-            raise StopAsyncIteration(e)
-
-        if type(push) == StopAsyncIteration:
-            raise push
-
-        return push
+        async for push in listener.timeout(1):
+            ...
+        """
+        return PushListener._Iterator(self, timeout=timeout)
 
     async def next_push(self, timeout: float = None) -> dict:
         if timeout is None:
@@ -240,4 +239,27 @@ class PushListener:
             return push
         else:
             push = await asyncio.wait_for(self.next_push(), timeout=timeout)
+            return push
+
+    class _Iterator:
+        def __init__(self, pushlistener, timeout: float = None):
+            self.timeout = timeout
+            self.parent = pushlistener  # type: PushListener
+
+        def __aiter__(self) -> AsyncIterator[dict]:
+            return self
+
+        async def __anext__(self) -> dict:
+            if self.parent.closed:
+                raise StopAsyncIteration("The websocket has closed.")
+
+            try:
+                push = await self.parent.next_push(timeout=self.timeout)  # Wait here for another push
+
+            except Exception as e:
+                raise StopAsyncIteration(e)
+
+            if type(push) == StopAsyncIteration:
+                raise push
+
             return push
