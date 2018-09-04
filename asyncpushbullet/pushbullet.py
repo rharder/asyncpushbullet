@@ -33,8 +33,9 @@ class Pushbullet:
     PUSH_URL = "https://api.pushbullet.com/v2/pushes"
     UPLOAD_REQUEST_URL = "https://api.pushbullet.com/v2/upload-request"
     EPHEMERALS_URL = "https://api.pushbullet.com/v2/ephemerals"
+    TRANSFER_SH_URL = "https://transfer.sh/"
 
-    def __init__(self, api_key: str = None, encryption_password: str = None, proxy: str = None):
+    def __init__(self, api_key: str = None, encryption_password: str = None, proxy: str = None, verify_ssl=None):
         self.api_key = api_key
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
@@ -42,6 +43,7 @@ class Pushbullet:
         self._json_header = {'Content-Type': 'application/json'}
         self.most_recent_timestamp = 0.0  # type: float
         self.proxy = None if proxy is None or str(proxy).strip() == "" else str(proxy)
+        self.verify_ssl = verify_ssl
 
         self._user_info = None  # type: dict
         self._devices = None  # type: [Device]
@@ -65,6 +67,15 @@ class Pushbullet:
                 backend=default_backend()
             )
             self._encryption_key = kdf.derive(encryption_password.encode("UTF-8"))
+
+
+    def __enter__(self):
+        self.verify_key()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
 
     def verify_key(self):
         """
@@ -108,6 +119,11 @@ class Pushbullet:
         # If uploading a file, temporarily remove JSON header
         if "files" in kwargs:
             del self.session.headers["Content-Type"]
+
+        # SSL?
+        if self.verify_ssl is not None and "verify" not in kwargs:
+            kwargs["verify"] = self.verify_ssl
+
         # Do HTTP
         try:
             resp = func(url, **kwargs)
@@ -183,10 +199,11 @@ class Pushbullet:
             # account was not push-related, such as adding or removing a device.
             # If too many empty rounds come in a row, something is wrong, and we
             # don't want to get stuck in an infinite loop.
-            if len(items_this_round) > 0:
-                empty_rounds_in_a_row = 0
-            else:
+            if len(items_this_round) == 0:
                 empty_rounds_in_a_row += 1
+            else:
+                empty_rounds_in_a_row = 0
+
             if empty_rounds_in_a_row > 3:
                 self.log.warning("Received {} rounds of empty data from pusbhullet -- something is not right.".format(empty_rounds_in_a_row))
                 xfer["get_more"] = False
@@ -485,7 +502,9 @@ class Pushbullet:
     # Pushes
     #
 
-    def get_pushes(self, modified_after: float = None, limit: int = None,
+    def get_pushes(self,
+                   modified_after: float = None,
+                   limit: int = None,
                    filter_inactive: bool = True) -> [dict]:
         # print_function_name()
         gen = self._get_pushes_generator(modified_after=modified_after,
@@ -610,10 +629,9 @@ class Pushbullet:
         file_name = os.path.basename(file_path)
         if not file_type:
             file_type = get_file_type(file_path)
-        upload_url = "https://transfer.sh/"
 
         with open(file_path, "rb") as f:
-            upload_resp = self._post_data(upload_url, files={"file": f})
+            upload_resp = self._post_data(self.TRANSFER_SH_URL, files={"file": f})
 
         file_url = upload_resp.get("raw", b'').decode("ascii")
         msg = {"file_name": file_name,

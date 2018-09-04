@@ -165,6 +165,7 @@ class PushListener:
 
     async def _process_pushbullet_message_tickle_push(self):  # , msg: dict):
         """When we received a tickle regarding a push."""
+        await self.pb.async_verify_key()
         pushes = await self.pb.async_get_pushes(modified_after=self.pb.most_recent_timestamp,
                                                 filter_inactive=self._ignore_inactive)
         self.log.debug("Retrieved {} pushes".format(len(pushes)))

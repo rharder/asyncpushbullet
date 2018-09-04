@@ -66,7 +66,7 @@ class AsyncPushbullet(Pushbullet):
             aio_connector = None  # type: aiohttp.TCPConnector
             if self.verify_ssl is not None and self.verify_ssl is False:
                 self.log.info("SSL/TLS verification disabled")
-                aio_connector = aiohttp.TCPConnector(verify_ssl=False)#, loop=loop)
+                aio_connector = aiohttp.TCPConnector(verify_ssl=False)
 
             session = aiohttp.ClientSession(headers=headers, connector=aio_connector)  # , trust_env=True)
             self.log.debug("Created new session: {}".format(session))
@@ -442,14 +442,13 @@ class AsyncPushbullet(Pushbullet):
         file_name = os.path.basename(file_path)
         if not file_type:
             file_type = get_file_type(file_path)
-        upload_url = "https://transfer.sh/"
 
         if show_progress:
             with tqio(file_path) as f:
-                upload_resp = await self._async_post_data(upload_url, data={"file": f})
+                upload_resp = await self._async_post_data(self.TRANSFER_SH_URL, data={"file": f})
         else:
             with open(file_path, "rb") as f:
-                upload_resp = await self._async_post_data(upload_url, data={"file": f})
+                upload_resp = await self._async_post_data(self.TRANSFER_SH_URL, data={"file": f})
 
         file_url = upload_resp.get("raw", b'').decode("ascii")
         msg = {"file_name": file_name,

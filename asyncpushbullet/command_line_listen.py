@@ -521,14 +521,19 @@ class ListenApp:
                  device: str = None):
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
-        self.pb = AsyncPushbullet(api_key=api_key, proxy=proxy)
+        # self.pb = AsyncPushbullet(api_key=api_key, proxy=proxy)
+        self.account = None  # type: AsyncPushbullet
+        self._listener = None  # type: PushListener
+
+        self.api_key = api_key
+        self.proxy = proxy
         self.throttle_max_count = throttle_count
         self.throttle_max_seconds = throttle_seconds
         self.device_name = device
+
         self._throttle_timestamps = []  # type: [float]
         self.actions = []  # type: [Action]
-        self._listener = None  # type: PushListener
-        self.app_device = None  # type: Device
+        # self.app_device = None  # type: Device
         self.sent_push_idens = []  # type: List[str]
         self.persistent_connection = True
         self.persistent_connection_wait_interval = 10  # seconds between retry
@@ -541,7 +546,8 @@ class ListenApp:
         if self._listener is not None:
             await self._listener.close()
         # self.pb.close_all_threadsafe()
-        await self.pb.async_close()
+        if self.account is not None:
+            await self.account.async_close()
 
     async def _throttle(self):
         """ Makes one tick and stalls if necessary """
@@ -563,65 +569,69 @@ class ListenApp:
         """Actions can use this to respond to a push."""
         # print("Responding with title={}, body={}".format(title, body), flush=True)
         device = None if device_iden is None else Device(None, {"iden": device_iden})
-        resp = await self.pb.async_push_note(title=title, body=body, device=device)
+        resp = await self.account.async_push_note(title=title, body=body, device=device)
         self.sent_push_idens.append(resp.get("iden"))
 
     async def respond_file(self, file_name: str, file_url: str, file_type: str,
                            body: str = None, title: str = None, device_iden=None):
 
         device = None if device_iden is None else Device(None, {"iden": device_iden})
-        resp = await self.pb.async_push_file(file_name=file_name,
-                                             file_url=file_url,
-                                             file_type=file_type,
-                                             title=title,
-                                             body=body,
-                                             device=device)
+        resp = await self.account.async_push_file(file_name=file_name,
+                                                  file_url=file_url,
+                                                  file_type=file_type,
+                                                  title=title,
+                                                  body=body,
+                                                  device=device)
         self.sent_push_idens.append(resp.get("iden"))
 
     async def run(self):
         exit_code = 0
         while self.persistent_connection:
             try:
-                # If filtering on device, find or create device with that name
-                if self.device_name is not None:
-                    dev = await self.pb.async_get_device(nickname=self.device_name)
-                    if dev is None:
-                        dev = await self.pb.async_new_device(nickname=self.device_name)
+                async with AsyncPushbullet(api_key=self.api_key, proxy=self.proxy) as self.account:
+                    # self.pb = AsyncPushbullet(api_key=self.api_key, proxy=self.proxy)
+
+                    # If filtering on device, find or create device with that name
+                    if self.device_name is not None:
+                        dev = await self.account.async_get_device(nickname=self.device_name)
                         if dev is None:
-                            self.log.error("Device {} was not found and could not be created.")
+                            dev = await self.account.async_new_device(nickname=self.device_name)
+                            if dev is None:
+                                self.log.error("Device {} was not found and could not be created.")
+                            else:
+                                self.log.info("Device {} was not found, so we created it.".format(self.device_name))
+
+                    print("Connecting to pushbullet...", end="", flush=True)
+                    async with PushListener(self.account, only_this_device_nickname=self.device_name) as pl2:
+                        print("Connected.", flush=True)
+                        self.log.info("Connected to Pushbullet.com service.")
+                        self._listener = pl2
+
+                        if self.device_name is None:
+                            print("Awaiting pushes...")
                         else:
-                            self.log.info("Device {} was not found, so we created it.".format(self.device_name))
+                            print("Awaiting pushes to device {}...".format(self.device_name))
 
-                print("Connecting to pushbullet...", end="", flush=True)
-                async with PushListener(self.pb, only_this_device_nickname=self.device_name) as pl2:
-                    print("Connected.", flush=True)
-                    self._listener = pl2
+                        # print("Awaiting pushes...")
+                        async for push in pl2:
+                            self.log.info("Received push {}".format(push))
 
-                    if self.device_name is None:
-                        print("Awaiting pushes...")
-                    else:
-                        print("Awaiting pushes to device {}...".format(self.device_name))
+                            await self._throttle()
 
-                    # print("Awaiting pushes...")
-                    async for push in pl2:
-                        self.log.info("Received push {}".format(push))
+                            if push.get("iden") in self.sent_push_idens:
+                                # This is one we sent - ignore it
+                                # print("Received a push we sent. Ignoring it.")
+                                continue
 
-                        await self._throttle()
+                            for action in self.actions:  # type: Action
+                                self.log.debug("Calling action {}".format(repr(action)))
+                                try:
+                                    await action.do(push, self)
+                                    await asyncio.sleep(0)
 
-                        if push.get("iden") in self.sent_push_idens:
-                            # This is one we sent - ignore it
-                            # print("Received a push we sent. Ignoring it.")
-                            continue
-
-                        for action in self.actions:  # type: Action
-                            self.log.debug("Calling action {}".format(repr(action)))
-                            try:
-                                await action.do(push, self)
-                                await asyncio.sleep(0)
-
-                            except Exception as ex:
-                                print("Action {} caused exception {}".format(action, ex))
-                                ex.with_traceback()
+                                except Exception as ex:
+                                    print("Action {} caused exception {}".format(action, ex))
+                                    ex.with_traceback()
 
             except InvalidKeyError as ex:
                 exit_code = __ERR_INVALID_API_KEY__
