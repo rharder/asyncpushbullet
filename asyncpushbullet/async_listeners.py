@@ -186,7 +186,7 @@ class PushListener:
         """When we received a tickle regarding a push."""
         await self.pb.async_verify_key()
         pushes = await self.pb.async_get_pushes(modified_after=self.pb.most_recent_timestamp,
-                                                filter_inactive=self._ignore_inactive)
+                                                active_only=self._ignore_inactive)
         self.log.debug("Retrieved {} pushes".format(len(pushes)))
 
         # Update timestamp for most recent push so we only get "new" pushes

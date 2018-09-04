@@ -14,6 +14,14 @@ class PushbulletError(Exception):
         return s
 
 
-class InvalidKeyError(PushbulletError):
-    pass
+class HttpError(PushbulletError):
 
+    def __init__(self, code, err_msg, msg, *kargs, **kwargs):
+        super().__init__(code, err_msg, msg, *kargs, **kwargs)
+        self.code = code
+        self.err_msg = err_msg
+        self.msg = msg
+
+
+class InvalidKeyError(HttpError):
+    pass

@@ -16,7 +16,7 @@ from ._compat import standard_b64encode
 from .channel import Channel
 from .chat import Chat
 from .device import Device
-from .errors import PushbulletError, InvalidKeyError
+from .errors import PushbulletError, InvalidKeyError, HttpError
 from .filetype import get_file_type
 
 
@@ -149,23 +149,36 @@ class Pushbullet:
     def _interpret_response(self, code: int, headers: dict, msg: dict):
         """ Interpret the HTTP response headers, raise exceptions, etc. """
         # print_function_name()
-        if code == 401:
+        if code == 400:
+            err_msg = "Bad request."
+            raise HttpError(code, err_msg, msg)
+
+        elif code == 401:
             err_msg = "Invalid API Key: {}".format(self.api_key)
-            raise InvalidKeyError(code, err_msg)
+            raise InvalidKeyError(code, err_msg, msg)
 
         elif code == 403:
-            err_msg = "The access token is not valid for that request."
-            raise PushbulletError(code, err_msg, msg)
+            err_msg = "Forbidden: the access token is not valid for that request."
+            raise HttpError(code, err_msg, msg)
+
+        elif code == 404:
+            err_msg = "Not found."
+            raise HttpError(code, err_msg, msg)
 
         elif code == 429:
             epoch = int(headers.get("X-Ratelimit-Reset", 0))
             epoch_time = datetime.datetime.fromtimestamp(epoch).strftime('%c')
             err_msg = "Too Many Requests. You have been ratelimited until {}".format(epoch_time)
             self.log.error("{} {}".format(code, msg))
-            raise PushbulletError(code, err_msg)
+            raise HttpError(code, err_msg)
+
+        elif code // 100 == 5:  # 5xx
+            err_msg = "Server error on pushbullet.com."
+            raise HttpError(code, err_msg, msg)
 
         elif code not in (200, 204):  # 200 OK, 204 Empty response (file upload)
-            raise PushbulletError(code, msg)
+            err_msg = "Unknown error."
+            raise HttpError(code, err_msg, msg)
 
         elif not isinstance(msg, dict):
             msg = {"raw": msg}
@@ -211,7 +224,10 @@ class Pushbullet:
             else:
                 empty_rounds_in_a_row = 0
 
-            if empty_rounds_in_a_row > 3:
+            if empty_rounds_in_a_row > 10:
+                # I cannot find any documentation on this, but sometimes no data is returned,
+                # but the cursor is still provided and after asking enough times, suddenly
+                # data arrives.
                 self.log.warning("Received {} rounds of empty data from pusbhullet -- something is not right.".format(
                     empty_rounds_in_a_row))
                 xfer["get_more"] = False
@@ -223,7 +239,7 @@ class Pushbullet:
                     xfer["kwargs"]["params"].update({"cursor": msg["cursor"]})
                 else:
                     xfer["kwargs"]["params"] = {"cursor": msg["cursor"]}
-                    xfer["kwargs"]["params"] = {"cursor": msg["cursor"]}
+                    # xfer["kwargs"]["params"] = {"cursor": msg["cursor"]}
                     self.log.info("Paging for more {} ({})".format(item_name, len(items)))
             else:
                 xfer["get_more"] = False
@@ -516,30 +532,14 @@ class Pushbullet:
         params = {"tag": str(channel_tag)}
         if no_recent_pushes:
             params["no_recent_pushes"] = "true"
-        msg = self._get_data(self.CHANNEL_INFO_URL, params=params)
-        return msg
 
-
-    # def new_channel(self, channel_tag: str) -> dict:
-    #     """This does not seem to be permitted"""
-    #     gen = self._new_channel_generator(channel_tag)
-    #     xfer = next(gen)  # Prep http params
-    #     data = xfer.get('data', {})
-    #     xfer["msg"] = self._post_data(self.CHANNELS_URL, data=json.dumps(data))
-    #     return next(gen)  # Post process response
-    #
-    # def _new_channel_generator(self, channel_tag:str):
-    #     data = {"channel_tag": channel_tag}
-    #     xfer = {"data": data}
-    #     yield xfer
-    #
-    #     msg = xfer.get('msg', {})
-    #     # new_chat = Chat(self, msg)
-    #     new_channel = Channel(self, msg)
-    #     if self._channels is not None:
-    #         self._channels.append(new_channel)
-    #     yield new_channel
-
+        try:
+            msg = self._get_data(self.CHANNEL_INFO_URL, params=params)
+        except HttpError as he:
+            if he.code == 400:  # That channel does not exist
+                return None
+        else:
+            return msg
 
     # ################
     # Subscriptions
