@@ -92,15 +92,18 @@ class PushListener:
                     await self._process_websocket_message(msg)
 
             except Exception as e:
-                sai = StopAsyncIteration(e)
-                await self._queue.put(sai)
+                raise e
+                # sai = StopAsyncIteration(e)
+                # await self._queue.put(sai)
             else:
-                sai = StopAsyncIteration()
+                msg = "Websocket closed" if _wc.closed else None
+                sai = StopAsyncIteration(msg)
                 await self._queue.put(sai)
 
         session = await self.pb.aio_session()
         wc = WebsocketClient(url=self.WEBSOCKET_URL + self.pb.api_key,
                              proxy=self.pb.proxy,
+                             verify_ssl=self.pb.verify_ssl,
                              session=session)
         self._ws_client = await wc.__aenter__()
         asyncio.get_event_loop().create_task(_listen_for_websocket_messages(wc))
@@ -129,13 +132,18 @@ class PushListener:
 
     async def _process_pushbullet_message(self, msg: dict):
 
+        # If everything is requested, then immediately post the message.
+        # It might still require some follow-up processing though.
+        if not self.push_types:
+            await self._queue.put(msg)
+
         # Look for ephemeral messages
         # Takes special processing to sort through ephemerals.
         # Example values in self.push_types: ephemeral, ephemeral:clip
         if "type" in msg and "push" in msg:  # Ephemeral
 
             # If we're looking for ALL ephemerals, that's easy
-            if not self.push_types or "ephemeral" in self.push_types:
+            if "ephemeral" in self.push_types:
                 await self._queue.put(msg)
 
             elif self.ephemeral_types:  # If items in the list
@@ -147,21 +155,32 @@ class PushListener:
                     if sub_type is not None and sub_type in self.ephemeral_types:
                         await self._queue.put(msg)
 
-        # Various tickles
-        elif msg.get("type") == "tickle" and msg.get("subtype") == "push":
-            return await self._process_pushbullet_message_tickle_push()
-            # TODO: tickles should maybe be passed along too if they are requested
-            # TODO: but what to do about push tickles, which are handled specially?
+        # Tickles requested or all messages requested?
+        if msg.get("type") == "tickle":
 
-        elif msg.get("type") == "tickle" and msg.get("subtype") == "device":
-            return await self._process_pushbullet_message_tickle_device(msg)
+            if "tickle" in self.push_types:  # All tickles have been requested
+                await self._queue.put(msg)
+
+            # If we got a push tickle, retrieve pushes
+            if msg.get("subtype") == "push":
+                await self._process_pushbullet_message_tickle_push()
+
+            elif msg.get("subtype") == "device":
+                self.pb._devices = None
+
+            elif msg.get("subtype") == "chat":
+                self.pb._chats = None
+
+            elif msg.get("subtype") == "channel":
+                self.pb._channels = None
 
         elif "type" in msg and msg["type"] in self.push_types:
+            # Not sure what "type" this would be, but let's put it there
             await self._queue.put(msg)
 
-        elif not self.push_types:  # means show everything
-            # will also show unhandled tickle types
-            await self._queue.put(msg)
+        else:
+            pass
+            # raise Exception("Didn't expect any 'else' code here', msg: {}".format(msg))
 
     async def _process_pushbullet_message_tickle_push(self):  # , msg: dict):
         """When we received a tickle regarding a push."""
@@ -212,10 +231,10 @@ class PushListener:
             self.log.debug("Adding to push queue: {}".format(push))
             await self._queue.put(push)
 
-    async def _process_pushbullet_message_tickle_device(self, msg: dict):
-        """When we received a tickle regarding a push."""
-        # Just refresh the cache of devices
-        await self.pb.async_get_devices(flush_cache=True)
+    # async def _process_pushbullet_message_tickle_device(self, msg: dict):
+    #     """When we received a tickle regarding a push."""
+    #     # Just refresh the cache of devices
+    #     self.pb._devices = None
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self._ws_client.__aexit__(exc_type, exc_val, exc_tb)

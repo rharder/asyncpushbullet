@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import pprint
+from typing import List
 
 import requests
 
@@ -26,9 +27,12 @@ class NoEncryptionModuleError(Exception):
 
 
 class Pushbullet:
+    V2_PREFIX_URL = "https://api.pushbullet.com/v2/"
     DEVICES_URL = "https://api.pushbullet.com/v2/devices"
     CHATS_URL = "https://api.pushbullet.com/v2/chats"
     CHANNELS_URL = "https://api.pushbullet.com/v2/channels"
+    SUBSCRIPTIONS_URL = "https://api.pushbullet.com/v2/subscriptions"
+    CHANNEL_INFO_URL = "https://api.pushbullet.com/v2/channel-info"
     ME_URL = "https://api.pushbullet.com/v2/users/me"
     PUSH_URL = "https://api.pushbullet.com/v2/pushes"
     UPLOAD_REQUEST_URL = "https://api.pushbullet.com/v2/upload-request"
@@ -46,9 +50,10 @@ class Pushbullet:
         self.verify_ssl = verify_ssl
 
         self._user_info = None  # type: dict
-        self._devices = None  # type: [Device]
-        self._chats = None  # type: [Chat]
-        self._channels = None  # type: [Channel]
+        self._devices = None  # type: List[Device]
+        self._chats = None  # type: List[Chat]
+        self._channels = None  # type: List[Channel]
+        self._subscriptions = None  # type: List[dict]
 
         self._encryption_key = None
         if encryption_password:
@@ -68,14 +73,12 @@ class Pushbullet:
             )
             self._encryption_key = kdf.derive(encryption_password.encode("UTF-8"))
 
-
     def __enter__(self):
         self.verify_key()
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
-
 
     def verify_key(self):
         """
@@ -204,8 +207,9 @@ class Pushbullet:
             else:
                 empty_rounds_in_a_row = 0
 
-            if empty_rounds_in_a_row > 3:
-                self.log.warning("Received {} rounds of empty data from pusbhullet -- something is not right.".format(empty_rounds_in_a_row))
+            if empty_rounds_in_a_row > 5:
+                self.log.warning("Received {} rounds of empty data from pusbhullet -- something is not right.".format(
+                    empty_rounds_in_a_row))
                 xfer["get_more"] = False
 
             # Need subsequent calls to get rest of data?
@@ -497,6 +501,93 @@ class Pushbullet:
             self._load_channels()  # Refresh cache once
             x = _get()
         return x
+
+    def get_channel_info(self, channel_tag: str, no_recent_pushes: bool = None):
+        params = {"tag": str(channel_tag)}
+        if no_recent_pushes:
+            params["no_recent_pushes"] = "true"
+        msg = self._get_data(self.CHANNEL_INFO_URL, params=params)
+        return msg
+
+
+
+
+    # ################
+    # Subscriptions
+    #
+
+    @property
+    def subscriptions(self) -> List[dict]:
+        """ :rtype: List[dict] """
+        if self._subscriptions is None:
+            self._load_subscriptions()
+        return self._subscriptions
+
+    def _load_subscriptions(self):
+        self._subscriptions = []
+        msg = self._get_data_with_pagination(self.SUBSCRIPTIONS_URL, "subscriptions", params={"active": "true"})
+        subscr_list = msg.get('subscriptions', [])
+        for info in subscr_list:
+            if info.get("active"):
+                self._subscriptions.append(info)
+        return self._subscriptions
+
+    def get_subscription(self, channel_tag: str) -> dict:
+        """Returns the Subscription to the channel with the given tag, or None if not subscribed to that channel."""
+        if self._subscriptions is None:
+            self._subscriptions = []
+
+        def _get():
+            return next((x for x in self._subscriptions if x.get("channel", {}).get("tag") == channel_tag), None)
+
+        x = _get()
+        if x is None:
+            self.log.debug("Subscription {} not found in cache.  Refreshing.".format(channel_tag))
+            self._load_subscriptions()  # Refresh cache once
+            x = _get()
+        return x
+
+    def new_subscription(self, channel_tag: str) -> dict:
+        gen = self._new_subscription_generator(channel_tag)
+        xfer = next(gen)  # Prep http params
+        data = xfer.get('data', {})
+        xfer["msg"] = self._post_data(self.SUBSCRIPTIONS_URL, data=json.dumps(data))
+        return next(gen)  # Post process response
+
+    def _new_subscription_generator(self, channel_tag):
+        data = {"channel_tag": channel_tag}
+        xfer = {"data": data}
+        yield xfer
+
+        msg = xfer.get('msg', {})
+        new_subscr = msg
+        # new_chat = Chat(self, msg)
+        if self._subscriptions is not None:
+            self._subscriptions.append(new_subscr)
+        yield new_subscr
+
+    def edit_subscription(self, subscr_iden: str, muted: bool) -> dict:
+        gen = self._edit_subscription_generator(subscr_iden, muted)
+        xfer = next(gen)  # Prep http params
+        data = xfer.get('data', {})
+        xfer["msg"] = self._post_data("{}/{}".format(self.SUBSCRIPTIONS_URL, subscr_iden), data=json.dumps(data))
+        return next(gen)  # Post process response
+
+    def _edit_subscription_generator(self, subscr_iden, muted=False):
+        data = {"muted": "true" if muted else "false"}
+        xfer = {"data": data}
+        yield xfer
+
+        msg = xfer.get('msg', {})
+        # new_chat = Chat(self, msg)
+        new_subscr = msg
+        # self.chats[self.chats.index(chat)] = new_chat
+        self._subscriptions = None
+        yield new_subscr
+
+    def remove_subscription(self, subscr_iden: str) -> dict:
+        msg = self._delete_data("{}/{}".format(self.SUBSCRIPTIONS_URL, subscr_iden))
+        return msg
 
     # ################
     # Pushes

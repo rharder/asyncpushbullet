@@ -2,6 +2,7 @@
 """Asyncio version of Pushbullet class."""
 
 import asyncio
+import json
 import os
 import pprint
 import sys
@@ -23,7 +24,7 @@ __email__ = "rob@iharder.net"
 
 class AsyncPushbullet(Pushbullet):
     def __init__(self, api_key: str = None, verify_ssl: bool = None,
-                 #loop: asyncio.AbstractEventLoop = None,
+                 # loop: asyncio.AbstractEventLoop = None,
                  **kwargs):
         Pushbullet.__init__(self, api_key, **kwargs)
         self.loop = None  # type: asyncio.BaseEventLoop #= loop or asyncio.get_event_loop()
@@ -113,7 +114,7 @@ class AsyncPushbullet(Pushbullet):
     async def _async_http(self, aiohttp_func, url: str, **kwargs) -> dict:
 
         try:
-            async with aiohttp_func(url+"", proxy=self.proxy, **kwargs) as resp:  # Do HTTP
+            async with aiohttp_func(url + "", proxy=self.proxy, **kwargs) as resp:  # Do HTTP
                 code = resp.status
                 msg = None
                 try:
@@ -317,6 +318,20 @@ class AsyncPushbullet(Pushbullet):
                 self.channels.append(c)
         self.log.info("Found {} active channels".format(len(self._channels)))
 
+    async def async_get_channels(self, flush_cache: bool = False) -> List[Device]:
+        """Returns a list of Channel objects known by Pushbullet.
+
+        This returns immediately with a cached copy of the channels, if available.
+        If not available, or if flush_cache=True, then a call will be made to
+        Pushbullet.com to retrieve a fresh list of channels.
+
+        :param bool flush_cache: whether or not to flush the cache first
+        :return: list of Channel objects
+        """
+        if self._channels is None or flush_cache:
+            await self._async_load_channels()
+        return self._channels
+
     async def async_get_channel(self, channel_tag: str) -> Channel:
         if self._channels is None:
             self._channels = []
@@ -331,19 +346,81 @@ class AsyncPushbullet(Pushbullet):
             x = _get()
         return x
 
-    async def async_get_channels(self, flush_cache: bool = False) -> List[Device]:
-        """Returns a list of Channel objects known by Pushbullet.
 
-        This returns immediately with a cached copy of the channels, if available.
+    async def async_get_channel_info(self, channel_tag: str, no_recent_pushes: bool = None) -> dict:
+
+        params = {"tag": str(channel_tag)}
+        if no_recent_pushes:
+            params["no_recent_pushes"] = "true"
+        msg = await self._async_get_data(self.CHANNEL_INFO_URL, params=params)
+        return msg
+
+    # ################
+    # Subscriptions
+    #
+
+    async def _async_load_subscriptions(self):
+        """
+        Loads subscriptions.
+        :param active_only:
+        :return:
+        """
+        subscriptions = []
+        msg = await self._async_get_data_with_pagination(self.SUBSCRIPTIONS_URL, "subscriptions",
+                                                         params={"active": "true"})
+        item_list = msg.get('subscriptions', [])
+        for item in item_list:
+            if item.get("active"):
+                subscriptions.append(item)
+        self._subscriptions = subscriptions
+        return subscriptions
+
+    async def async_get_subscriptions(self, flush_cache: bool = False) -> List[dict]:
+        """Returns a list of Subscriptions known by Pushbullet.
+
+        This returns immediately with a cached copy, if available.
         If not available, or if flush_cache=True, then a call will be made to
-        Pushbullet.com to retrieve a fresh list of channels.
+        Pushbullet.com to retrieve a fresh list.
 
         :param bool flush_cache: whether or not to flush the cache first
-        :return: list of Channel objects
+        :return: list of Subscriptions
         """
-        if self._channels is None or flush_cache:
-            await self._async_load_channels()
-        return self._channels
+        if self._subscriptions is None or flush_cache:
+            await self._async_load_subscriptions()
+        return self._subscriptions
+
+    async def async_get_subscription(self, channel_tag: str) -> dict:
+
+        if self._subscriptions is None:
+            self._subscriptions = []
+
+        def _get():
+            return next((x for x in self._subscriptions if x.get("channel", {}).get("tag") == channel_tag), None)
+
+        x = _get()
+        if x is None:
+            self.log.debug("Subscription {} not found in cache.  Refreshing.".format(channel_tag))
+            await self._async_load_subscriptions()  # Refresh cache once
+            x = _get()
+        return x
+
+    async def async_new_subscription(self, channel_tag: str) -> dict:
+        gen = self._new_subscription_generator(channel_tag)
+        xfer = next(gen)  # Prep http params
+        data = xfer.get("data", {})
+        xfer["msg"] = await self._async_post_data(self.SUBSCRIPTIONS_URL, data=data)
+        return next(gen)  # Post process response
+
+    async def async_edit_subscription(self, subscr_iden: str, muted: bool) -> dict:
+        gen = self._edit_subscription_generator(subscr_iden, muted)
+        xfer = next(gen)
+        data = xfer.get('data', {})
+        xfer["msg"] = await self._async_post_data("{}/{}".format(self.SUBSCRIPTIONS_URL, subscr_iden), data=data)
+        return next(gen)
+
+    async def async_remove_subscription(self, subscr_iden: str) -> dict:
+        msg = await self._async_delete_data("{}/{}".format(self.SUBSCRIPTIONS_URL, subscr_iden))
+        return msg
 
     # ################
     # Pushes
