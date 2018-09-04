@@ -149,9 +149,13 @@ class Pushbullet:
     def _interpret_response(self, code: int, headers: dict, msg: dict):
         """ Interpret the HTTP response headers, raise exceptions, etc. """
         # print_function_name()
-        if code in (401, 403):
+        if code == 401:
             err_msg = "Invalid API Key: {}".format(self.api_key)
             raise InvalidKeyError(code, err_msg)
+
+        elif code == 403:
+            err_msg = "The access token is not valid for that request."
+            raise PushbulletError(code, err_msg, msg)
 
         elif code == 429:
             epoch = int(headers.get("X-Ratelimit-Reset", 0))
@@ -207,7 +211,7 @@ class Pushbullet:
             else:
                 empty_rounds_in_a_row = 0
 
-            if empty_rounds_in_a_row > 5:
+            if empty_rounds_in_a_row > 3:
                 self.log.warning("Received {} rounds of empty data from pusbhullet -- something is not right.".format(
                     empty_rounds_in_a_row))
                 xfer["get_more"] = False
@@ -406,6 +410,7 @@ class Pushbullet:
         return self._chats
 
     def _load_chats(self):
+        print("SYNCHRONOUS VERSION OF _load_chats CALLED")
         self._chats = []
         msg = self._get_data_with_pagination(self.CHATS_URL, "chats", params={"active": "true"})
         chat_list = msg.get('chats', [])
@@ -443,7 +448,8 @@ class Pushbullet:
 
         msg = xfer.get('msg', {})
         new_chat = Chat(self, msg)
-        self.chats.append(new_chat)
+        # self.chats.append(new_chat)
+        self._chats = None  # flush cache
         yield new_chat
 
     def edit_chat(self, chat: Chat, muted: bool = False) -> Chat:
@@ -460,11 +466,14 @@ class Pushbullet:
 
         msg = xfer.get('msg', {})
         new_chat = Chat(self, msg)
-        self.chats[self.chats.index(chat)] = new_chat
+        self._chats = None  # flush cache
+        # if self._chats is not None:
+        #     self._chats[self.chats.index(chat)] = new_chat
         yield new_chat
 
     def remove_chat(self, chat: Chat) -> dict:
         msg = self._delete_data("{}/{}".format(self.CHATS_URL, chat.iden))
+        self._chats = None  # flush cache
         return msg
 
     # ################
@@ -479,6 +488,7 @@ class Pushbullet:
         return self._channels
 
     def _load_channels(self):
+        print("SYNCHRONOUS VERSION OF _load_channels CALLED")
         self._channels = []
         msg = self._get_data_with_pagination(self.CHANNELS_URL, "channels", params={"active": "true"})
         channel_list = msg.get('channels', [])
@@ -510,6 +520,25 @@ class Pushbullet:
         return msg
 
 
+    # def new_channel(self, channel_tag: str) -> dict:
+    #     """This does not seem to be permitted"""
+    #     gen = self._new_channel_generator(channel_tag)
+    #     xfer = next(gen)  # Prep http params
+    #     data = xfer.get('data', {})
+    #     xfer["msg"] = self._post_data(self.CHANNELS_URL, data=json.dumps(data))
+    #     return next(gen)  # Post process response
+    #
+    # def _new_channel_generator(self, channel_tag:str):
+    #     data = {"channel_tag": channel_tag}
+    #     xfer = {"data": data}
+    #     yield xfer
+    #
+    #     msg = xfer.get('msg', {})
+    #     # new_chat = Chat(self, msg)
+    #     new_channel = Channel(self, msg)
+    #     if self._channels is not None:
+    #         self._channels.append(new_channel)
+    #     yield new_channel
 
 
     # ################

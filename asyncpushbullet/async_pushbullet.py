@@ -321,6 +321,9 @@ class AsyncPushbullet(Pushbullet):
     async def async_get_channels(self, flush_cache: bool = False) -> List[Device]:
         """Returns a list of Channel objects known by Pushbullet.
 
+        This is not all known channels from every publisher.  The documentation
+        is vague, but it might be the channels created by the user.
+
         This returns immediately with a cached copy of the channels, if available.
         If not available, or if flush_cache=True, then a call will be made to
         Pushbullet.com to retrieve a fresh list of channels.
@@ -348,6 +351,12 @@ class AsyncPushbullet(Pushbullet):
 
 
     async def async_get_channel_info(self, channel_tag: str, no_recent_pushes: bool = None) -> dict:
+        """Returns information about the channel tag requested.
+
+        This queries the list of all channels provided through pushbullet, not
+        just those managed by the user.
+
+        """
 
         params = {"tag": str(channel_tag)}
         if no_recent_pushes:
