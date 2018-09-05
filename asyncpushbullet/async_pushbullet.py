@@ -178,7 +178,7 @@ class AsyncPushbullet(Pushbullet):
 
     async def _async_post_data(self, url: str, **kwargs) -> dict:
         session = await self.aio_session()
-        kwargs["timeout"] = None
+        # kwargs["timeout"] = None  # Don't know why this was there
         msg = await self._async_http(session.post, url, **kwargs)
         return msg
 
@@ -191,6 +191,14 @@ class AsyncPushbullet(Pushbullet):
     async def _async_push(self, data: dict, **kwargs) -> dict:
         msg = await self._async_post_data(self.PUSH_URL, data=data, **kwargs)
         return msg
+
+    # ################
+    # User
+    #
+
+    async def async_get_user(self):
+        self._user_info = await self._async_get_data(self.ME_URL)
+        return self._user_info
 
     # ################
     # Device
@@ -709,9 +717,6 @@ class AsyncPushbullet(Pushbullet):
         xfer["msg"] = await self._async_post_data(self.UPLOAD_REQUEST_URL, data=data)
         next(gen)  # Prep upload params
 
-        # file_name = xfer["data"]["file_name"]
-        # file_type = xfer["data"]["file_type"]
-
         if show_progress:
             with tqio(file_path) as f:
                 xfer["msg"] = await self._async_post_data(xfer["upload_url"], data={"file": f})
@@ -734,11 +739,3 @@ class AsyncPushbullet(Pushbullet):
         data = xfer.get("data")
         xfer["msg"] = await self._async_push(data)
         return next(gen)
-
-    # ################
-    # User
-    #
-
-    async def async_get_user(self):
-        self._user_info = await self._async_get_data(self.ME_URL)
-        return self._user_info

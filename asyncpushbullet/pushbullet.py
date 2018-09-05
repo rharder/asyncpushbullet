@@ -262,35 +262,39 @@ class Pushbullet:
 
         return data
 
+    #
+    # # ################
+    # # Cached Data
+    # # - This data is retained locally rather than querying Pushbullet each time.
+    #
+    # def refresh(self):
+    #     self._load_user_info()
+    #     # self._load_devices()
+    #     # self._load_chats()
+    #     # self._load_channels()
+    #     self.get_pushes(limit=1)
+    #
+    # # @property
+    # # def user_info(self) -> dict:
+    # #     """ :rtype: dict """
+    # #     if self._user_info is None:
+    # #         self._load_user_info()
+    # #     return self._user_info
+    # #
+    # # def _load_user_info(self):
+    # #     self._user_info = self._get_data(self.ME_URL)
+
     # ################
-    # Cached Data
-    # - This data is retained locally rather than querying Pushbullet each time.
+    # User
+    #
 
-    def refresh(self):
-        self._load_user_info()
-        # self._load_devices()
-        # self._load_chats()
-        # self._load_channels()
-        self.get_pushes(limit=1)
-
-    @property
-    def user_info(self) -> dict:
-        """ :rtype: dict """
-        if self._user_info is None:
-            self._load_user_info()
-        return self._user_info
-
-    def _load_user_info(self):
+    def get_user(self):
         self._user_info = self._get_data(self.ME_URL)
+        return self._user_info
 
     # ################
     # Device
     #
-
-    # @property
-    # def devices(self) -> [Device]:
-    #     """ :rtype: [Device] """
-    #     return self.get_devices()
 
     def devices_iter(self,
                      limit: int = None,
@@ -514,7 +518,6 @@ class Pushbullet:
 
         msg = xfer.get('msg', {})
         new_chat = Chat(self, msg)
-        # self.chats.append(new_chat)
         self._chats = None  # flush cache
         yield new_chat
 
@@ -884,7 +887,6 @@ class Pushbullet:
         gen = self._upload_file_generator(file_path, file_type=file_type)
         xfer = next(gen)  # Prep request params
 
-        # data = json.dumps(xfer["data"])
         data = xfer["data"]
         xfer["msg"] = self._post_data(self.UPLOAD_REQUEST_URL, data=json.dumps(data))
         next(gen)  # Prep upload params
