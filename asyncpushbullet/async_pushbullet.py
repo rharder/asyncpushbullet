@@ -7,11 +7,11 @@ import os
 import pprint
 import sys
 import traceback
-from typing import List, Dict
+from typing import List, Dict, AsyncIterator
 
 import aiohttp
 
-from asyncpushbullet import Device, PushbulletError
+from asyncpushbullet import Device, PushbulletError, Subscription
 from asyncpushbullet.channel import Channel
 from asyncpushbullet.chat import Chat
 from asyncpushbullet.errors import HttpError
@@ -141,70 +141,12 @@ class AsyncPushbullet(Pushbullet):
         msg = await self._async_http(session.get, url, **kwargs)
         return msg
 
-    # async def _async_get_data_with_pagination(self, url: str, item_name: str, **kwargs) -> dict:
-    #     # print_function_name()
-    #     gen = self._get_data_with_pagination_generator(url, item_name, **kwargs)
-    #     xfer = next(gen)  # Prep params
-    #     msg = {}
-    #     while xfer.get("get_more", False):
-    #         args = xfer.get("kwargs", {})  # type: dict
-    #         xfer["msg"] = await self._async_get_data(url, **args)
-    #         msg = next(gen)
-    #     return msg
-
-    async def async_get_chats_iter(self,
-                                   limit: int = 3,
-                                   page_size: int = 2,
-                                   active_only: bool = True,
-                                   modified_after: float = 0.0):
-        url = self.CHATS_URL
-        item_name = "chats"
-        async for x in self._async_get_objects_iterator(url, item_name,
-                                                        limit=limit,
-                                                        page_size=page_size,
-                                                        active_only=active_only,
-                                                        modified_after=modified_after):
-            yield Chat(self, x)
-
-    async def async_get_chats_list(self,
-                                   limit: int = 3,
-                                   page_size: int = 2,
-                                   active_only: bool = True,
-                                   modified_after: float = 0.0):
-        return [x async for x in self.async_get_chats_iter(limit=limit,
-                                                           page_size=page_size,
-                                                           active_only=active_only,
-                                                           modified_after=modified_after)]
-
-    async def async_get_subscriptions_iter(self,
-                                           limit: int = 3,
-                                           page_size: int = 2,
-                                           active_only: bool = True,
-                                           modified_after: float = 0.0):
-        url = self.SUBSCRIPTIONS_URL
-        item_name = "subscriptions"
-        async for x in self._async_get_objects_iterator(url, item_name,
-                                                        limit=limit,
-                                                        page_size=page_size,
-                                                        active_only=active_only,
-                                                        modified_after=modified_after):
-            yield x
-
-    async def async_get_subscriptions_list(self,
-                                           limit: int = 3,
-                                           page_size: int = 2,
-                                           active_only: bool = True,
-                                           modified_after: float = 0.0):
-        return [x async for x in self.async_get_subscriptions_iter(limit=limit,
-                                                                   page_size=page_size,
-                                                                   active_only=active_only,
-                                                                   modified_after=modified_after)]
-
-    async def _async_get_objects_iterator(self, url, item_name,
-                                          limit: int = None,
-                                          page_size: int = None,
-                                          active_only: bool = True,
-                                          modified_after: float = None):
+    async def _async_objects_iter(self, url, item_name,
+                                  limit: int = None,
+                                  page_size: int = None,
+                                  active_only: bool = True,
+                                  modified_after: float = None):
+        """Returns an async iterator that retrieves objects from pushbullet."""
 
         items_returned = 0
         get_more = True
@@ -257,68 +199,61 @@ class AsyncPushbullet(Pushbullet):
     # Device
     #
 
-    async def async_get_devices_iter(self,
-                                     limit: int = 3,
-                                     page_size: int = 2,
-                                     active_only: bool = True,
-                                     modified_after: float = 0.0):
+    async def async_devices_iter(self,
+                                 limit: int = None,
+                                 page_size: int = None,
+                                 active_only: bool = None,
+                                 modified_after: float = None) -> AsyncIterator[Device]:
+        """Returns an async iterator that retrieves devices from pushbullet.
+
+        :param limit: maximum number to return (Default: None, unlimited)
+        :param page_size: number to retrieve from each call to pushbullet.com (Default: 10)
+        :param active_only: retrieve only active items (Default: True)
+        :param modified_after: retrieve only items modified after this timestamp (Default: 0.0, all)
+        :return: async iterator
+        :rtype: AsyncIterator[Device]
+        """
+        page_size = 10 if page_size is None else page_size  # Default value
+        active_only = True if active_only is None else active_only  # Default value
+        modified_after = 0.0 if modified_after is None else modified_after  # Default value
         url = self.DEVICES_URL
         item_name = "devices"
-        async for x in self._async_get_objects_iterator(url, item_name,
-                                                        limit=limit,
-                                                        page_size=page_size,
-                                                        active_only=active_only,
-                                                        modified_after=modified_after):
+        async for x in self._async_objects_iter(url, item_name, limit=limit, page_size=page_size,
+                                                active_only=active_only, modified_after=modified_after):
             yield Device(self, x)
 
-    # async def async_get_devices(self,
-    #                             limit: int = 3,
-    #                             page_size: int = 2,
-    #                             active_only: bool = True,
-    #                             modified_after: float = 0.0):
-    #     return [x async for x in self.async_get_devices_iter(limit=limit,
-    #                                                          page_size=page_size,
-    #                                                          active_only=active_only,
-    #                                                          modified_after=modified_after)]
-
-    async def _async_load_devices(self):
-        devices = [x async for x in self.async_get_devices_iter(limit=None,
-                                                                page_size=10,
-                                                                active_only=True)]
-        # msg = await self._async_get_data_with_pagination(self.DEVICES_URL, "devices", params={"active": "true"})
-        # device_list = msg.get('devices', [])
-        # for device_info in device_list:
-        #     if device_info.get("active"):
-        #         d = Device(self, device_info)
-        #         devices.append(d)
-        # self.log.info("Found {} active devices".format(len(devices)))
-        self._devices = devices
-
-    #
     async def async_get_devices(self, flush_cache: bool = False) -> List[Device]:
         """Returns a list of Device objects known by Pushbullet.
 
-        This returns immediately with a cached copy of the devices, if available.
+        This returns immediately with a cached copy, if available.
         If not available, or if flush_cache=True, then a call will be made to
-        Pushbullet.com to retrieve a fresh list of devices.
+        Pushbullet.com to retrieve a fresh list.
 
         :param bool flush_cache: whether or not to flush the cache first
         :return: list of Device objects
+        :rtype: List[Device]
         """
-        if self._devices is None or flush_cache:
-            await self._async_load_devices()
-        return self._devices
+        items = self._devices
+        if items is None or flush_cache:
+            items = [x async for x in self.async_devices_iter(limit=None,
+                                                              page_size=100,
+                                                              active_only=True)]
+            self._devices = items
+        return items
 
-    async def async_get_device(self, nickname: str = None, iden: str = None, flush_cache=False) -> Device:
+    async def async_get_device(self, nickname: str = None, iden: str = None) -> Device:
         """
         Attempts to retrieve a device based on the given nickname or iden.
         First looks in the cached copy of the data and then refreshes the
         cache once if the device is not found.
         Returns None if the device is still not found.
-        """
 
-        if self._devices is None or flush_cache:
-            await self._async_load_devices()
+        :param str nickname: the nickname of the device to find
+        :param str iden: the device_iden of the device to find
+        :return: the Device that was found or None if not found
+        :rtype: Device
+        """
+        _ = await self.async_get_devices()  # If no cached copy, create one
 
         def _get():
             if nickname:
@@ -329,7 +264,7 @@ class AsyncPushbullet(Pushbullet):
         x = _get()
         if x is None:
             self.log.debug("Device {} not found in cache.  Refreshing.".format(nickname or iden))
-            await self._async_load_devices()  # Refresh cache once
+            _ = await self.async_get_devices(flush_cache=True)  # Refresh cache once
             x = _get()
         return x
 
@@ -360,20 +295,60 @@ class AsyncPushbullet(Pushbullet):
     # Chat
     #
 
-    async def _async_load_chats(self):
-        self._chats = []
-        msg = await self._async_get_data_with_pagination(self.CHATS_URL, "chats", params={"active": "true"})
-        chat_list = msg.get('chats', [])
-        for chat_info in chat_list:
-            if chat_info.get("active"):
-                c = Chat(self, chat_info)
-                self.chats.append(c)
-        self.log.info("Found {} active chats".format(len(self._chats)))
+    async def async_chats_iter(self,
+                               limit: int = None,
+                               page_size: int = None,
+                               active_only: bool = None,
+                               modified_after: float = None) -> AsyncIterator[Chat]:
+        """Returns an async iterator that retrieves chats from pushbullet.
+
+        :param limit: maximum number to return (Default: None, unlimited)
+        :param page_size: number to retrieve from each call to pushbullet.com (Default: 10)
+        :param active_only: retrieve only active items (Default: True)
+        :param modified_after: retrieve only items modified after this timestamp (Default: 0.0, all)
+        :return: async iterator
+        :rtype: AsyncIterator[Chat]
+        """
+        page_size = 10 if page_size is None else page_size  # Default value
+        active_only = True if active_only is None else active_only  # Default value
+        modified_after = 0.0 if modified_after is None else modified_after  # Default value
+        url = self.CHATS_URL
+        item_name = "chats"
+        async for x in self._async_objects_iter(url, item_name, limit=limit, page_size=page_size,
+                                                active_only=active_only, modified_after=modified_after):
+            yield Chat(self, x)
+
+    async def async_get_chats(self, flush_cache: bool = False) -> List[Chat]:
+        """Returns a list of Chat objects known by Pushbullet.
+
+        This returns immediately with a cached copy, if available.
+        If not available, or if flush_cache=True, then a call will be made to
+        Pushbullet.com to retrieve a fresh list.
+
+        :param bool flush_cache: whether or not to flush the cache first
+        :return: list of Chat objects
+        :rtype: List[Device]
+        """
+        items = self._chats
+        if items is None or flush_cache:
+            items = [x async for x in self.async_chats_iter(limit=None,
+                                                            page_size=100,
+                                                            active_only=True)]
+            self._chats = items
+        return items
 
     async def async_get_chat(self, email: str) -> Chat:
+        """
+        Attempts to retrieve a device based on the given nickname or iden.
+        First looks in the cached copy of the data and then refreshes the
+        cache once if the device is not found.
+        Returns None if the device is still not found.
 
-        if self._chats is None:
-            self._chats = []
+        :param str email: the email of the chat contact to find
+        :return: the Chat that was found or None if not found
+        :rtype: Chat
+        """
+        _ = await self.async_get_devices()  # If no cached copy, create one
 
         def _get():
             return next((x for x in self._chats if x.email == email), None)
@@ -381,23 +356,9 @@ class AsyncPushbullet(Pushbullet):
         x = _get()
         if x is None:
             self.log.debug("Chat {} not found in cache.  Refreshing.".format(email))
-            await self._async_load_chats()  # Refresh cache once
+            _ = await self.async_get_chats(flush_cache=True)  # Refresh cache once
             x = _get()
         return x
-
-    async def async_get_chats(self, flush_cache: bool = False) -> List[Device]:
-        """Returns a list of Chat objects known by Pushbullet.
-
-        This returns immediately with a cached copy of the chats, if available.
-        If not available, or if flush_cache=True, then a call will be made to
-        Pushbullet.com to retrieve a fresh list of chats.
-
-        :param bool flush_cache: whether or not to flush the cache first
-        :return: list of Chat objects
-        """
-        if self._chats is None or flush_cache:
-            await self._async_load_chats()
-        return self._chats
 
     async def async_new_chat(self, email: str) -> Chat:
         gen = self._new_chat_generator(email)
@@ -421,32 +382,65 @@ class AsyncPushbullet(Pushbullet):
     # Channel
     #
 
-    async def _async_load_channels(self):
-        self._channels = []
-        msg = await self._async_get_data_with_pagination(self.CHANNELS_URL, "channels", params={"active": "true"})
-        channel_list = msg.get('channels', [])
-        for channel_info in channel_list:
-            if channel_info.get("active"):
-                c = Channel(self, channel_info)
-                self.channels.append(c)
-        self.log.info("Found {} active channels".format(len(self._channels)))
+    async def async_user_channels_iter(self,
+                                       limit: int = None,
+                                       page_size: int = None,
+                                       active_only: bool = None,
+                                       modified_after: float = None) -> AsyncIterator[Channel]:
+        """Returns an async iterator that retrieves channels from pushbullet.
 
-    async def async_get_channels(self, flush_cache: bool = False) -> List[Device]:
+        :param limit: maximum number to return (Default: None, unlimited)
+        :param page_size: number to retrieve from each call to pushbullet.com (Default: 10)
+        :param active_only: retrieve only active items (Default: True)
+        :param modified_after: retrieve only items modified after this timestamp (Default: 0.0, all)
+        :return: async iterator
+        :rtype: AsyncIterator[Channel]
+        """
+        page_size = 10 if page_size is None else page_size  # Default value
+        active_only = True if active_only is None else active_only  # Default value
+        modified_after = 0.0 if modified_after is None else modified_after  # Default value
+        url = self.CHANNELS_URL
+        item_name = "channels"
+        async for x in self._async_objects_iter(url, item_name, limit=limit, page_size=page_size,
+                                                active_only=active_only, modified_after=modified_after):
+            yield Channel(self, x)
+
+    async def async_get_user_channels(self, flush_cache: bool = False) -> List[Channel]:
         """Returns a list of Channel objects known by Pushbullet.
 
-        This is not all known channels from every publisher.  The documentation
-        is vague, but it might be the channels created by the user.
+        This returns immediately with a cached copy, if available.
+        If not available, or if flush_cache=True, then a call will be made to
+        Pushbullet.com to retrieve a fresh list.
 
         :param bool flush_cache: whether or not to flush the cache first
         :return: list of Channel objects
+        :rtype: List[Channel]
         """
-        if self._channels is None or flush_cache:
-            await self._async_load_channels()
-        return self._channels
+        items = self._channels
+        if items is None or flush_cache:
+            items = [x async for x in self.async_user_channels_iter(limit=None,
+                                                                    page_size=100,
+                                                                    active_only=True)]
+            self._channels = items
+        return items
 
-    async def async_get_channel(self, channel_tag: str) -> Channel:
-        if self._channels is None:
-            self._channels = []
+    async def async_get_user_channel(self, channel_tag: str) -> Channel:
+        """
+        Attempts to retrieve a channel based on the given channel_tag.
+        First looks in the cached copy of the data and then refreshes the
+        cache once if the channel is not found.
+        Returns None if the channel is still not found.
+
+        This API call is vague in the pushbullet documentation, but it
+        appears to refer to only those channels managed by the user--this
+        may not apply to very many users of pushbullet.
+
+        :param str nickname: the nickname of the device to find
+        :param str iden: the device_iden of the device to find
+        :return: the Device that was found or None if not found
+        :rtype: Device
+        """
+        _ = await self.async_get_user_channels()  # If no cached copy, create one
 
         def _get():
             return next((x for x in self._channels if x.channel_tag == channel_tag), None)
@@ -454,18 +448,17 @@ class AsyncPushbullet(Pushbullet):
         x = _get()
         if x is None:
             self.log.debug("Channel {} not found in cache.  Refreshing.".format(channel_tag))
-            await self._async_load_channels()  # Refresh cache once
+            _ = await self.async_get_devices(flush_cache=True)  # Refresh cache once
             x = _get()
         return x
 
-    async def async_get_channel_info(self, channel_tag: str, no_recent_pushes: bool = None) -> dict:
+    async def async_get_channel_info(self, channel_tag: str, no_recent_pushes: bool = None) -> Channel:
         """Returns information about the channel tag requested.
 
         This queries the list of all channels provided through pushbullet, not
         just those managed by the user.
 
         """
-
         params = {"tag": str(channel_tag)}
         if no_recent_pushes:
             params["no_recent_pushes"] = "true"
@@ -475,54 +468,75 @@ class AsyncPushbullet(Pushbullet):
             if he.code == 400:  # That channel does not exist
                 return None
         else:
-            return msg
+            return Channel(self, msg)
 
     # ################
     # Subscriptions
     #
 
-    async def _async_load_subscriptions(self):
-        """
-        Loads subscriptions.
-        :param active_only:
-        :return:
-        """
-        subscriptions = []
-        msg = await self._async_get_data_with_pagination(self.SUBSCRIPTIONS_URL, "subscriptions",
-                                                         params={"active": "true"})
-        item_list = msg.get('subscriptions', [])
-        for item in item_list:
-            if item.get("active"):
-                subscriptions.append(item)
-        self._subscriptions = subscriptions
-        return subscriptions
+    async def async_subscriptions_iter(self,
+                                       limit: int = None,
+                                       page_size: int = None,
+                                       active_only: bool = None,
+                                       modified_after: float = None) -> AsyncIterator[Subscription]:
+        """Returns an async iterator that retrieves subscriptions from pushbullet.
 
-    async def async_get_subscriptions(self, flush_cache: bool = False) -> List[dict]:
-        """Returns a list of Subscriptions known by Pushbullet.
+        :param limit: maximum number to return (Default: None, unlimited)
+        :param page_size: number to retrieve from each call to pushbullet.com (Default: 10)
+        :param active_only: retrieve only active items (Default: True)
+        :param modified_after: retrieve only items modified after this timestamp (Default: 0.0, all)
+        :return: async iterator
+        :rtype: AsyncIterator[Subscription]
+        """
+        page_size = 10 if page_size is None else page_size  # Default value
+        active_only = True if active_only is None else active_only  # Default value
+        modified_after = 0.0 if modified_after is None else modified_after  # Default value
+        url = self.SUBSCRIPTIONS_URL
+        item_name = "subscriptions"
+        async for x in self._async_objects_iter(url, item_name, limit=limit, page_size=page_size,
+                                                active_only=active_only, modified_after=modified_after):
+            yield Subscription(self, x)
+
+    async def async_get_subscriptions(self, flush_cache: bool = False) -> List[Subscription]:
+        """Returns a list of Subscription objects known by Pushbullet.
 
         This returns immediately with a cached copy, if available.
         If not available, or if flush_cache=True, then a call will be made to
         Pushbullet.com to retrieve a fresh list.
 
         :param bool flush_cache: whether or not to flush the cache first
-        :return: list of Subscriptions
+        :return: list of Subscription objects
+        :rtype: List[Subscription]
         """
-        if self._subscriptions is None or flush_cache:
-            await self._async_load_subscriptions()
-        return self._subscriptions
+        items = self._subscriptions
+        if items is None or flush_cache:
+            items = [x async for x in self.async_subscriptions_iter(limit=None,
+                                                                    page_size=100,
+                                                                    active_only=True)]
+            self._subscriptions = items
+        return items
 
-    async def async_get_subscription(self, channel_tag: str) -> dict:
+    async def async_get_subscription(self, channel_tag: str = None) -> Subscription:
+        """
+        Attempts to retrieve a subscription based on the given channel tag.
+        First looks in the cached copy of the data and then refreshes the
+        cache once if the device is not found.
+        Returns None if the device is still not found.
 
-        if self._subscriptions is None:
-            self._subscriptions = []
+        :param str channel_tag: the channel tag of the subscription to find
+        :return: the Subscription that was found or None if not found
+        :rtype: Subscription
+        """
+        _ = await self.async_get_subscriptions()  # If no cached copy, create one
 
         def _get():
-            return next((x for x in self._subscriptions if x.get("channel", {}).get("tag") == channel_tag), None)
+            return next((x for x in self._subscriptions
+                         if x.channel and x.channel.channel_tag == channel_tag), None)
 
         x = _get()
         if x is None:
-            self.log.debug("Subscription {} not found in cache.  Refreshing.".format(channel_tag))
-            await self._async_load_subscriptions()  # Refresh cache once
+            self.log.debug("Subscription to {} not found in cache.  Refreshing.".format(channel_tag))
+            _ = await self.async_get_subscriptions(flush_cache=True)  # Refresh cache once
             x = _get()
         return x
 
@@ -548,21 +562,27 @@ class AsyncPushbullet(Pushbullet):
     # Pushes
     #
 
-    async def async_get_pushes_iter(self,
-                                    limit: int = 10,
-                                    page_size: int = 10,
-                                    active_only: bool = True,
-                                    modified_after: float = None):
-        """Returns an asynchronous iterator that yields pushes as they are retrieved.
-        This is particularly useful when retrieveing a large number of objects, and
-        you wish to update a user interface as data comes across the wire."""
+    async def async_pushes_iter(self,
+                                limit: int = 10,
+                                page_size: int = None,
+                                active_only: bool = None,
+                                modified_after: float = None) -> AsyncIterator[dict]:
+        """Returns an async iterator that retrieves pushes from pushbullet.
+
+        :param limit: maximum number to return (Default: 10, None means unlimited)
+        :param page_size: number to retrieve from each call to pushbullet.com (Default: 10)
+        :param active_only: retrieve only active items (Default: True)
+        :param modified_after: retrieve only items modified after this timestamp (Default: 0.0, all)
+        :return: async iterator
+        :rtype: AsyncIterator[dict]
+        """
+        page_size = 10 if page_size is None else page_size  # Default value
+        active_only = True if active_only is None else active_only  # Default value
+        modified_after = 0.0 if modified_after is None else modified_after  # Default value
         url = self.PUSH_URL
         item_name = "pushes"
-        async for x in self._async_get_objects_iterator(url, item_name,
-                                                        limit=limit,
-                                                        page_size=page_size,
-                                                        active_only=active_only,
-                                                        modified_after=modified_after):
+        async for x in self._async_objects_iter(url, item_name, limit=limit, page_size=page_size,
+                                                active_only=active_only, modified_after=modified_after):
             modified = x.get("modified", 0)
             if modified > self.most_recent_timestamp:
                 self.most_recent_timestamp = modified
@@ -572,35 +592,16 @@ class AsyncPushbullet(Pushbullet):
                                limit: int = None,
                                page_size: int = None,
                                active_only: bool = None,
-                               modified_after: float = None):
+                               modified_after: float = None) -> List[dict]:
         """Returns a list of pushes with the given filters applied"""
-        return [x async for x in self.async_get_pushes_iter(limit=limit,
-                                                            page_size=page_size,
-                                                            active_only=active_only,
-                                                            modified_after=modified_after)]
+        return [x async for x in self.async_pushes_iter(limit=limit,
+                                                        page_size=page_size,
+                                                        active_only=active_only,
+                                                        modified_after=modified_after)]
 
     async def async_get_new_pushes(self, limit: int = None, active_only: bool = True):
         return await self.async_get_pushes(modified_after=self.most_recent_timestamp,
                                            limit=limit, active_only=active_only)
-
-    # async def async_get_pushes(self, modified_after: float = None, limit: int = 10,
-    #                            filter_inactive: bool = True) -> [dict]:
-    #     """Retrieve pushes with a default limit of 10 (None means unlimited)."""
-    #     # print_function_name(self)
-    #     gen = self._get_pushes_generator(modified_after=modified_after,
-    #                                      limit=limit,
-    #                                      filter_inactive=filter_inactive)
-    #     xfer = next(gen)  # Prep http params
-    #     data = xfer.get('data', {})
-    #     xfer["msg"] = await self._async_get_data_with_pagination(self.PUSH_URL, "pushes", params=data)
-    #     return next(gen)  # Post process response
-
-    # async def async_get_new_pushes(self, limit: int = None,
-    #                                filter_inactive: bool = True) -> [dict]:
-    #     # print_function_name(self)
-    #     pushes = await self.async_get_pushes(modified_after=self.most_recent_timestamp,
-    #                                          limit=limit, active_only=filter_inactive)
-    #     return pushes
 
     async def async_dismiss_push(self, iden: str) -> dict:
         if type(iden) is dict and "iden" in iden:

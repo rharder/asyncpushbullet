@@ -58,10 +58,8 @@ class Device:
 
     def __repr__(self):
         attr_map = {k: self.__getattribute__(k) for k in self.DEVICE_ATTRIBUTES}
-        # attr_str = ", ".join(["{}={}".format(k,v) for k,v in attr_map.items()])
         attr_str = pprint.pformat(attr_map)
-        _str = "Device('{}',\n{})".format(self.nickname or "nameless (iden: {})"
-                                          .format(self.device_iden), attr_str)
+        _str = str(self) + ",\n{})".format(attr_str)
         return _str
 
     # @property

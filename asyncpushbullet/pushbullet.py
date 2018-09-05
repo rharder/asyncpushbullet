@@ -16,8 +16,9 @@ from ._compat import standard_b64encode
 from .channel import Channel
 from .chat import Chat
 from .device import Device
-from .errors import PushbulletError, InvalidKeyError, HttpError
+from .errors import InvalidKeyError, HttpError
 from .filetype import get_file_type
+from .subscription import Subscription
 
 
 class NoEncryptionModuleError(Exception):
@@ -53,7 +54,7 @@ class Pushbullet:
         self._devices = None  # type: List[Device]
         self._chats = None  # type: List[Chat]
         self._channels = None  # type: List[Channel]
-        self._subscriptions = None  # type: List[dict]
+        self._subscriptions = None  # type: List[Subscription]
 
         self._encryption_key = None
         if encryption_password:
