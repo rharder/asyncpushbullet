@@ -8,12 +8,14 @@ from typing import List, AsyncIterator, Optional
 
 import aiohttp  # pip install aiohttp
 
-from asyncpushbullet import Device, PushbulletError, Subscription
-from asyncpushbullet.channel import Channel
-from asyncpushbullet.chat import Chat
-from asyncpushbullet.errors import HttpError
-from asyncpushbullet.filetype import get_file_type
-from asyncpushbullet.tqio import tqio
+# from asyncpushbullet import Device, PushbulletError, Subscription
+from .device import Device
+from .subscription import Subscription
+from .channel import Channel
+from .chat import Chat
+from .errors import HttpError, PushbulletError
+from .filetype import get_file_type
+from .tqio import tqio
 from .pushbullet import Pushbullet
 
 __author__ = "Robert Harder"
