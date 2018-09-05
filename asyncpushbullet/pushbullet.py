@@ -9,7 +9,7 @@ import logging
 import os
 from typing import List, Iterator, Optional
 
-import requests
+import requests  # pip install requests
 
 from ._compat import standard_b64encode
 from .channel import Channel
@@ -67,7 +67,7 @@ class Pushbullet:
             kdf = PBKDF2HMAC(
                 algorithm=hashes.SHA256(),
                 length=32,
-                salt=self.user_info["iden"].encode("ASCII"),
+                salt=self.get_user()["iden"].encode("ASCII"),  # If using asyncpushbullet, this is synchronous still
                 iterations=30000,
                 backend=default_backend()
             )
@@ -85,7 +85,7 @@ class Pushbullet:
         Triggers a call to Pushbullet.com that will throw an
         InvalidKeyError if the key is not valid.
         """
-        self._load_user_info()  # Will trigger an invalid key if invalid
+        self.get_user()  # Will trigger an invalid key if invalid
 
     def close(self):
         if self._session is not None:
@@ -96,10 +96,12 @@ class Pushbullet:
     def session(self) -> requests.Session:
         """ Creates the http session upon first use. """
 
-        # raise Exception("Why is sync pushbullet session being called instead of async?")  # debugging line
-
         session = self._session
         if session is None:
+            if self.__class__.__name__ == "AsyncPushbullet":
+                self.log.debug(
+                    "A requests-based, synchronous session is being created from AsyncPushbullet--did you mean to use async functions?")
+
             # Set up session
             session = requests.Session()
             session.auth = (self.api_key, "")
@@ -820,6 +822,7 @@ class Pushbullet:
         return resp
 
     def push_sms(self, device: Device, number: str, message: str) -> dict:
+        _ = self.get_user()  # cache user info
         gen = self._push_sms_generator(device, number, message)
         xfer = next(gen)  # Prep http params
         data = xfer.get("data")
@@ -828,12 +831,13 @@ class Pushbullet:
         return resp
 
     def _push_sms_generator(self, device: Device, number: str, message: str):
+        user_info = self._user_info or self.get_user()  # Fallback use synchronous IO
         data = {
             "type": "push",
             "push": {
                 "type": "messaging_extension_reply",
                 "package_name": "com.pushbullet.android",
-                "source_user_iden": self.user_info['iden'],
+                "source_user_iden": user_info['iden'],
                 "target_device_iden": device.device_iden,
                 "conversation_iden": number,
                 "message": message

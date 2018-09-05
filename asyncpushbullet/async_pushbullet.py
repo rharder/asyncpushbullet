@@ -6,7 +6,7 @@ import os
 import sys
 from typing import List, AsyncIterator, Optional
 
-import aiohttp
+import aiohttp  # pip install aiohttp
 
 from asyncpushbullet import Device, PushbulletError, Subscription
 from asyncpushbullet.channel import Channel
@@ -653,6 +653,7 @@ class AsyncPushbullet(Pushbullet):
         return msg
 
     async def async_push_sms(self, device: Device, number: str, message: str) -> dict:
+        _ = await self.async_get_user()  # cache user info
         gen = self._push_sms_generator(device, number, message)
         xfer = next(gen)  # Prep params
         data = xfer.get("data")
