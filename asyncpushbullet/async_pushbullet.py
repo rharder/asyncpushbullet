@@ -8,7 +8,6 @@ from typing import List, AsyncIterator, Optional
 
 import aiohttp  # pip install aiohttp
 
-# from asyncpushbullet import Device, PushbulletError, Subscription
 from .device import Device
 from .subscription import Subscription
 from .channel import Channel
