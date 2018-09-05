@@ -4,7 +4,7 @@ from __future__ import unicode_literals
 
 import pprint
 
-from asyncpushbullet.channel import Channel
+from .channel import Channel
 from .helpers import use_appropriate_encoding
 
 

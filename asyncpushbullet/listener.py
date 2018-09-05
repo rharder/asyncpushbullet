@@ -10,7 +10,7 @@ import logging
 import time
 from threading import Thread
 
-import websocket
+import websocket  # not sure which package this refers to. -RH
 
 log = logging.getLogger('pushbullet.Listener')
 
