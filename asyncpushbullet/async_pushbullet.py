@@ -145,7 +145,10 @@ class AsyncPushbullet(Pushbullet):
                                   page_size: int = None,
                                   active_only: bool = True,
                                   modified_after: float = None) -> AsyncIterator[dict]:
-        """Returns an async iterator that retrieves objects from pushbullet."""
+        """Returns an async iterator that retrieves objects from pushbullet.
+
+        This feature required abandoning Python v3.5 in favor of v3.6+.
+        """
 
         items_returned = 0
         get_more = True
@@ -242,12 +245,11 @@ class AsyncPushbullet(Pushbullet):
         """
         items = self._devices
         if items is None or flush_cache:
-            items = []
-            async for x in self.async_devices_iter(limit=None, page_size=100, active_only=True):
-                items.append(x)
-            # items = [x async for x in self.async_devices_iter(limit=None,
-            #                                                   page_size=100,
-            #                                                   active_only=True)]
+            # items = []
+            # async for x in self.async_devices_iter(limit=None, page_size=100, active_only=True):
+            #     items.append(x)
+            # List comprehension with async for requires Python 3.6+
+            items = [x async for x in self.async_devices_iter(limit=None, active_only=True)]
             self._devices = items
         return items
 
@@ -341,12 +343,10 @@ class AsyncPushbullet(Pushbullet):
         """
         items = self._chats
         if items is None or flush_cache:
-            items = []
-            async for x in self.async_chats_iter(limit=None, page_size=100, active_only=True):
-                items.append(x)
-            # items = [x async for x in self.async_chats_iter(limit=None,
-            #                                                 page_size=100,
-            #                                                 active_only=True)]
+            # items = []
+            # async for x in self.async_chats_iter(limit=None, page_size=100, active_only=True):
+            #     items.append(x)
+            items = [x async for x in self.async_chats_iter(limit=None, active_only=True)]
             self._chats = items
         return items
 
@@ -431,12 +431,10 @@ class AsyncPushbullet(Pushbullet):
         """
         items = self._channels
         if items is None or flush_cache:
-            items = []
-            async for x in self.async_channels_iter(limit=None, page_size=100, active_only=True):
-                items.append(x)
-            # items = [x async for x in self.async_channels_iter(limit=None,
-            #                                                    page_size=100,
-            #                                                    active_only=True)]
+            # items = []
+            # async for x in self.async_channels_iter(limit=None, page_size=100, active_only=True):
+            #     items.append(x)
+            items = [x async for x in self.async_channels_iter(limit=None, active_only=True)]
             self._channels = items
         return items
 
@@ -526,12 +524,10 @@ class AsyncPushbullet(Pushbullet):
         """
         items = self._subscriptions
         if items is None or flush_cache:
-            items = []
-            async for x in self.async_subscriptions_iter(limit=None, page_size=100, active_only=True):
-                items.append(x)
-            # items = [x async for x in self.async_subscriptions_iter(limit=None,
-            #                                                         page_size=100,
-            #                                                         active_only=True)]
+            # items = []
+            # async for x in self.async_subscriptions_iter(limit=None, page_size=100, active_only=True):
+            #     items.append(x)
+            items = [x async for x in self.async_subscriptions_iter(limit=None, active_only=True)]
             self._subscriptions = items
         return items
 
@@ -613,16 +609,16 @@ class AsyncPushbullet(Pushbullet):
                                active_only: bool = None,
                                modified_after: float = None) -> List[dict]:
         """Returns a list of pushes with the given filters applied"""
-        items = []
-        async for x in self.async_pushes_iter(limit=limit,
-                                              page_size=page_size,
-                                              active_only=active_only,
-                                              modified_after=modified_after):
-            items.append(x)
-        # return [x async for x in self.async_pushes_iter(limit=limit,
-        #                                                 page_size=page_size,
-        #                                                 active_only=active_only,
-        #                                                 modified_after=modified_after)]
+        # items = []
+        # async for x in self.async_pushes_iter(limit=limit,
+        #                                       page_size=page_size,
+        #                                       active_only=active_only,
+        #                                       modified_after=modified_after):
+        #     items.append(x)
+        items = [x async for x in self.async_pushes_iter(limit=limit,
+                                                         page_size=page_size,
+                                                         active_only=active_only,
+                                                         modified_after=modified_after)]
         return items
 
     async def async_get_new_pushes(self, limit: int = None, active_only: bool = True):
