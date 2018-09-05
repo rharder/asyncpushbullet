@@ -95,12 +95,13 @@ class Pushbullet:
     @property
     def session(self) -> requests.Session:
         """ Creates the http session upon first use. """
-
         session = self._session
         if session is None:
+            self.log.info("Creating requests-based, synchronous session.")
             if self.__class__.__name__ == "AsyncPushbullet":
                 self.log.debug(
-                    "A requests-based, synchronous session is being created from AsyncPushbullet--did you mean to use async functions?")
+                    "A requests-based, synchronous session is being created from AsyncPushbullet--" +
+                    "did you mean to use async functions?")
 
             # Set up session
             session = requests.Session()
@@ -219,7 +220,7 @@ class Pushbullet:
             for item in items_this_round:
                 yield item
                 items_returned += 1
-                if limit is not None and items_returned >= limit:
+                if limit is not None and limit > 0 and items_returned >= limit:
                     get_more = False
                     break  # out of for loop
 
@@ -750,7 +751,7 @@ class Pushbullet:
     #
 
     def pushes_iter(self,
-                    limit: int = 10,
+                    limit: int = None,
                     page_size: int = None,
                     active_only: bool = None,
                     modified_after: float = None) -> Iterator[dict]:
@@ -763,6 +764,7 @@ class Pushbullet:
         :return: iterator
         :rtype: Iterator[dict]
         """
+        limit = 10 if limit is None else limit  # Default value
         page_size = 10 if page_size is None else page_size  # Default value
         active_only = True if active_only is None else active_only  # Default value
         modified_after = 0.0 if modified_after is None else modified_after  # Default value
