@@ -2,12 +2,9 @@
 """Asyncio version of Pushbullet class."""
 
 import asyncio
-import json
 import os
-import pprint
 import sys
-import traceback
-from typing import List, Dict, AsyncIterator
+from typing import List, AsyncIterator, Optional
 
 import aiohttp
 
@@ -145,7 +142,7 @@ class AsyncPushbullet(Pushbullet):
                                   limit: int = None,
                                   page_size: int = None,
                                   active_only: bool = True,
-                                  modified_after: float = None):
+                                  modified_after: float = None) -> AsyncIterator[dict]:
         """Returns an async iterator that retrieves objects from pushbullet."""
 
         items_returned = 0
@@ -175,9 +172,9 @@ class AsyncPushbullet(Pushbullet):
             params["cursor"] = msg.get("cursor")
             if not params["cursor"]:
                 get_more = False
-            else:
-                print("ARBITRARY DELAY FOR DEBUGGING")
-                await asyncio.sleep(1)
+            # else:
+            #     print("ARBITRARY DELAY FOR DEBUGGING")
+            #     await asyncio.sleep(1)
 
     async def _async_post_data(self, url: str, **kwargs) -> dict:
         session = await self.aio_session()
@@ -241,7 +238,7 @@ class AsyncPushbullet(Pushbullet):
             self._devices = items
         return items
 
-    async def async_get_device(self, nickname: str = None, iden: str = None) -> Device:
+    async def async_get_device(self, nickname: str = None, iden: str = None) -> Optional[Device]:
         """
         Attempts to retrieve a device based on the given nickname or iden.
         First looks in the cached copy of the data and then refreshes the
@@ -337,7 +334,7 @@ class AsyncPushbullet(Pushbullet):
             self._chats = items
         return items
 
-    async def async_get_chat(self, email: str) -> Chat:
+    async def async_get_chat(self, email: str) -> Optional[Chat]:
         """
         Attempts to retrieve a device based on the given nickname or iden.
         First looks in the cached copy of the data and then refreshes the
@@ -382,11 +379,11 @@ class AsyncPushbullet(Pushbullet):
     # Channel
     #
 
-    async def async_user_channels_iter(self,
-                                       limit: int = None,
-                                       page_size: int = None,
-                                       active_only: bool = None,
-                                       modified_after: float = None) -> AsyncIterator[Channel]:
+    async def async_channels_iter(self,
+                                  limit: int = None,
+                                  page_size: int = None,
+                                  active_only: bool = None,
+                                  modified_after: float = None) -> AsyncIterator[Channel]:
         """Returns an async iterator that retrieves channels from pushbullet.
 
         :param limit: maximum number to return (Default: None, unlimited)
@@ -405,7 +402,7 @@ class AsyncPushbullet(Pushbullet):
                                                 active_only=active_only, modified_after=modified_after):
             yield Channel(self, x)
 
-    async def async_get_user_channels(self, flush_cache: bool = False) -> List[Channel]:
+    async def async_get_channels(self, flush_cache: bool = False) -> List[Channel]:
         """Returns a list of Channel objects known by Pushbullet.
 
         This returns immediately with a cached copy, if available.
@@ -418,13 +415,13 @@ class AsyncPushbullet(Pushbullet):
         """
         items = self._channels
         if items is None or flush_cache:
-            items = [x async for x in self.async_user_channels_iter(limit=None,
-                                                                    page_size=100,
-                                                                    active_only=True)]
+            items = [x async for x in self.async_channels_iter(limit=None,
+                                                               page_size=100,
+                                                               active_only=True)]
             self._channels = items
         return items
 
-    async def async_get_user_channel(self, channel_tag: str) -> Channel:
+    async def async_get_channel(self, channel_tag: str) -> Optional[Channel]:
         """
         Attempts to retrieve a channel based on the given channel_tag.
         First looks in the cached copy of the data and then refreshes the
@@ -440,7 +437,7 @@ class AsyncPushbullet(Pushbullet):
         :return: the Device that was found or None if not found
         :rtype: Device
         """
-        _ = await self.async_get_user_channels()  # If no cached copy, create one
+        _ = await self.async_get_channels()  # If no cached copy, create one
 
         def _get():
             return next((x for x in self._channels if x.channel_tag == channel_tag), None)
@@ -448,11 +445,11 @@ class AsyncPushbullet(Pushbullet):
         x = _get()
         if x is None:
             self.log.debug("Channel {} not found in cache.  Refreshing.".format(channel_tag))
-            _ = await self.async_get_devices(flush_cache=True)  # Refresh cache once
+            _ = await self.async_get_channels(flush_cache=True)  # Refresh cache once
             x = _get()
         return x
 
-    async def async_get_channel_info(self, channel_tag: str, no_recent_pushes: bool = None) -> Channel:
+    async def async_get_channel_info(self, channel_tag: str, no_recent_pushes: bool = None) -> Optional[Channel]:
         """Returns information about the channel tag requested.
 
         This queries the list of all channels provided through pushbullet, not
@@ -516,7 +513,7 @@ class AsyncPushbullet(Pushbullet):
             self._subscriptions = items
         return items
 
-    async def async_get_subscription(self, channel_tag: str = None) -> Subscription:
+    async def async_get_subscription(self, channel_tag: str = None) -> Optional[Subscription]:
         """
         Attempts to retrieve a subscription based on the given channel tag.
         First looks in the cached copy of the data and then refreshes the
