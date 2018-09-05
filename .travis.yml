@@ -6,13 +6,20 @@ python:
 dist: xenial
 sudo: true
 
+before_installb :
+  - "export PYTHONPATH=$PYTHONPATH:$(pwd)"
+
 install:
 - pip install .
 - pip install coveralls
 - pip install cryptography
+- pip install requests
 - pip install aiohttp
 - pip install tqdm
+- pip install python-magic
+
 script: coverage run --source pushbullet -m py.test
+
 env:
 - PUSHBULLET_API_KEY=RrFnc1xaeQXnRrr2auoGA1e8pQ8MWmMF
 #deploy:
