@@ -20,8 +20,8 @@ class TestChannels:
         # cause any errors.
         print(self.channel)
 
-    def test_repr(self):
-        assert repr(self.channel) == "Channel(name: 'test channel' tag: '%s')" % self.channel_tag
+    # def test_repr(self):
+    #     assert repr(self.channel) == "Channel(name: 'test channel' tag: '%s')" % self.channel_tag
 
     def test_push_note(self):
         title = "test title"
