@@ -242,9 +242,12 @@ class AsyncPushbullet(Pushbullet):
         """
         items = self._devices
         if items is None or flush_cache:
-            items = [x async for x in self.async_devices_iter(limit=None,
-                                                              page_size=100,
-                                                              active_only=True)]
+            items = []
+            async for x in self.async_devices_iter(limit=None, page_size=100, active_only=True):
+                items.append(x)
+            # items = [x async for x in self.async_devices_iter(limit=None,
+            #                                                   page_size=100,
+            #                                                   active_only=True)]
             self._devices = items
         return items
 
