@@ -25,7 +25,7 @@ def main():
             async with AsyncPushbullet(api_key=API_KEY, proxy=PROXY, verify_ssl=False) as pb:
                 try:
                     print("Connectiong to Pushbullet...", end="", flush=True)
-                    async with PushListener(pb, types=()) as pl:
+                    async with PushListener(pb) as pl:
                         print("Connected.", flush=True)
 
                         # Wait indefinitely for pushes
