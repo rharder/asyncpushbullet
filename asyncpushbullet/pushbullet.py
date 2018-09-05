@@ -220,7 +220,7 @@ class Pushbullet:
             for item in items_this_round:
                 yield item
                 items_returned += 1
-                if limit is not None and limit > 0 and items_returned >= limit:
+                if limit is not None and 0 < limit <= items_returned:
                     get_more = False
                     break  # out of for loop
 
