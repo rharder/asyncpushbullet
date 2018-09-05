@@ -33,6 +33,10 @@ project from randomchars, which uses the ``pushbullet`` namespace.
 This project uses ``asyncpushbullet``.  I have made some changes to the
 ``pushbullet`` package, and you ought to be able to use the regular
 synchronous functions alongside the ``asyncio``-enabled versions.
+Over time these have drifter further apart, so if you drop in the
+``asyncpushbullet`` package in place of an older ``pushbullet`` package,
+you will probably need to make some changes to your code in terms of
+function names and error handling.
 
 Installation
 ------------
