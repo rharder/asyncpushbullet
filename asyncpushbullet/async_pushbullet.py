@@ -26,6 +26,8 @@ T = TypeVar('T')  # Used to make PushbulletAsyncIterator a generic
 
 
 class PushbulletAsyncIterator(AsyncIterator, Generic[T]):
+    """Allows for pausable iterators for retrieving objects from pushbullet.com."""
+
     def __init__(self,
                  parent,
                  _url: str,
@@ -56,12 +58,12 @@ class PushbulletAsyncIterator(AsyncIterator, Generic[T]):
 
         # Internal management
         self.loop = None  # type: asyncio.BaseEventLoop
-        self._paused = False
-        self._stopped = False
-        self._objects = []  # Use as FIFO queue of objects retrieved
-        self._total_objects_returned = 0  # Count of objects actually returned by iterator
-        self._paused_lock = Lock()  # Used to coordinate pausing on asyncio event loop
-        self._get_more = True  # Flag meaning there's more work to do
+        self._paused = False  # type: bool
+        self._stop = None  # Instructed to stop or end of iterator
+        self._objects = []  # type: List  # Use as FIFO queue of objects retrieved
+        self._total_objects_returned = 0  # type: int # Count of objects actually returned by iterator
+        self._paused_lock = Lock()  # type: asyncio.Lock  # Used to coordinate pausing on asyncio event loop
+        self._get_more = True  # type: bool  # Flag meaning there's more data to retrieve
 
         # This is so weird.  When using tkinter, the Lock needs to be saved in a
         # class-level location -- not even object-level -- so that if the application
@@ -69,15 +71,21 @@ class PushbulletAsyncIterator(AsyncIterator, Generic[T]):
         # thrown about an unclosed client session and a task being destroyed.
         # Simply saving a reference to the lock at the AsyncPushbullet class level
         # solves the problem.  Weird.  -RH
-        self._parent._iterator_locks.append(self._paused_lock)
+        # Now suddenly it's not necessary?  What's going on?
+        # self._parent._iterator_locks.append(self._paused_lock)
 
     @property
     def total_objects_returned(self) -> int:
+        """Number of objects that have been returned by the iterator.
+
+        There may be more objects than this retrieved over the network
+        but not yet returned/consumed by an async for loop.
+        """
         return self._total_objects_returned
 
-    @property
-    def completed(self) -> bool:
-        return not self._get_more
+    # @property
+    # def completed(self) -> bool:
+    #     return not self._get_more
 
     @property
     def paused(self) -> bool:
@@ -85,33 +93,41 @@ class PushbulletAsyncIterator(AsyncIterator, Generic[T]):
 
     @property
     def stopped(self) -> bool:
-        return self._stopped
+        return bool(self._stop)
 
-    async def _pause(self, val: bool = True):
-        try:
-            if val and not self._paused:
-                self._paused = True
-                await self._paused_lock.acquire()
-            elif not val:
-                self._paused = False
-                if self._paused_lock.locked():
-                    self._paused_lock.release()
-        except Exception as ex:
-            print(ex, flush=True)
-            traceback.print_tb(sys.exc_info()[2])
+    @property
+    def empty(self):
+        return not bool(self._objects)
+
+    async def async_pause(self, val: bool = True):
+        """Pauses or unpauses the iterator.
+
+        If called without parameters, the pause function pauses the iterator.
+        If called with a True/False boolean, it sets the paused state to that value.
+
+        This function is NOT thread safe and must be awaited on the proper event loop.
+
+        :param bool val: the paused state to set (default: True)
+        """
+        if val and not self._paused:
+            self._paused = True
+            await self._paused_lock.acquire()
+        elif not val:
+            self._paused = False
+            if self._paused_lock.locked():
+                self._paused_lock.release()
+
 
     def pause(self, val: bool = True):
         """Pauses or unpauses the iterator.
 
         If called without parameters, the pause function pauses the iterator.
-
         If called with a True/False boolean, it sets the paused state to that value.
-
         This function is thread safe.
 
         :param bool val: the paused state to set (default: True)
         """
-        asyncio.run_coroutine_threadsafe(self._pause(val), self.loop)
+        asyncio.run_coroutine_threadsafe(self.async_pause(val), self.loop)
 
     def resume(self):
         """Resumes from a paused state.
@@ -123,7 +139,7 @@ class PushbulletAsyncIterator(AsyncIterator, Generic[T]):
         """Stops the iterator entirely causing the async for loop that caused it to complete.
 
         This function is thread safe."""
-        self._stopped = True
+        self._stop = True
         self.resume()
 
     def __aiter__(self) -> AsyncIterator[T]:
@@ -131,67 +147,74 @@ class PushbulletAsyncIterator(AsyncIterator, Generic[T]):
         return self
 
     async def __anext__(self) -> T:
-        async def _continue():
+
+        async def _check_if_paused():
             await self._paused_lock.acquire()
             self._paused_lock.release()
             if self.stopped:
                 raise StopAsyncIteration("PushbulletAsyncIterator was told to stop.")
 
-        await _continue()
+        try:
+            await _check_if_paused()
 
-        if self._limit and self._total_objects_returned >= self._limit:
-            raise StopAsyncIteration("Already returned limit = {} objects".format(self._limit))
+            if self._limit and self._total_objects_returned >= self._limit:
+                raise StopAsyncIteration("Already returned {} objects (limit = {})"
+                                         .format(self._total_objects_returned, self._limit))
 
-        # If empty, get some stuff
-        empty_in_a_row = 0
-        while self._get_more and not self._objects and self._parent._aio_session:
-            print("Retrieving...", end="", flush=True)
-            try:
+            # If empty, get some stuff
+            empty_in_a_row = 0
+            while self._get_more and not self._objects and self._parent._aio_session:
+                await _check_if_paused()
+                print("Retrieving...", end="", flush=True)
+                try:
 
-                # Do I/O
-                # print("<", end="", flush=True)
-                await _continue()
-                msg = await self._parent._async_get_data(self._url, params=self._params)
-                # print(">", end="", flush=True)
+                    # Do I/O
+                    msg = await self._parent._async_get_data(self._url, params=self._params)
 
-            except PushbulletError as pe:
-                self._parent.log.debug(
-                    "An error aborted the network request for _objects_asynciter: {}".format(pe))
-                raise StopAsyncIteration(pe)
+                except PushbulletError as pe:
+                    self._parent.log.debug(
+                        "An error aborted the network request for _objects_asynciter: {}".format(pe))
+                    raise StopAsyncIteration(pe)
+                else:
+                    items_this_round = msg.get(self._item_name, [])
+                    print("{} items".format(len(items_this_round)), flush=True)
+                    self._objects += items_this_round
+
+                    if not items_this_round:
+                        empty_in_a_row += 1
+                        # print("EMPTY {} TIMES!".format(empty_in_a_row))
+                        # pprint(msg)
+                        pass
+                        await asyncio.sleep(0.25 * empty_in_a_row)  # Just a little bit of throttling
+                    else:
+                        empty_in_a_row = 0
+
+                    # print("Cursor:", msg.get("cursor"))
+                    if "cursor" in msg:
+                        self._params["cursor"] = msg.get("cursor")
+                    else:
+                        self._get_more = False
+
+                # print("ARBITRARY DELAY FOR DEBUGGING")
+                # await asyncio.sleep(1)
+
+            if not self._objects:
+                raise StopAsyncIteration("No more objects available.")
+
+            # Prepare item to return
+            await _check_if_paused()
+            item = self._objects.pop(0)
+            self._total_objects_returned += 1
+            if self._obj_creator:
+                return self._obj_creator(item)
             else:
-                items_this_round = msg.get(self._item_name, [])
-                print("{} items".format(len(items_this_round)), flush=True)
-                self._objects += items_this_round
+                return item
 
-                if not items_this_round:
-                    empty_in_a_row += 1
-                    # print("EMPTY {} TIMES!".format(empty_in_a_row))
-                    # pprint(msg)
-                    pass
-                    await asyncio.sleep(0.25 * empty_in_a_row)  # Just a little bit of throttling
-                else:
-                    empty_in_a_row = 0
-
-                print("Cursor:", msg.get("cursor"))
-                if "cursor" in msg:
-                    self._params["cursor"] = msg.get("cursor")
-                else:
-                    self._get_more = False
-
-            # print("ARBITRARY DELAY FOR DEBUGGING")
-            # await asyncio.sleep(1)
-
-        if not self._objects:
-            raise StopAsyncIteration("No more objects available.")
-
-        # Prepare item to return
-        await _continue()
-        item = self._objects.pop(0)
-        self._total_objects_returned += 1
-        if self._obj_creator:
-            return self._obj_creator(item)
-        else:
-            return item
+        except StopAsyncIteration as sai:
+            # print("Caught StopAsyncIteration", sai, flush=True)
+            # traceback.print_tb(sys.exc_info()[2])
+            self._stop = sai
+            raise sai
 
 
 class AsyncPushbullet(Pushbullet):

@@ -177,7 +177,6 @@ class RetrievingAllPushesApp():
     def pause_button_clicked(self):
         if self.push_iterator:
             # self.push_iterator.stop()
-            # asyncio.run_coroutine_threadsafe(self.push_iterator.pause(), self.ioloop)
             self.push_iterator.pause()
             self.retrieve_btn.configure(state=tk.NORMAL)
 
