@@ -172,7 +172,7 @@ class Pushbullet:
             epoch = int(headers.get("X-Ratelimit-Reset", 0))
             epoch_time = datetime.datetime.fromtimestamp(epoch).strftime('%c')
             err_msg = "Too Many Requests. You have been ratelimited until {}".format(epoch_time)
-            self.log.error(err_msg)
+            self.log.error("{} {}".format(code, err_msg))
             raise HttpError(code, err_msg, msg)
 
         elif code // 100 == 5:  # 5xx
