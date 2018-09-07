@@ -20,7 +20,7 @@ def main():
 
     async def _run():
         devices = await pb.async_get_devices()
-        pprint.pprint(devices)
+        print(devices)
 
         # Name of a device?
         if devices:

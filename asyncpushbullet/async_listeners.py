@@ -20,15 +20,15 @@ __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
 
 
-class PushListener:
-    WEBSOCKET_URL = 'wss://stream.pushbullet.com/websocket/'
+class LiveStreamListener:
+    PUSHBULLET_WEBSOCKET_URL = 'wss://stream.pushbullet.com/websocket/'
 
     def __init__(self, account: AsyncPushbullet,
-                 ignore_inactive: bool = True,
+                 active_only: bool = True,
                  ignore_dismissed: bool = True,
                  only_this_device_nickname: str = None,
                  types: Iterable[str] = ("push",)):
-        """Creates a Pushlistener2 to await pushes using asyncio.
+        """Listens for events on the pushbullet live stream websocket.
 
         The types parameter can be used to limit which kinds of pushes
         are returned in an async for loop or the next_push() call.
@@ -40,7 +40,7 @@ class PushListener:
         pushes, you could pass in the tuple ("ephemeral:clip",).
 
         :param account: the AsyncPushbullet object that represents the account
-        :param ignore_inactive: ignore inactive pushes, defaults to true
+        :param active_only: ignore inactive pushes, defaults to true
         :param ignore_dismissed:  ignore dismissed pushes, defaults to true
         :param only_this_device_nickname: only show pushes from this device
         :param types: the types of pushes to show
@@ -49,7 +49,7 @@ class PushListener:
 
         self.pb = account  # type: AsyncPushbullet
         self._last_update = 0  # type: float
-        self._ignore_inactive = ignore_inactive  # type: bool
+        self._active_only = active_only  # type: bool
         self._ignore_dismissed = ignore_dismissed  # type: bool
         self._only_this_device_nickname = only_this_device_nickname  # type: str
         self._ws_client = None  # type: WebsocketClient
@@ -102,7 +102,7 @@ class PushListener:
                 await self._queue.put(sai)
 
         session = await self.pb.aio_session()
-        wc = WebsocketClient(url=self.WEBSOCKET_URL + self.pb.api_key,
+        wc = WebsocketClient(url=self.PUSHBULLET_WEBSOCKET_URL + self.pb.api_key,
                              proxy=self.pb.proxy,
                              verify_ssl=self.pb.verify_ssl,
                              session=session)
@@ -187,7 +187,7 @@ class PushListener:
         """When we received a tickle regarding a push."""
         await self.pb.async_verify_key()
         pushes = await self.pb.async_get_pushes(modified_after=self.pb.most_recent_timestamp,
-                                                active_only=self._ignore_inactive)
+                                                active_only=self._active_only)
         self.log.debug("Retrieved {} pushes".format(len(pushes)))
 
         # Update timestamp for most recent push so we only get "new" pushes
@@ -232,25 +232,20 @@ class PushListener:
             self.log.debug("Adding to push queue: {}".format(push))
             await self._queue.put(push)
 
-    # async def _process_pushbullet_message_tickle_device(self, msg: dict):
-    #     """When we received a tickle regarding a push."""
-    #     # Just refresh the cache of devices
-    #     self.pb._devices = None
-
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self._ws_client.__aexit__(exc_type, exc_val, exc_tb)
         await self._ws_client.close()
 
     def __aiter__(self) -> AsyncIterator[dict]:
-        return PushListener._Iterator(self)
+        return LiveStreamListener._Iterator(self)
 
-    def timeout(self, timeout=None):
+    def timeout(self, timeout=None) -> AsyncIterator[dict]:
         """Enables the async for loop to have a timeout.
 
         async for push in listener.timeout(1):
             ...
         """
-        return PushListener._Iterator(self, timeout=timeout)
+        return LiveStreamListener._Iterator(self, timeout=timeout)
 
     async def next_push(self, timeout: float = None) -> dict:
         if timeout is None:
@@ -262,10 +257,10 @@ class PushListener:
             push = await asyncio.wait_for(self.next_push(), timeout=timeout)
             return push
 
-    class _Iterator:
+    class _Iterator(AsyncIterator):
         def __init__(self, pushlistener, timeout: float = None):
             self.timeout = timeout
-            self.parent = pushlistener  # type: PushListener
+            self.parent = pushlistener  # type: LiveStreamListener
 
         def __aiter__(self) -> AsyncIterator[dict]:
             return self

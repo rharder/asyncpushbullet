@@ -250,7 +250,7 @@ Here is a well-behaved example right off the bat to take a look at:
     import os
     import sys
 
-    from asyncpushbullet import AsyncPushbullet, InvalidKeyError, PushbulletError, PushListener
+    from asyncpushbullet import AsyncPushbullet, InvalidKeyError, PushbulletError, LiveStreamListener
 
     API_KEY = "whatever your key is"
     PROXY = os.environ.get("https_proxy") or os.environ.get("http_proxy")
@@ -272,7 +272,7 @@ Here is a well-behaved example right off the bat to take a look at:
                     print("Push sent:", push)
 
                     # Ways to listen for pushes
-                    async with PushListener(pb) as pl:
+                    async with LiveStreamListener(pb) as pl:
                         # This will retrieve the previous push because it occurred
                         # after the enclosing AsyncPushbullet connection was made
                         push = await pl.next_push()
@@ -636,13 +636,13 @@ contains a list of possible status codes.
 Listening for Pushes
 ^^^^^^^^^^^^^^^^^^^^
 
-To listen for pushes, use the ``PushListener`` class in an ``async for`` loop:
+To listen for pushes, use the ``LiveStreamListener`` class in an ``async for`` loop:
 
 .. code-block:: python
 
     async def _run():
         async with AsyncPushbullet(api_key) as pb:
-            async with PushListener(pb) as pl:
+            async with LiveStreamListener(pb) as pl:
                 print("Awaiting pushes...")
                 async for push in pl:
                     print("Got a push:", push)

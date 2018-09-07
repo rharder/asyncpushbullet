@@ -7,6 +7,7 @@ import datetime
 import json
 import logging
 import os
+import time
 from typing import List, Iterator, Optional
 
 import requests  # pip install requests
@@ -210,12 +211,23 @@ class Pushbullet:
         if modified_after is not None:
             params["modified_after"] = str(modified_after)
 
+        empty_in_a_row = 0
         while get_more:
-            print("Retrieving...", end="", flush=True)
-            # msg = await self._async_get_data(url, params=params)
+
             msg = self._get_data(url, params=params)
+
             items_this_round = msg.get(item_name, [])
-            print("{} items".format(len(items_this_round)), flush=True)
+            self.log.debug("Retrieved {} items.".format(len(items_this_round)))
+
+            if items_this_round:
+                empty_in_a_row = 0
+            else:
+                empty_in_a_row += 1
+                self.log.debug("Received empty data from pushbullet {} times.".format(empty_in_a_row))
+                time.sleep(0.25 * empty_in_a_row)  # Just a little bit of throttling
+                if empty_in_a_row >= 3:
+                    get_more = False
+                    return
 
             for item in items_this_round:
                 yield item
@@ -225,12 +237,13 @@ class Pushbullet:
                     break  # out of for loop
 
             # Presence of cursor indicates more data is available
-            params["cursor"] = msg.get("cursor")
-            if not params["cursor"]:
+            if "cursor" in msg:
+                params["cursor"] = msg.get("cursor")
+            else:
                 get_more = False
-            # else:
-            #     print("ARBITRARY DELAY FOR DEBUGGING")
-            #     sleep(1)
+
+            # print("ARBITRARY DELAY FOR DEBUGGING")
+            # sleep(1)
 
     def _post_data(self, url: str, **kwargs) -> dict:
         """ HTTP POST """
@@ -757,19 +770,17 @@ class Pushbullet:
                     modified_after: float = None) -> Iterator[dict]:
         """Returns an iterator that retrieves pushes from pushbullet.
 
-        :param limit: maximum number to return (Default: 10, None means unlimited)
-        :param page_size: number to retrieve from each call to pushbullet.com (Default: 10)
+        :param limit: maximum number to return (Default: unlimited)
+        :param page_size: number to retrieve from each call to pushbullet.com
         :param active_only: retrieve only active items (Default: True)
-        :param modified_after: retrieve only items modified after this timestamp (Default: 0.0, all)
+        :param modified_after: retrieve only items modified after this timestamp (Default: since last call)
         :return: iterator
         :rtype: Iterator[dict]
         """
-        limit = 10 if limit is None else limit  # Default value
-        page_size = 10 if page_size is None else page_size  # Default value
-        active_only = True if active_only is None else active_only  # Default value
-        modified_after = 0.0 if modified_after is None else modified_after  # Default value
         url = self.PUSH_URL
         item_name = "pushes"
+        active_only = True if active_only is None else active_only  # Default value
+        modified_after = self.most_recent_timestamp if modified_after is None else modified_after  # Default value
         for x in self._objects_iter(url, item_name, limit=limit, page_size=page_size,
                                     active_only=active_only, modified_after=modified_after):
             modified = x.get("modified", 0)

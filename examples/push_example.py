@@ -3,6 +3,9 @@
 import os
 import pprint
 import sys
+
+import lorem
+
 sys.path.append("..")  # Since examples are buried one level into source tree
 from asyncpushbullet import Pushbullet
 
@@ -18,6 +21,7 @@ def main():
 
     title = "Greetings"
     body = "Welcome to accessing Pushbullet with Python"
+    body = lorem.sentence()
     resp = pb.push_note(title, body)
     print("Response", pprint.pformat(resp))
 

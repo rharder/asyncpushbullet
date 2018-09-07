@@ -9,7 +9,7 @@ import sys
 import traceback
 
 sys.path.append("..")  # Since examples are buried one level into source tree
-from asyncpushbullet import AsyncPushbullet, InvalidKeyError, PushbulletError, PushListener
+from asyncpushbullet import AsyncPushbullet, InvalidKeyError, PushbulletError, LiveStreamListener
 
 API_KEY = ""  # YOUR API KEY
 PROXY = os.environ.get("https_proxy") or os.environ.get("http_proxy")
@@ -34,7 +34,7 @@ def main():
                 print("Push sent:", push)
 
                 # Ways to listen for pushes
-                async with PushListener(pb) as pl:
+                async with LiveStreamListener(pb) as pl:
                     # This will retrieve the previous push because it occurred
                     # after the enclosing AsyncPushbullet connection was made
                     push = await pl.next_push()
