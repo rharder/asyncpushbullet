@@ -26,7 +26,7 @@ import tkinter_tools
 sys.path.append("..")  # Since examples are buried one level into source tree
 from asyncpushbullet import Device
 from asyncpushbullet import AsyncPushbullet
-from asyncpushbullet.async_listeners import LiveStreamListener
+from asyncpushbullet import LiveStreamListener
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"

@@ -9,6 +9,7 @@ August 2018 - Initial creation
 """
 
 import asyncio
+import sys
 from typing import AsyncIterator
 
 import aiohttp  # pip install aiohttp
@@ -40,7 +41,7 @@ class WebsocketClient():
     async def _create_session(self) -> aiohttp.ClientSession:
         aio_connector = None  # type: aiohttp.TCPConnector
         if self.verify_ssl is not None and self.verify_ssl is False:
-            aio_connector = aiohttp.TCPConnector(ssl=False)#, loop=asyncio.get_event_loop())
+            aio_connector = aiohttp.TCPConnector(ssl=False)
         session = aiohttp.ClientSession(headers=self.headers, connector=aio_connector)
         return session
 
@@ -120,7 +121,7 @@ class WebsocketClient():
                     await asyncio.sleep(0)
 
             except Exception as e:
-                sai = StopAsyncIteration(e)
+                sai = StopAsyncIteration(e).with_traceback(sys.exc_info()[2])
                 await self._queue.put(sai)
             else:
                 sai = StopAsyncIteration()

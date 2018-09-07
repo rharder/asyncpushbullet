@@ -31,7 +31,7 @@ class PushbulletAsyncIterator(AsyncIterator, Generic[T]):
     """Allows for pausable iterators for retrieving objects from pushbullet.com."""
 
     def __init__(self,
-                 parent,
+                 parent_pb,
                  _url: str,
                  _item_name: str,
                  _limit: int = None,
@@ -40,7 +40,7 @@ class PushbulletAsyncIterator(AsyncIterator, Generic[T]):
                  _modified_after: float = None,
                  _post_process: Callable = None):
         # Passed args
-        self._parent = parent  # type: AsyncPushbullet
+        self._pb = parent_pb  # type: AsyncPushbullet
         self._url = _url
         self._item_name = _item_name
         self._limit = _limit
@@ -152,7 +152,7 @@ class PushbulletAsyncIterator(AsyncIterator, Generic[T]):
 
         if self._first_async_run:
             self.loop = asyncio.get_event_loop()
-            await self._parent.async_verify_key()
+            await self._pb.async_verify_key()
             self._first_async_run = False
 
         async def _check_if_paused():
@@ -170,13 +170,13 @@ class PushbulletAsyncIterator(AsyncIterator, Generic[T]):
 
             # If empty, get some stuff
             empty_in_a_row = 0
-            while self._get_more and not self._objects and self._parent._aio_session:
+            while self._get_more and not self._objects and self._pb._aio_session:
                 await _check_if_paused()
                 # print("Retrieving...", end="", flush=True)
                 try:
 
                     # Do I/O
-                    msg = await self._parent._async_get_data(self._url, params=self._params)
+                    msg = await self._pb._async_get_data(self._url, params=self._params)
 
                 except PushbulletError as pe:
                     self.log.debug(

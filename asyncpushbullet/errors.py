@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+
 class PushbulletError(Exception):
 
     def __str__(self):
@@ -16,11 +17,11 @@ class PushbulletError(Exception):
 
 class HttpError(PushbulletError):
 
-    def __init__(self, code, err_msg, msg, *kargs, **kwargs):
-        super().__init__(code, err_msg, msg, *kargs, **kwargs)
+    def __init__(self, code, err_msg, pushbullet_msg, *kargs, **kwargs):
+        super().__init__(code, err_msg, pushbullet_msg, *kargs, **kwargs)
         self.code = code
         self.err_msg = err_msg
-        self.msg = msg
+        self.pushbullet_msg = pushbullet_msg
 
 
 class InvalidKeyError(HttpError):
