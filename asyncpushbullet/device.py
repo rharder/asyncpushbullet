@@ -55,6 +55,7 @@ class Device:
                                      .format(self.device_iden))
         return _str
 
+    @use_appropriate_encoding
     def __repr__(self):
         attr_map = {k: self.__getattribute__(k) for k in self.DEVICE_ATTRIBUTES}
         attr_str = pprint.pformat(attr_map)

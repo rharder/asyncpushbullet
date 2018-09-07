@@ -9,10 +9,10 @@ with open("./asyncpushbullet/__version__.py") as version_file:
     version = version_file.read().split("\"")[1]
 
 if len(sys.argv) < 2:
-    cmd = input("Command (build | test | publish): ")
+    cmd = input("Command (build | test | publish | all): ")
     sys.argv.append(cmd)
 
-if sys.argv[-1] == 'build':
+if sys.argv[-1] in ('build', 'all'):
     print("BUILD")
     for path in ("./build", "./dist", "./asyncpushbullet.egg-info"):
         try:
@@ -27,19 +27,19 @@ if sys.argv[-1] == 'build':
         os.system('python3 setup.py sdist bdist_wheel')
     except:
         os.system('python3 setup.py sdist bdist_wheel')
+    # sys.exit()
 
-    sys.exit()
-
-if sys.argv[-1] == 'test':
+if sys.argv[-1] in ('test', 'all'):
     print("TEST")
-    # os.system('twine upload --repository-url https://test.pypi.org/legacy/ dist/*')
     os.system('twine upload -r pypitest dist/*')
-    sys.exit()
+    # sys.exit()
 
-if sys.argv[-1] == 'publish':
+if sys.argv[-1] in ('publish', 'all'):
     print("PUBLISH")
-    # os.system('twine upload --repository-url https://upload.pypi.org/legacy/ dist/*')
     os.system('twine upload -r pypi dist/*')
+    # sys.exit()
+
+if sys.argv[-1] in ('build', 'test', 'publish', 'all'):
     sys.exit()
 
 install_reqs = [

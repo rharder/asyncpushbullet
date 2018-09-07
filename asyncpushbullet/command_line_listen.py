@@ -58,10 +58,10 @@ from functools import partial
 from typing import List
 
 # sys.path.append("..")
-from .device import Device
-from .errors import InvalidKeyError, PushbulletError
-from .async_listeners import PushListener
-from .async_pushbullet import AsyncPushbullet
+from asyncpushbullet import Device
+from asyncpushbullet import InvalidKeyError, PushbulletError
+from asyncpushbullet import LiveStreamListener
+from asyncpushbullet import AsyncPushbullet
 
 __author__ = "Robert Harder"
 __email__ = "rob@iHarder.net"
@@ -145,7 +145,7 @@ def do_main(args):
             print(exc, file=sys.stderr)
             sys.exit(__ERR_CONNECTING_TO_PB__)
         else:
-            for dev in pb.devices:
+            for dev in pb.get_devices():
                 print("\t", dev.nickname)
             sys.exit(0)
 
@@ -167,7 +167,6 @@ def do_main(args):
     proc_loop = None  # type: asyncio.BaseEventLoop
     if sys.platform == 'win32':
         proc_loop = asyncio.ProactorEventLoop()
-        print("On win32--using ProactorEventLoop.")
     else:
         proc_loop = asyncio.new_event_loop()  # Processes
         asyncio.get_child_watcher()  # Main loop
@@ -195,7 +194,7 @@ def do_main(args):
             listen_app.add_action(action)
 
     # Default action if none specified
-    if len(listen_app.actions) == 0 or args.echo:
+    if not listen_app.actions:
         print("No actions specified -- defaulting to Echo.")
         listen_app.add_action(EchoAction())
 
@@ -522,7 +521,7 @@ class ListenApp:
 
         # self.pb = AsyncPushbullet(api_key=api_key, proxy=proxy)
         self.account = None  # type: AsyncPushbullet
-        self._listener = None  # type: PushListener
+        self._listener = None  # type: LiveStreamListener
 
         self.api_key = api_key
         self.proxy = proxy
@@ -601,7 +600,7 @@ class ListenApp:
                                 self.log.info("Device {} was not found, so we created it.".format(self.device_name))
 
                     print("Connecting to pushbullet...", end="", flush=True)
-                    async with PushListener(self.account, only_this_device_nickname=self.device_name) as pl2:
+                    async with LiveStreamListener(self.account, only_this_device_nickname=self.device_name) as pl2:
                         print("Connected.", flush=True)
                         self.log.info("Connected to Pushbullet.com service.")
                         self._listener = pl2

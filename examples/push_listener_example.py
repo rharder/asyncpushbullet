@@ -10,7 +10,7 @@ import sys
 
 sys.path.append("..")  # Since examples are buried one level into source tree
 from asyncpushbullet import AsyncPushbullet
-from asyncpushbullet.async_listeners import PushListener
+from asyncpushbullet.async_listeners import LiveStreamListener
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
@@ -25,12 +25,12 @@ def main():
             async with AsyncPushbullet(api_key=API_KEY, proxy=PROXY, verify_ssl=False) as pb:
                 try:
                     print("Connectiong to Pushbullet...", end="", flush=True)
-                    async with PushListener(pb) as pl:
+                    async with LiveStreamListener(pb, types=()) as lll:
                         print("Connected.", flush=True)
 
                         # Wait indefinitely for pushes
-                        async for push in pl:
-                            print("Push:", pprint.pformat(push))
+                        async for item in lll:
+                            print("Live stream item:", pprint.pformat(item))
 
                 except Exception as ex:
                     print("_run() exception:", ex)

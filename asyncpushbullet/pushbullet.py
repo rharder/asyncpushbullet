@@ -7,7 +7,8 @@ import datetime
 import json
 import logging
 import os
-from typing import List, Iterator, Optional
+import time
+from typing import List, Iterator, Optional, Callable
 
 import requests  # pip install requests
 
@@ -15,7 +16,7 @@ from ._compat import standard_b64encode
 from .channel import Channel
 from .chat import Chat
 from .device import Device
-from .errors import InvalidKeyError, HttpError
+from .errors import InvalidKeyError, HttpError, PushbulletError
 from .filetype import get_file_type
 from .subscription import Subscription
 
@@ -197,7 +198,8 @@ class Pushbullet:
                       limit: int = None,
                       page_size: int = None,
                       active_only: bool = True,
-                      modified_after: float = None) -> Iterator[dict]:
+                      modified_after: float = None,
+                      post_process: Callable = None) -> Iterator:
         """Returns an iterator that retrieves objects from pushbullet."""
 
         items_returned = 0
@@ -210,27 +212,50 @@ class Pushbullet:
         if modified_after is not None:
             params["modified_after"] = str(modified_after)
 
+        empty_in_a_row = 0
         while get_more:
-            print("Retrieving...", end="", flush=True)
-            # msg = await self._async_get_data(url, params=params)
-            msg = self._get_data(url, params=params)
-            items_this_round = msg.get(item_name, [])
-            print("{} items".format(len(items_this_round)), flush=True)
+            try:
 
-            for item in items_this_round:
-                yield item
-                items_returned += 1
-                if limit is not None and 0 < limit <= items_returned:
+                # Do I/O
+                msg = self._get_data(url, params=params)
+
+            except PushbulletError as pe:
+                self.log.debug("An error aborted the network request for _objects_iter: {}".format(pe))
+                return
+
+            else:
+
+                items_this_round = msg.get(item_name, [])
+                self.log.debug("Retrieved {} items.".format(len(items_this_round)))
+
+                if items_this_round:
+                    empty_in_a_row = 0
+                else:
+                    empty_in_a_row += 1
+                    self.log.debug("Received empty data from pushbullet {} times.".format(empty_in_a_row))
+                    time.sleep(0.25 * empty_in_a_row)  # Just a little bit of throttling
+                    if empty_in_a_row >= 3:
+                        get_more = False
+                        break  # out of while loop
+
+                for item in items_this_round:
+                    items_returned += 1
+                    if post_process:
+                        yield post_process(item)
+                    else:
+                        yield item
+                    if limit is not None and 0 < limit <= items_returned:
+                        get_more = False
+                        break  # out of for loop
+
+                # Presence of cursor indicates more data is available
+                if "cursor" in msg:
+                    params["cursor"] = msg.get("cursor")
+                else:
                     get_more = False
-                    break  # out of for loop
 
-            # Presence of cursor indicates more data is available
-            params["cursor"] = msg.get("cursor")
-            if not params["cursor"]:
-                get_more = False
-            # else:
-            #     print("ARBITRARY DELAY FOR DEBUGGING")
-            #     sleep(1)
+            # print("ARBITRARY DELAY FOR DEBUGGING")
+            # sleep(1)
 
     def _post_data(self, url: str, **kwargs) -> dict:
         """ HTTP POST """
@@ -265,28 +290,6 @@ class Pushbullet:
 
         return data
 
-    #
-    # # ################
-    # # Cached Data
-    # # - This data is retained locally rather than querying Pushbullet each time.
-    #
-    # def refresh(self):
-    #     self._load_user_info()
-    #     # self._load_devices()
-    #     # self._load_chats()
-    #     # self._load_channels()
-    #     self.get_pushes(limit=1)
-    #
-    # # @property
-    # # def user_info(self) -> dict:
-    # #     """ :rtype: dict """
-    # #     if self._user_info is None:
-    # #         self._load_user_info()
-    # #     return self._user_info
-    # #
-    # # def _load_user_info(self):
-    # #     self._user_info = self._get_data(self.ME_URL)
-
     # ################
     # User
     #
@@ -307,20 +310,19 @@ class Pushbullet:
         """Returns an iterator that retrieves devices from pushbullet.
 
         :param limit: maximum number to return (Default: None, unlimited)
-        :param page_size: number to retrieve from each call to pushbullet.com (Default: 10)
+        :param page_size: number to retrieve from each call to pushbullet.com
         :param active_only: retrieve only active items (Default: True)
         :param modified_after: retrieve only items modified after this timestamp (Default: 0.0, all)
         :return: iterator
         :rtype: Iterator[Device]
         """
-        page_size = 10 if page_size is None else page_size  # Default value
-        active_only = True if active_only is None else active_only  # Default value
-        modified_after = 0.0 if modified_after is None else modified_after  # Default value
         url = self.DEVICES_URL
         item_name = "devices"
-        for x in self._objects_iter(url, item_name, limit=limit, page_size=page_size,
-                                    active_only=active_only, modified_after=modified_after):
-            yield Device(self, x)
+        active_only = True if active_only is None else active_only  # Default value
+        modified_after = 0.0 if modified_after is None else modified_after  # Default value
+        return self._objects_iter(url, item_name, limit=limit, page_size=page_size,
+                                  active_only=active_only, modified_after=modified_after,
+                                  post_process=lambda x: Device(self, x))
 
     def get_devices(self, flush_cache: bool = False) -> List[Device]:
         """Returns a list of Device objects known by Pushbullet.
@@ -450,20 +452,19 @@ class Pushbullet:
         """Returns an iterator that retrieves chats from pushbullet.
 
         :param limit: maximum number to return (Default: None, unlimited)
-        :param page_size: number to retrieve from each call to pushbullet.com (Default: 10)
+        :param page_size: number to retrieve from each call to pushbullet.com
         :param active_only: retrieve only active items (Default: True)
         :param modified_after: retrieve only items modified after this timestamp (Default: 0.0, all)
         :return: iterator
         :rtype: Iterator[Chat]
         """
-        page_size = 10 if page_size is None else page_size  # Default value
-        active_only = True if active_only is None else active_only  # Default value
-        modified_after = 0.0 if modified_after is None else modified_after  # Default value
         url = self.CHATS_URL
         item_name = "chats"
-        for x in self._objects_iter(url, item_name, limit=limit, page_size=page_size,
-                                    active_only=active_only, modified_after=modified_after):
-            yield Chat(self, x)
+        active_only = True if active_only is None else active_only  # Default value
+        modified_after = 0.0 if modified_after is None else modified_after  # Default value
+        return self._objects_iter(url, item_name, limit=limit, page_size=page_size,
+                                  active_only=active_only, modified_after=modified_after,
+                                  post_process=lambda x: Chat(self, x))
 
     def get_chats(self, flush_cache: bool = False) -> List[Chat]:
         """Returns a list of Chat objects known by Pushbullet.
@@ -558,20 +559,19 @@ class Pushbullet:
         """Returns an iterator that retrieves channels from pushbullet.
 
         :param limit: maximum number to return (Default: None, unlimited)
-        :param page_size: number to retrieve from each call to pushbullet.com (Default: 10)
+        :param page_size: number to retrieve from each call to pushbullet.com
         :param active_only: retrieve only active items (Default: True)
         :param modified_after: retrieve only items modified after this timestamp (Default: 0.0, all)
         :return: iterator
         :rtype: Iterator[Channel]
         """
-        page_size = 10 if page_size is None else page_size  # Default value
-        active_only = True if active_only is None else active_only  # Default value
-        modified_after = 0.0 if modified_after is None else modified_after  # Default value
         url = self.CHANNELS_URL
         item_name = "channels"
-        for x in self._objects_iter(url, item_name, limit=limit, page_size=page_size,
-                                    active_only=active_only, modified_after=modified_after):
-            yield Channel(self, x)
+        active_only = True if active_only is None else active_only  # Default value
+        modified_after = 0.0 if modified_after is None else modified_after  # Default value
+        return self._objects_iter(url, item_name, limit=limit, page_size=page_size,
+                                  active_only=active_only, modified_after=modified_after,
+                                  post_process=lambda x: Channel(self, x))
 
     def get_channels(self, flush_cache: bool = False) -> List[Channel]:
         """Returns a list of Channel objects known by Pushbullet.
@@ -650,20 +650,19 @@ class Pushbullet:
         """Returns an iterator that retrieves subscriptions from pushbullet.
 
         :param limit: maximum number to return (Default: None, unlimited)
-        :param page_size: number to retrieve from each call to pushbullet.com (Default: 10)
+        :param page_size: number to retrieve from each call to pushbullet.com
         :param active_only: retrieve only active items (Default: True)
         :param modified_after: retrieve only items modified after this timestamp (Default: 0.0, all)
         :return: iterator
         :rtype: Iterator[Subscription]
         """
-        page_size = 10 if page_size is None else page_size  # Default value
-        active_only = True if active_only is None else active_only  # Default value
-        modified_after = 0.0 if modified_after is None else modified_after  # Default value
         url = self.SUBSCRIPTIONS_URL
         item_name = "subscriptions"
-        for x in self._objects_iter(url, item_name, limit=limit, page_size=page_size,
-                                    active_only=active_only, modified_after=modified_after):
-            yield Subscription(self, x)
+        active_only = True if active_only is None else active_only  # Default value
+        modified_after = 0.0 if modified_after is None else modified_after  # Default value
+        return self._objects_iter(url, item_name, limit=limit, page_size=page_size,
+                                  active_only=active_only, modified_after=modified_after,
+                                  post_process=lambda x: Subscription(self, x))
 
     def get_subscriptions(self, flush_cache: bool = False) -> List[Subscription]:
         """Returns a list of Subscription objects known by Pushbullet.
@@ -757,25 +756,28 @@ class Pushbullet:
                     modified_after: float = None) -> Iterator[dict]:
         """Returns an iterator that retrieves pushes from pushbullet.
 
-        :param limit: maximum number to return (Default: 10, None means unlimited)
-        :param page_size: number to retrieve from each call to pushbullet.com (Default: 10)
+        :param limit: maximum number to return (Default: unlimited)
+        :param page_size: number to retrieve from each call to pushbullet.com
         :param active_only: retrieve only active items (Default: True)
-        :param modified_after: retrieve only items modified after this timestamp (Default: 0.0, all)
+        :param modified_after: retrieve only items modified after this timestamp (Default: since last call)
         :return: iterator
         :rtype: Iterator[dict]
         """
-        limit = 10 if limit is None else limit  # Default value
-        page_size = 10 if page_size is None else page_size  # Default value
-        active_only = True if active_only is None else active_only  # Default value
-        modified_after = 0.0 if modified_after is None else modified_after  # Default value
         url = self.PUSH_URL
         item_name = "pushes"
-        for x in self._objects_iter(url, item_name, limit=limit, page_size=page_size,
-                                    active_only=active_only, modified_after=modified_after):
-            modified = x.get("modified", 0)
+        active_only = True if active_only is None else active_only  # Default value
+        modified_after = self.most_recent_timestamp if modified_after is None else modified_after  # Default value
+
+        def _check_modification_timestamp(push):
+            # Bookkeeping: keep track of the most recent timestamp ever seen
+            modified = push.get("modified", 0)
             if modified > self.most_recent_timestamp:
                 self.most_recent_timestamp = modified
-            yield x
+            return push
+
+        return self._objects_iter(url, item_name, limit=limit, page_size=page_size,
+                                  active_only=active_only, modified_after=modified_after,
+                                  post_process=_check_modification_timestamp)
 
     def get_pushes(self,
                    limit: int = None,

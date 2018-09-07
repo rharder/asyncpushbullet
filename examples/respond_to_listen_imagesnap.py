@@ -33,19 +33,19 @@ def main():
 
             # Take a picture and upload
             # PRETEND TO TAKE A PICTURE
-            # fakepic = os.path.join(os.path.dirname(os.path.abspath(__file__)), "snapshot.jpg")
-            # shutil.copy(fakepic, temp_img.name)
+            fakepic = os.path.join(os.path.dirname(os.path.abspath(__file__)), "snapshot.jpg")
+            shutil.copy(fakepic, temp_img.name)
 
             # Take a picture
-            proc = subprocess.run(["imagesnap", temp_img.name],
-                                  # proc = subprocess.run(["notepad.exe", temp_img.name],
+            # proc = subprocess.run(["imagesnap", temp_img.name],
+            proc = subprocess.run(["clip.exe", temp_img.name],
                                   stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE,
                                   timeout=10,
                                   encoding=ENCODING)
 
             # Upload picture
-            with AsyncPushbullet(API_KEY, proxy=PROXY, verify_ssl=False) as pb:
+            with AsyncPushbullet(API_KEY, proxy=PROXY) as pb:
                 resp = pb.upload_file(temp_img.name)  # Upload here
                 # resp = pb.upload_file_to_transfer_sh(temp_img.name)  # Upload here
             del pb
