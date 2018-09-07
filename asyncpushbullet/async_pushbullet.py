@@ -182,6 +182,7 @@ class PushbulletAsyncIterator(AsyncIterator, Generic[T]):
                     self.log.debug(
                         "An error aborted the network request for _objects_asynciter: {}".format(pe))
                     raise StopAsyncIteration(pe)
+
                 else:
                     items_this_round = msg.get(self._item_name, [])
                     self.log.debug("Retrieved {} items.".format(len(items_this_round)))
