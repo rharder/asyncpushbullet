@@ -34,10 +34,9 @@ import os
 import sys
 from typing import List
 
-from asyncpushbullet import AsyncPushbullet
-from asyncpushbullet import Device
-from asyncpushbullet import InvalidKeyError
-from asyncpushbullet import PushbulletError
+from .async_pushbullet import AsyncPushbullet
+from .device import Device
+from .errors import InvalidKeyError, PushbulletError
 
 # Exit codes
 __ERR_API_KEY_NOT_GIVEN__ = 1

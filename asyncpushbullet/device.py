@@ -3,7 +3,6 @@
 from __future__ import unicode_literals
 
 import pprint
-import warnings
 
 from .helpers import use_appropriate_encoding
 
@@ -26,13 +25,13 @@ class Device:
         data = {"type": "note", "title": title, "body": body}
         return self._push(data)
 
-    def push_address(self, name, address):
-        warnings.warn("Address push type is removed. This push will be sent as note.")
-        return self.push_note(name, address)
+    # def push_address(self, name, address):
+    #     warnings.warn("Address push type is removed. This push will be sent as note.")
+    #     return self.push_note(name, address)
 
-    def push_list(self, title, items):
-        warnings.warn("List push type is removed. This push will be sent as note.")
-        return self.push_note(title, ",".join(items))
+    # def push_list(self, title, items):
+    #     warnings.warn("List push type is removed. This push will be sent as note.")
+    #     return self.push_note(title, ",".join(items))
 
     def push_link(self, title, url, body=None):
         data = {"type": "link", "title": title, "url": url, "body": body}
@@ -58,10 +57,8 @@ class Device:
 
     def __repr__(self):
         attr_map = {k: self.__getattribute__(k) for k in self.DEVICE_ATTRIBUTES}
-        # attr_str = ", ".join(["{}={}".format(k,v) for k,v in attr_map.items()])
         attr_str = pprint.pformat(attr_map)
-        _str = "Device('{}',\n{})".format(self.nickname or "nameless (iden: {})"
-                                          .format(self.device_iden), attr_str)
+        _str = str(self) + ",\n{})".format(attr_str)
         return _str
 
     # @property

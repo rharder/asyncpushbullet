@@ -7,17 +7,17 @@ import datetime
 import json
 import logging
 import os
-import pprint
-from typing import List
+from typing import List, Iterator, Optional
 
-import requests
+import requests  # pip install requests
 
 from ._compat import standard_b64encode
 from .channel import Channel
 from .chat import Chat
 from .device import Device
-from .errors import PushbulletError, InvalidKeyError, HttpError
+from .errors import InvalidKeyError, HttpError
 from .filetype import get_file_type
+from .subscription import Subscription
 
 
 class NoEncryptionModuleError(Exception):
@@ -53,7 +53,7 @@ class Pushbullet:
         self._devices = None  # type: List[Device]
         self._chats = None  # type: List[Chat]
         self._channels = None  # type: List[Channel]
-        self._subscriptions = None  # type: List[dict]
+        self._subscriptions = None  # type: List[Subscription]
 
         self._encryption_key = None
         if encryption_password:
@@ -67,7 +67,7 @@ class Pushbullet:
             kdf = PBKDF2HMAC(
                 algorithm=hashes.SHA256(),
                 length=32,
-                salt=self.user_info["iden"].encode("ASCII"),
+                salt=self.get_user()["iden"].encode("ASCII"),  # If using asyncpushbullet, this is synchronous still
                 iterations=30000,
                 backend=default_backend()
             )
@@ -85,7 +85,7 @@ class Pushbullet:
         Triggers a call to Pushbullet.com that will throw an
         InvalidKeyError if the key is not valid.
         """
-        self._load_user_info()  # Will trigger an invalid key if invalid
+        self.get_user()  # Will trigger an invalid key if invalid
 
     def close(self):
         if self._session is not None:
@@ -95,11 +95,14 @@ class Pushbullet:
     @property
     def session(self) -> requests.Session:
         """ Creates the http session upon first use. """
-
-        # raise Exception("Why is sync pushbullet session being called instead of async?")  # debugging line
-
         session = self._session
         if session is None:
+            self.log.info("Creating requests-based, synchronous session.")
+            if self.__class__.__name__ == "AsyncPushbullet":
+                self.log.debug(
+                    "A requests-based, synchronous session is being created from AsyncPushbullet--" +
+                    "did you mean to use async functions?")
+
             # Set up session
             session = requests.Session()
             session.auth = (self.api_key, "")
@@ -169,8 +172,8 @@ class Pushbullet:
             epoch = int(headers.get("X-Ratelimit-Reset", 0))
             epoch_time = datetime.datetime.fromtimestamp(epoch).strftime('%c')
             err_msg = "Too Many Requests. You have been ratelimited until {}".format(epoch_time)
-            self.log.error("{} {}".format(code, msg))
-            raise HttpError(code, err_msg)
+            self.log.error("{} {}".format(code, err_msg))
+            raise HttpError(code, err_msg, msg)
 
         elif code // 100 == 5:  # 5xx
             err_msg = "Server error on pushbullet.com."
@@ -190,61 +193,44 @@ class Pushbullet:
         msg = self._http(self.session.get, url, **kwargs)
         return msg
 
-    def _get_data_with_pagination(self, url: str, item_name: str, **kwargs) -> dict:
-        """ Performs a GET on a list that Pushbullet may paginate. """
-        gen = self._get_data_with_pagination_generator(url, item_name, **kwargs)
-        xfer = next(gen)  # Prep params
-        msg = {}
-        while xfer.get("get_more", False):
-            args = xfer.get("kwargs", {})  # type: dict
-            xfer["msg"] = self._get_data(url, **args)
-            msg = next(gen)
-        return msg
+    def _objects_iter(self, url, item_name,
+                      limit: int = None,
+                      page_size: int = None,
+                      active_only: bool = True,
+                      modified_after: float = None) -> Iterator[dict]:
+        """Returns an iterator that retrieves objects from pushbullet."""
 
-    def _get_data_with_pagination_generator(self, url: str, item_name: str, **kwargs):
-        msg = {}
-        items = []
-        limit = kwargs.get("params", {}).get("limit")
-        xfer = {"kwargs": kwargs, "get_more": True}
-        empty_rounds_in_a_row = 0
-        while xfer["get_more"]:
-            yield xfer  # Do IO
+        items_returned = 0
+        get_more = True
+        params = {}
+        if page_size is not None:
+            params["limit"] = page_size
+        if active_only is not None:
+            params["active"] = "true" if active_only else "false"
+        if modified_after is not None:
+            params["modified_after"] = str(modified_after)
 
-            msg = xfer.get("msg", {})  # IO response
+        while get_more:
+            print("Retrieving...", end="", flush=True)
+            # msg = await self._async_get_data(url, params=params)
+            msg = self._get_data(url, params=params)
             items_this_round = msg.get(item_name, [])
-            items += items_this_round
+            print("{} items".format(len(items_this_round)), flush=True)
 
-            # Check for empty data being returned.
-            # This seems to happen if the last transaction on the pushbullet
-            # account was not push-related, such as adding or removing a device.
-            # If too many empty rounds come in a row, something is wrong, and we
-            # don't want to get stuck in an infinite loop.
-            if len(items_this_round) == 0:
-                empty_rounds_in_a_row += 1
-            else:
-                empty_rounds_in_a_row = 0
+            for item in items_this_round:
+                yield item
+                items_returned += 1
+                if limit is not None and 0 < limit <= items_returned:
+                    get_more = False
+                    break  # out of for loop
 
-            if empty_rounds_in_a_row > 10:
-                # I cannot find any documentation on this, but sometimes no data is returned,
-                # but the cursor is still provided and after asking enough times, suddenly
-                # data arrives.
-                self.log.warning("Received {} rounds of empty data from pusbhullet -- something is not right.".format(
-                    empty_rounds_in_a_row))
-                xfer["get_more"] = False
-
-            # Need subsequent calls to get rest of data?
-            # if "cursor" in msg and len(items_this_round) > 0 and (limit is None or len(items) < limit):
-            if "cursor" in msg and (limit is None or len(items) < limit):
-                if "params" in xfer["kwargs"]:
-                    xfer["kwargs"]["params"].update({"cursor": msg["cursor"]})
-                else:
-                    xfer["kwargs"]["params"] = {"cursor": msg["cursor"]}
-                    # xfer["kwargs"]["params"] = {"cursor": msg["cursor"]}
-                    self.log.info("Paging for more {} ({})".format(item_name, len(items)))
-            else:
-                xfer["get_more"] = False
-        msg[item_name] = items[:limit]  # Cut down to limit
-        yield msg
+            # Presence of cursor indicates more data is available
+            params["cursor"] = msg.get("cursor")
+            if not params["cursor"]:
+                get_more = False
+            # else:
+            #     print("ARBITRARY DELAY FOR DEBUGGING")
+            #     sleep(1)
 
     def _post_data(self, url: str, **kwargs) -> dict:
         """ HTTP POST """
@@ -279,57 +265,95 @@ class Pushbullet:
 
         return data
 
+    #
+    # # ################
+    # # Cached Data
+    # # - This data is retained locally rather than querying Pushbullet each time.
+    #
+    # def refresh(self):
+    #     self._load_user_info()
+    #     # self._load_devices()
+    #     # self._load_chats()
+    #     # self._load_channels()
+    #     self.get_pushes(limit=1)
+    #
+    # # @property
+    # # def user_info(self) -> dict:
+    # #     """ :rtype: dict """
+    # #     if self._user_info is None:
+    # #         self._load_user_info()
+    # #     return self._user_info
+    # #
+    # # def _load_user_info(self):
+    # #     self._user_info = self._get_data(self.ME_URL)
+
     # ################
-    # Cached Data
-    # - This data is retained locally rather than querying Pushbullet each time.
+    # User
+    #
 
-    def refresh(self):
-        self._load_user_info()
-        # self._load_devices()
-        # self._load_chats()
-        # self._load_channels()
-        self.get_pushes(limit=1)
-
-    @property
-    def user_info(self) -> dict:
-        """ :rtype: dict """
-        if self._user_info is None:
-            self._load_user_info()
-        return self._user_info
-
-    def _load_user_info(self):
+    def get_user(self):
         self._user_info = self._get_data(self.ME_URL)
+        return self._user_info
 
     # ################
     # Device
     #
 
-    @property
-    def devices(self) -> [Device]:
-        """ :rtype: [Device] """
-        if self._devices is None:
-            self._load_devices()
-        return self._devices
+    def devices_iter(self,
+                     limit: int = None,
+                     page_size: int = None,
+                     active_only: bool = None,
+                     modified_after: float = None) -> Iterator[Device]:
+        """Returns an iterator that retrieves devices from pushbullet.
 
-    def _load_devices(self):
-        self._devices = []
-        msg = self._get_data_with_pagination(self.DEVICES_URL, "devices", params={"active": "true"})
-        device_list = msg.get('devices', [])
-        for device_info in device_list:
-            if device_info.get("active"):
-                d = Device(self, device_info)
-                self._devices.append(d)
-        self.log.info("Found {} active devices".format(len(self._devices)))
+        :param limit: maximum number to return (Default: None, unlimited)
+        :param page_size: number to retrieve from each call to pushbullet.com (Default: 10)
+        :param active_only: retrieve only active items (Default: True)
+        :param modified_after: retrieve only items modified after this timestamp (Default: 0.0, all)
+        :return: iterator
+        :rtype: Iterator[Device]
+        """
+        page_size = 10 if page_size is None else page_size  # Default value
+        active_only = True if active_only is None else active_only  # Default value
+        modified_after = 0.0 if modified_after is None else modified_after  # Default value
+        url = self.DEVICES_URL
+        item_name = "devices"
+        for x in self._objects_iter(url, item_name, limit=limit, page_size=page_size,
+                                    active_only=active_only, modified_after=modified_after):
+            yield Device(self, x)
 
-    def get_device(self, nickname: str = None, iden: str = None) -> Device:
+    def get_devices(self, flush_cache: bool = False) -> List[Device]:
+        """Returns a list of Device objects known by Pushbullet.
+
+        This returns immediately with a cached copy, if available.
+        If not available, or if flush_cache=True, then a call will be made to
+        Pushbullet.com to retrieve a fresh list.
+
+        :param bool flush_cache: whether or not to flush the cache first
+        :return: list of Device objects
+        :rtype: List[Device]
+        """
+        items = self._devices
+        if items is None or flush_cache:
+            items = [x for x in self.devices_iter(limit=None,
+                                                  page_size=100,
+                                                  active_only=True)]
+            self._devices = items
+        return items
+
+    def get_device(self, nickname: str = None, iden: str = None) -> Optional[Device]:
         """
         Attempts to retrieve a device based on the given nickname or iden.
         First looks in the cached copy of the data and then refreshes the
         cache once if the device is not found.
         Returns None if the device is still not found.
+
+        :param str nickname: the nickname of the device to find
+        :param str iden: the device_iden of the device to find
+        :return: the Device that was found or None if not found
+        :rtype: Device
         """
-        if self._devices is None:
-            self._devices = []
+        _ = self.get_devices()  # If no cached copy, create one
 
         def _get():
             if nickname:
@@ -340,7 +364,7 @@ class Pushbullet:
         x = _get()
         if x is None:
             self.log.debug("Device {} not found in cache.  Refreshing.".format(nickname or iden))
-            self._load_devices()  # Refresh cache once
+            _ = self.get_devices(flush_cache=True)  # Refresh cache once
             x = _get()
         return x
 
@@ -380,7 +404,7 @@ class Pushbullet:
 
         msg = xfer.get('msg', {})
         new_device = Device(self, msg)
-        self.devices.append(new_device)
+        self._devices = None
         yield new_device
 
     def edit_device(self, device: Device, nickname: str = None,
@@ -407,7 +431,7 @@ class Pushbullet:
 
         msg = xfer.get('msg', {})
         new_device = Device(self, msg)
-        self.devices[self.devices.index(device)] = new_device
+        self._devices = None
         yield new_device
 
     def remove_device(self, device: Device):
@@ -418,27 +442,60 @@ class Pushbullet:
     # Chat
     #
 
-    @property
-    def chats(self) -> [Chat]:
-        """ :rtype: [Chat] """
-        if self._chats is None:
-            self._load_chats()
-        return self._chats
+    def chats_iter(self,
+                   limit: int = None,
+                   page_size: int = None,
+                   active_only: bool = None,
+                   modified_after: float = None) -> Iterator[Chat]:
+        """Returns an iterator that retrieves chats from pushbullet.
 
-    def _load_chats(self):
-        print("SYNCHRONOUS VERSION OF _load_chats CALLED")
-        self._chats = []
-        msg = self._get_data_with_pagination(self.CHATS_URL, "chats", params={"active": "true"})
-        chat_list = msg.get('chats', [])
-        for chat_info in chat_list:
-            if chat_info.get("active"):
-                c = Chat(self, chat_info)
-                self.chats.append(c)
-        self.log.info("Found {} active chats".format(len(self._chats)))
+        :param limit: maximum number to return (Default: None, unlimited)
+        :param page_size: number to retrieve from each call to pushbullet.com (Default: 10)
+        :param active_only: retrieve only active items (Default: True)
+        :param modified_after: retrieve only items modified after this timestamp (Default: 0.0, all)
+        :return: iterator
+        :rtype: Iterator[Chat]
+        """
+        page_size = 10 if page_size is None else page_size  # Default value
+        active_only = True if active_only is None else active_only  # Default value
+        modified_after = 0.0 if modified_after is None else modified_after  # Default value
+        url = self.CHATS_URL
+        item_name = "chats"
+        for x in self._objects_iter(url, item_name, limit=limit, page_size=page_size,
+                                    active_only=active_only, modified_after=modified_after):
+            yield Chat(self, x)
 
-    def get_chat(self, email: str) -> Chat:
-        if self._chats is None:
-            self._chats = []
+    def get_chats(self, flush_cache: bool = False) -> List[Chat]:
+        """Returns a list of Chat objects known by Pushbullet.
+
+        This returns immediately with a cached copy, if available.
+        If not available, or if flush_cache=True, then a call will be made to
+        Pushbullet.com to retrieve a fresh list.
+
+        :param bool flush_cache: whether or not to flush the cache first
+        :return: list of Chat objects
+        :rtype: List[Device]
+        """
+        items = self._chats
+        if items is None or flush_cache:
+            items = [x for x in self.chats_iter(limit=None,
+                                                page_size=100,
+                                                active_only=True)]
+            self._chats = items
+        return items
+
+    def get_chat(self, email: str) -> Optional[Chat]:
+        """
+        Attempts to retrieve a device based on the given nickname or iden.
+        First looks in the cached copy of the data and then refreshes the
+        cache once if the device is not found.
+        Returns None if the device is still not found.
+
+        :param str email: the email of the chat contact to find
+        :return: the Chat that was found or None if not found
+        :rtype: Chat
+        """
+        _ = self.get_devices()  # If no cached copy, create one
 
         def _get():
             return next((x for x in self._chats if x.email == email), None)
@@ -446,7 +503,7 @@ class Pushbullet:
         x = _get()
         if x is None:
             self.log.debug("Chat {} not found in cache.  Refreshing.".format(email))
-            self._load_chats()  # Refresh cache once
+            _ = self.get_chats(flush_cache=True)  # Refresh cache once
             x = _get()
         return x
 
@@ -464,7 +521,6 @@ class Pushbullet:
 
         msg = xfer.get('msg', {})
         new_chat = Chat(self, msg)
-        # self.chats.append(new_chat)
         self._chats = None  # flush cache
         yield new_chat
 
@@ -483,8 +539,6 @@ class Pushbullet:
         msg = xfer.get('msg', {})
         new_chat = Chat(self, msg)
         self._chats = None  # flush cache
-        # if self._chats is not None:
-        #     self._chats[self.chats.index(chat)] = new_chat
         yield new_chat
 
     def remove_chat(self, chat: Chat) -> dict:
@@ -496,27 +550,65 @@ class Pushbullet:
     # Channel
     #
 
-    @property
-    def channels(self) -> [Channel]:
-        """ :rtype: [Channel] """
-        if self._channels is None:
-            self._load_channels()
-        return self._channels
+    def channels_iter(self,
+                      limit: int = None,
+                      page_size: int = None,
+                      active_only: bool = None,
+                      modified_after: float = None) -> Iterator[Channel]:
+        """Returns an iterator that retrieves channels from pushbullet.
 
-    def _load_channels(self):
-        print("SYNCHRONOUS VERSION OF _load_channels CALLED")
-        self._channels = []
-        msg = self._get_data_with_pagination(self.CHANNELS_URL, "channels", params={"active": "true"})
-        channel_list = msg.get('channels', [])
-        for channel_info in channel_list:
-            if channel_info.get("active"):
-                c = Channel(self, channel_info)
-                self.channels.append(c)
-        self.log.info("Found {} active channels".format(len(self._channels)))
+        :param limit: maximum number to return (Default: None, unlimited)
+        :param page_size: number to retrieve from each call to pushbullet.com (Default: 10)
+        :param active_only: retrieve only active items (Default: True)
+        :param modified_after: retrieve only items modified after this timestamp (Default: 0.0, all)
+        :return: iterator
+        :rtype: Iterator[Channel]
+        """
+        page_size = 10 if page_size is None else page_size  # Default value
+        active_only = True if active_only is None else active_only  # Default value
+        modified_after = 0.0 if modified_after is None else modified_after  # Default value
+        url = self.CHANNELS_URL
+        item_name = "channels"
+        for x in self._objects_iter(url, item_name, limit=limit, page_size=page_size,
+                                    active_only=active_only, modified_after=modified_after):
+            yield Channel(self, x)
 
-    def get_channel(self, channel_tag: str) -> Channel:
-        if self._channels is None:
-            self._channels = []
+    def get_channels(self, flush_cache: bool = False) -> List[Channel]:
+        """Returns a list of Channel objects known by Pushbullet.
+
+        This returns immediately with a cached copy, if available.
+        If not available, or if flush_cache=True, then a call will be made to
+        Pushbullet.com to retrieve a fresh list.
+
+        :param bool flush_cache: whether or not to flush the cache first
+        :return: list of Channel objects
+        :rtype: List[Channel]
+        """
+        items = self._channels
+        if items is None or flush_cache:
+            items = [x for x in self.channels_iter(limit=None,
+                                                   page_size=100,
+                                                   active_only=True)]
+            self._channels = items
+        return items
+
+    def get_channel(self, channel_tag: str) -> Optional[Channel]:
+        """
+        Attempts to retrieve a channel based on the given channel_tag.
+        First looks in the cached copy of the data and then refreshes the
+        cache once if the channel is not found.
+        Returns None if the channel is still not found.
+
+        This API call is vague in the pushbullet documentation, but it
+        appears to refer to only those channels managed by the user--this
+        may not apply to very many users of pushbullet.
+
+        :param str nickname: the nickname of the device to find
+        :param str iden: the device_iden of the device to find
+        :return: the Device that was found or None if not found
+        :rtype: Device
+        """
+        _ = self.get_channels()  # If no cached copy, create one
 
         def _get():
             return next((x for x in self._channels if x.channel_tag == channel_tag), None)
@@ -524,59 +616,99 @@ class Pushbullet:
         x = _get()
         if x is None:
             self.log.debug("Channel {} not found in cache.  Refreshing.".format(channel_tag))
-            self._load_channels()  # Refresh cache once
+            _ = self.get_channels(flush_cache=True)  # Refresh cache once
             x = _get()
         return x
 
-    def get_channel_info(self, channel_tag: str, no_recent_pushes: bool = None):
+    def get_channel_info(self, channel_tag: str, no_recent_pushes: bool = None) -> Optional[Channel]:
+        """Returns information about the channel tag requested.
+
+        This queries the list of all channels provided through pushbullet, not
+        just those managed by the user.
+
+        """
         params = {"tag": str(channel_tag)}
         if no_recent_pushes:
             params["no_recent_pushes"] = "true"
-
         try:
             msg = self._get_data(self.CHANNEL_INFO_URL, params=params)
         except HttpError as he:
             if he.code == 400:  # That channel does not exist
                 return None
         else:
-            return msg
+            return Channel(self, msg)
 
     # ################
     # Subscriptions
     #
 
-    @property
-    def subscriptions(self) -> List[dict]:
-        """ :rtype: List[dict] """
-        if self._subscriptions is None:
-            self._load_subscriptions()
-        return self._subscriptions
+    def subscriptions_iter(self,
+                           limit: int = None,
+                           page_size: int = None,
+                           active_only: bool = None,
+                           modified_after: float = None) -> Iterator[Subscription]:
+        """Returns an iterator that retrieves subscriptions from pushbullet.
 
-    def _load_subscriptions(self):
-        self._subscriptions = []
-        msg = self._get_data_with_pagination(self.SUBSCRIPTIONS_URL, "subscriptions", params={"active": "true"})
-        subscr_list = msg.get('subscriptions', [])
-        for info in subscr_list:
-            if info.get("active"):
-                self._subscriptions.append(info)
-        return self._subscriptions
+        :param limit: maximum number to return (Default: None, unlimited)
+        :param page_size: number to retrieve from each call to pushbullet.com (Default: 10)
+        :param active_only: retrieve only active items (Default: True)
+        :param modified_after: retrieve only items modified after this timestamp (Default: 0.0, all)
+        :return: iterator
+        :rtype: Iterator[Subscription]
+        """
+        page_size = 10 if page_size is None else page_size  # Default value
+        active_only = True if active_only is None else active_only  # Default value
+        modified_after = 0.0 if modified_after is None else modified_after  # Default value
+        url = self.SUBSCRIPTIONS_URL
+        item_name = "subscriptions"
+        for x in self._objects_iter(url, item_name, limit=limit, page_size=page_size,
+                                    active_only=active_only, modified_after=modified_after):
+            yield Subscription(self, x)
 
-    def get_subscription(self, channel_tag: str) -> dict:
-        """Returns the Subscription to the channel with the given tag, or None if not subscribed to that channel."""
-        if self._subscriptions is None:
-            self._subscriptions = []
+    def get_subscriptions(self, flush_cache: bool = False) -> List[Subscription]:
+        """Returns a list of Subscription objects known by Pushbullet.
+
+        This returns immediately with a cached copy, if available.
+        If not available, or if flush_cache=True, then a call will be made to
+        Pushbullet.com to retrieve a fresh list.
+
+        :param bool flush_cache: whether or not to flush the cache first
+        :return: list of Subscription objects
+        :rtype: List[Subscription]
+        """
+        items = self._subscriptions
+        if items is None or flush_cache:
+            items = [x for x in self.subscriptions_iter(limit=None,
+                                                        page_size=100,
+                                                        active_only=True)]
+            self._subscriptions = items
+        return items
+
+    def get_subscription(self, channel_tag: str = None) -> Optional[Subscription]:
+        """
+        Attempts to retrieve a subscription based on the given channel tag.
+        First looks in the cached copy of the data and then refreshes the
+        cache once if the device is not found.
+        Returns None if the device is still not found.
+
+        :param str channel_tag: the channel tag of the subscription to find
+        :return: the Subscription that was found or None if not found
+        :rtype: Subscription
+        """
+        _ = self.get_subscriptions()  # If no cached copy, create one
 
         def _get():
-            return next((x for x in self._subscriptions if x.get("channel", {}).get("tag") == channel_tag), None)
+            return next((x for x in self._subscriptions
+                         if x.channel and x.channel.channel_tag == channel_tag), None)
 
         x = _get()
         if x is None:
-            self.log.debug("Subscription {} not found in cache.  Refreshing.".format(channel_tag))
-            self._load_subscriptions()  # Refresh cache once
+            self.log.debug("Subscription to {} not found in cache.  Refreshing.".format(channel_tag))
+            _ = self.get_subscriptions(flush_cache=True)  # Refresh cache once
             x = _get()
         return x
 
-    def new_subscription(self, channel_tag: str) -> dict:
+    def new_subscription(self, channel_tag: str) -> Subscription:
         gen = self._new_subscription_generator(channel_tag)
         xfer = next(gen)  # Prep http params
         data = xfer.get('data', {})
@@ -589,13 +721,11 @@ class Pushbullet:
         yield xfer
 
         msg = xfer.get('msg', {})
-        new_subscr = msg
-        # new_chat = Chat(self, msg)
-        if self._subscriptions is not None:
-            self._subscriptions.append(new_subscr)
+        new_subscr = Subscription(self, msg)
+        self._subscriptions = None
         yield new_subscr
 
-    def edit_subscription(self, subscr_iden: str, muted: bool) -> dict:
+    def edit_subscription(self, subscr_iden: str, muted: bool) -> Subscription:
         gen = self._edit_subscription_generator(subscr_iden, muted)
         xfer = next(gen)  # Prep http params
         data = xfer.get('data', {})
@@ -608,9 +738,7 @@ class Pushbullet:
         yield xfer
 
         msg = xfer.get('msg', {})
-        # new_chat = Chat(self, msg)
-        new_subscr = msg
-        # self.chats[self.chats.index(chat)] = new_chat
+        new_subscr = Subscription(self, msg)
         self._subscriptions = None
         yield new_subscr
 
@@ -622,48 +750,47 @@ class Pushbullet:
     # Pushes
     #
 
+    def pushes_iter(self,
+                    limit: int = None,
+                    page_size: int = None,
+                    active_only: bool = None,
+                    modified_after: float = None) -> Iterator[dict]:
+        """Returns an iterator that retrieves pushes from pushbullet.
+
+        :param limit: maximum number to return (Default: 10, None means unlimited)
+        :param page_size: number to retrieve from each call to pushbullet.com (Default: 10)
+        :param active_only: retrieve only active items (Default: True)
+        :param modified_after: retrieve only items modified after this timestamp (Default: 0.0, all)
+        :return: iterator
+        :rtype: Iterator[dict]
+        """
+        limit = 10 if limit is None else limit  # Default value
+        page_size = 10 if page_size is None else page_size  # Default value
+        active_only = True if active_only is None else active_only  # Default value
+        modified_after = 0.0 if modified_after is None else modified_after  # Default value
+        url = self.PUSH_URL
+        item_name = "pushes"
+        for x in self._objects_iter(url, item_name, limit=limit, page_size=page_size,
+                                    active_only=active_only, modified_after=modified_after):
+            modified = x.get("modified", 0)
+            if modified > self.most_recent_timestamp:
+                self.most_recent_timestamp = modified
+            yield x
+
     def get_pushes(self,
-                   modified_after: float = None,
                    limit: int = None,
-                   filter_inactive: bool = True) -> [dict]:
-        # print_function_name()
-        gen = self._get_pushes_generator(modified_after=modified_after,
-                                         limit=limit, filter_inactive=filter_inactive)
-        xfer = next(gen)  # Prep http params
-        data = xfer.get('data', {})
-        xfer["msg"] = self._get_data_with_pagination(self.PUSH_URL, "pushes", params=data)
-        resp = next(gen)  # Post process response
-        return resp
+                   page_size: int = None,
+                   active_only: bool = None,
+                   modified_after: float = None) -> List[dict]:
+        """Returns a list of pushes with the given filters applied"""
+        return [x for x in self.pushes_iter(limit=limit,
+                                            page_size=page_size,
+                                            active_only=active_only,
+                                            modified_after=modified_after)]
 
-    def _get_pushes_generator(self, modified_after: float = None, limit: int = None,
-                              filter_inactive: bool = True):
-        # print_function_name(self)
-        data = {}
-        if modified_after is not None:
-            data["modified_after"] = str(modified_after)
-        if limit is not None:
-            data["limit"] = int(limit)
-        if filter_inactive:
-            data['active'] = "true"
-        else:
-            data['active'] = "false"
-        xfer = {"data": data}
-        yield xfer  # Do IO
-
-        msg = xfer.get('msg', {})
-        pushes_list = msg.get("pushes", [])
-        if len(pushes_list) > 0 and pushes_list[0].get('modified', 0) > self.most_recent_timestamp:
-            self.most_recent_timestamp = pushes_list[0].get('modified')
-
-        if self.log.isEnabledFor(logging.DEBUG):
-            self.log.debug("Retrieved {} push{}: {}".format(len(pushes_list),
-                                                            "" if len(pushes_list) == 1 else "es",
-                                                            pprint.pformat(pushes_list)))
-        yield pushes_list
-
-    def get_new_pushes(self, limit: int = None, filter_inactive: bool = True) -> [dict]:
+    def get_new_pushes(self, limit: int = None, active_only: bool = True) -> [dict]:
         return self.get_pushes(modified_after=self.most_recent_timestamp,
-                               limit=limit, filter_inactive=filter_inactive)
+                               limit=limit, active_only=active_only)
 
     def dismiss_push(self, iden: str) -> dict:
         if type(iden) is dict and "iden" in iden:
@@ -697,6 +824,7 @@ class Pushbullet:
         return resp
 
     def push_sms(self, device: Device, number: str, message: str) -> dict:
+        _ = self.get_user()  # cache user info
         gen = self._push_sms_generator(device, number, message)
         xfer = next(gen)  # Prep http params
         data = xfer.get("data")
@@ -705,12 +833,13 @@ class Pushbullet:
         return resp
 
     def _push_sms_generator(self, device: Device, number: str, message: str):
+        user_info = self._user_info or self.get_user()  # Fallback use synchronous IO
         data = {
             "type": "push",
             "push": {
                 "type": "messaging_extension_reply",
                 "package_name": "com.pushbullet.android",
-                "source_user_iden": self.user_info['iden'],
+                "source_user_iden": user_info['iden'],
                 "target_device_iden": device.device_iden,
                 "conversation_iden": number,
                 "message": message
@@ -764,7 +893,6 @@ class Pushbullet:
         gen = self._upload_file_generator(file_path, file_type=file_type)
         xfer = next(gen)  # Prep request params
 
-        # data = json.dumps(xfer["data"])
         data = xfer["data"]
         xfer["msg"] = self._post_data(self.UPLOAD_REQUEST_URL, data=json.dumps(data))
         next(gen)  # Prep upload params

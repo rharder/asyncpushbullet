@@ -12,8 +12,9 @@ from typing import AsyncIterator, Set, Iterable
 
 import aiohttp  # pip install aiohttp
 
-from asyncpushbullet import AsyncPushbullet, PushbulletError
-from asyncpushbullet.websocket_client import WebsocketClient
+from .async_pushbullet import AsyncPushbullet
+from .errors import PushbulletError
+from .websocket_client import WebsocketClient
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"

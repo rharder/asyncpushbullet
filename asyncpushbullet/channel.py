@@ -2,19 +2,25 @@
 
 from __future__ import unicode_literals
 
+import pprint
 import warnings
 
 from .helpers import use_appropriate_encoding
 
 
 class Channel:
+    CHANNEL_ATTRIBUTES = ("name", "description", "created", "modified",
+                          "iden", "tag", "image_url", "website_url")
 
     def __init__(self, account, channel_info):
         self._account = account
         self.channel_info = channel_info
         self.channel_tag = channel_info.get("tag")
 
-        for attr in ("name", "description", "created", "modified"):
+        # for attr in ("name", "description", "created", "modified",
+        #              "iden", "tag", "image_url", "website_url"):
+        #     setattr(self, attr, channel_info.get(attr))
+        for attr in self.CHANNEL_ATTRIBUTES:
             setattr(self, attr, channel_info.get(attr))
 
     def push_note(self, title, body):
@@ -42,10 +48,19 @@ class Channel:
 
     @use_appropriate_encoding
     def __str__(self):
-        return "Channel(name: '{0}' tag: '{1}')".format(self.name, self.channel_tag)
+        _str = "Channel('{}', tag: '{}')".format(self.name or "nameless (iden: {})"
+                                               .format(self.iden), self.channel_tag)
+        return _str
 
     def __repr__(self):
-        return self.__str__()
+        attr_map = {k: self.__getattribute__(k) for k in self.CHANNEL_ATTRIBUTES}
+        attr_str = pprint.pformat(attr_map)
+
+        _str = "Channel('{}', tag: '{}'".format(self.name or "nameless (iden: {})"
+                                               .format(self.iden), self.channel_tag)
+
+        _str  += ",\n{})".format(attr_str)
+        return _str
 
     # @property
     # def name(self):

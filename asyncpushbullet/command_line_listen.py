@@ -57,12 +57,11 @@ import time
 from functools import partial
 from typing import List
 
-sys.path.append("..")
-from asyncpushbullet import Device
-from asyncpushbullet import InvalidKeyError
-from asyncpushbullet import PushListener
-from asyncpushbullet import PushbulletError
-from asyncpushbullet import AsyncPushbullet
+# sys.path.append("..")
+from .device import Device
+from .errors import InvalidKeyError, PushbulletError
+from .async_listeners import PushListener
+from .async_pushbullet import AsyncPushbullet
 
 __author__ = "Robert Harder"
 __email__ = "rob@iHarder.net"

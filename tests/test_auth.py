@@ -14,4 +14,5 @@ def test_auth_fail():
 
 def test_auth_success():
     pb = asyncpushbullet.Pushbullet(API_KEY)
-    assert pb.user_info["name"] == os.environ.get("PUSHBULLET_NAME", "Pushbullet Tester")
+    _ = pb.get_user()
+    assert pb._user_info["name"] == os.environ.get("PUSHBULLET_NAME", "Pushbullet Tester")
