@@ -290,28 +290,6 @@ class Pushbullet:
 
         return data
 
-    #
-    # # ################
-    # # Cached Data
-    # # - This data is retained locally rather than querying Pushbullet each time.
-    #
-    # def refresh(self):
-    #     self._load_user_info()
-    #     # self._load_devices()
-    #     # self._load_chats()
-    #     # self._load_channels()
-    #     self.get_pushes(limit=1)
-    #
-    # # @property
-    # # def user_info(self) -> dict:
-    # #     """ :rtype: dict """
-    # #     if self._user_info is None:
-    # #         self._load_user_info()
-    # #     return self._user_info
-    # #
-    # # def _load_user_info(self):
-    # #     self._user_info = self._get_data(self.ME_URL)
-
     # ################
     # User
     #
