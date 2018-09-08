@@ -33,12 +33,12 @@ def main():
 
             # Take a picture and upload
             # PRETEND TO TAKE A PICTURE
-            fakepic = os.path.join(os.path.dirname(os.path.abspath(__file__)), "snapshot.jpg")
-            shutil.copy(fakepic, temp_img.name)
+            # fakepic = os.path.join(os.path.dirname(os.path.abspath(__file__)), "snapshot.jpg")
+            # shutil.copy(fakepic, temp_img.name)
 
             # Take a picture
-            # proc = subprocess.run(["imagesnap", temp_img.name],
-            proc = subprocess.run(["clip.exe", temp_img.name],
+            proc = subprocess.run(["imagesnap", temp_img.name],
+            #proc = subprocess.run(["clip.exe", temp_img.name],
                                   stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE,
                                   timeout=10,
