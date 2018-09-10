@@ -86,6 +86,9 @@ def main():
 
 if __name__ == "__main__":
 
+    if "PUSHBULLET_API_KEY" in os.environ:
+        API_KEY = os.environ["PUSHBULLET_API_KEY"].strip()
+
     if API_KEY == "":
         with open("../api_key.txt") as f:
             API_KEY = f.read().strip()
