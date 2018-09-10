@@ -85,7 +85,7 @@ ENCODING = "utf-8"
 PREFS = Prefs("asyncpushbullet", "net.iharder.asyncpushbullet")
 OAUTH_TOKEN_KEY = "oauth2_token"
 
-sys.argv.append("--oauth2")
+# sys.argv.append("--oauth2")
 # sys.argv.append("-h")
 # sys.argv.append("-v")
 # sys.argv.append("--debug")
