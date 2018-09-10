@@ -33,7 +33,7 @@ class LiveStreamListener:
         The types parameter can be used to limit which kinds of pushes
         are returned in an async for loop or the next_push() call.
         The default is to show actual pushes only, not ephemerals.
-        The possible values in the tuple at this time are only
+        Some possible values in the tuple at this time are
         push, ephemeral, and ephemeral:xxx where xxx is matched to
         the "type" parameter if the ephemeral payload has that.
         For instance to listen only for the universal copy/paste

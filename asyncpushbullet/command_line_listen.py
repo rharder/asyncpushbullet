@@ -62,6 +62,9 @@ from asyncpushbullet import Device
 from asyncpushbullet import InvalidKeyError, PushbulletError
 from asyncpushbullet import LiveStreamListener
 from asyncpushbullet import AsyncPushbullet
+from asyncpushbullet.oauth2 import gain_oauth2_access
+from asyncpushbullet.prefs import Prefs
+from asyncpushbullet.websocket_server import WebServer
 
 __author__ = "Robert Harder"
 __email__ = "rob@iHarder.net"
@@ -79,6 +82,10 @@ DEFAULT_THROTTLE_COUNT = 10
 DEFAULT_THROTTLE_SECONDS = 10
 ENCODING = "utf-8"
 
+PREFS = Prefs("asyncpushbullet", "net.iharder.asyncpushbullet")
+OAUTH_TOKEN_KEY = "oauth2_token"
+
+sys.argv.append("--oauth2")
 # sys.argv.append("-h")
 # sys.argv.append("-v")
 # sys.argv.append("--debug")
@@ -102,21 +109,26 @@ def main():
 def do_main(args):
     # Key
     api_key = ""
-    if "PUSHBULLET_API_KEY" in os.environ:
-        api_key = os.environ["PUSHBULLET_API_KEY"].strip()
 
-    if args.key:
-        api_key = args.key.strip()
+    if PREFS.get(OAUTH_TOKEN_KEY):
+        print("Retrieved API key from oauth2 token")
+        api_key = PREFS.get("oauth2_token")
 
-    if args.key_file:
-        with open(args.key_file) as f:
-            api_key = f.read().strip()
-
-    if api_key == "":
-        print(
-            "You must specify an API key, either at the command line or with the PUSHBULLET_API_KEY environment variable.",
-            file=sys.stderr)
-        sys.exit(__ERR_API_KEY_NOT_GIVEN__)
+    # if "PUSHBULLET_API_KEY" in os.environ:
+    #     api_key = os.environ["PUSHBULLET_API_KEY"].strip()
+    #
+    # if args.key:
+    #     api_key = args.key.strip()
+    #
+    # if args.key_file:
+    #     with open(args.key_file) as f:
+    #         api_key = f.read().strip()
+    #
+    # if api_key == "":
+    #     print(
+    #         "You must specify an API key, either at the command line or with the PUSHBULLET_API_KEY environment variable.",
+    #         file=sys.stderr)
+    #     sys.exit(__ERR_API_KEY_NOT_GIVEN__)
 
     # Logging levels
     if args.debug:  # Debug?
@@ -129,6 +141,18 @@ def do_main(args):
 
     # Proxy
     proxy = args.proxy or os.environ.get("https_proxy") or os.environ.get("http_proxy")
+
+    # OAuth?
+    if args.oauth2:
+        token = gain_oauth2_access()
+        if token:
+            PREFS.set(OAUTH_TOKEN_KEY, token)
+            print("Successfully authenticated using OAuth2.")
+            print("You should not be able to use the command line tools without specifying an API key.")
+            sys.exit(0)
+        else:
+            print("There was an unknown problem authenticating.")
+            sys.exit(1)
 
     # List devices?
     if args.list_devices:
@@ -213,6 +237,9 @@ def do_main(args):
         # END OF PROGRAM
 
 
+
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-k", "--key", help="Your Pushbullet.com API key")
@@ -263,6 +290,7 @@ def parse_args():
     parser.add_argument("--proxy", help="Optional web proxy")
     parser.add_argument("--debug", action="store_true", help="Turn on debug logging")
     parser.add_argument("-v", "--verbose", action="store_true", help="Turn on verbose logging (INFO messages)")
+    parser.add_argument("--oauth2", action="store_true", help="Register your command line tool using OAuth2")
 
     args = parser.parse_args()
 
