@@ -1,5 +1,16 @@
 # -*- coding: utf-8 -*-
 
+# Exit codes used on command line
+__EXIT_NO_ERROR__ = 0
+__ERR_API_KEY_NOT_GIVEN__ = 1
+__ERR_INVALID_API_KEY__ = 2
+__ERR_CONNECTING_TO_PB__ = 3
+__ERR_FILE_NOT_FOUND__ = 4
+__ERR_DEVICE_NOT_FOUND__ = 5
+__ERR_NOTHING_TO_DO__ = 6
+__ERR_KEYBOARD_INTERRUPT__ = 7
+__ERR_UNKNOWN__ = 99
+
 
 class PushbulletError(Exception):
 

@@ -57,26 +57,17 @@ import time
 from functools import partial
 from typing import List
 
+from asyncpushbullet import AsyncPushbullet
 # sys.path.append("..")
 from asyncpushbullet import Device, oauth2
 from asyncpushbullet import InvalidKeyError, PushbulletError
 from asyncpushbullet import LiveStreamListener
-from asyncpushbullet import AsyncPushbullet
-from asyncpushbullet.oauth2 import gain_oauth2_access, OAUTH2_TOKEN_KEY
-from asyncpushbullet.prefs import Prefs
-from asyncpushbullet.websocket_server import WebServer
+from asyncpushbullet.errors import __ERR_KEYBOARD_INTERRUPT__, __ERR_UNKNOWN__, __ERR_API_KEY_NOT_GIVEN__, \
+    __ERR_INVALID_API_KEY__, __ERR_CONNECTING_TO_PB__, __ERR_NOTHING_TO_DO__
+from asyncpushbullet.oauth2 import gain_oauth2_access
 
 __author__ = "Robert Harder"
 __email__ = "rob@iHarder.net"
-
-# Exit codes
-__ERR_API_KEY_NOT_GIVEN__ = 1
-__ERR_INVALID_API_KEY__ = 2
-__ERR_CONNECTING_TO_PB__ = 3
-__ERR_FILE_NOT_FOUND__ = 4
-__ERR_DEVICE_NOT_FOUND__ = 5
-__ERR_NOTHING_TO_DO__ = 6
-__ERR_UNKNOWN__ = 99
 
 DEFAULT_THROTTLE_COUNT = 10
 DEFAULT_THROTTLE_SECONDS = 10
@@ -95,12 +86,12 @@ LOG = logging.getLogger(__name__)
 # sys.argv += ["--proxy", ""]
 # sys.argv.append("--list-devices")
 
-
 # sys.argv += ["--exec-simple", r"C:\windows\System32\clip.exe"]
 # sys.argv += ["--exec", r"C:\windows\System32\notepad.exe"]
 # sys.argv += ["--exec", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_imagesnap.py"]
 # sys.argv += ["--exec-simple", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_exec_simple.py"]
 
+# oauth2.PREFS.set(oauth2.OAUTH2_TOKEN_KEY, None)
 
 def main():
     args = parse_args()
@@ -108,38 +99,32 @@ def main():
 
 
 def do_main(args):
-    # Key
-    api_key = oauth2.get_oauth2_key()  # Try this first
+    loop = asyncio.get_event_loop()
+    exit_code = None
+    try:
+        exit_code = loop.run_until_complete(_run(args))
+    except KeyboardInterrupt:
+        exit_code = __ERR_KEYBOARD_INTERRUPT__
+    except Exception as ex:
+        print("Error:", ex, file=sys.stderr)
+        exit_code = __ERR_UNKNOWN__
+    finally:
+        return exit_code or 0
 
-    if "PUSHBULLET_API_KEY" in os.environ:
-        api_key = os.environ["PUSHBULLET_API_KEY"].strip()
 
-    if args.key:
-        api_key = args.key.strip()
-
-    if args.key_file:
-        with open(args.key_file) as f:
-            api_key = f.read().strip()
-
-    if api_key == "":
-        print("You must specify an API key.", file=sys.stderr)
-        sys.exit(__ERR_API_KEY_NOT_GIVEN__)
+async def _run(args):
 
     # Logging levels
     if args.debug:  # Debug?
         print("Log level: DEBUG")
         logging.basicConfig(level=logging.DEBUG)
-
     elif args.verbose:  # Verbose?
         print("Log level: INFO")
         logging.basicConfig(level=logging.INFO)
 
-    # Proxy
-    proxy = args.proxy or os.environ.get("https_proxy") or os.environ.get("http_proxy")
-
     # Request setting up oauth2 access?
     if args.oauth2:
-        token = gain_oauth2_access()
+        token = await oauth2.async_gain_oauth2_access()
         if token:
             print("Successfully authenticated using OAuth2.")
             print("You should now be able to use the command line tools without specifying an API key.")
@@ -148,14 +133,23 @@ def do_main(args):
             print("There was a problem authenticating.")
             sys.exit(1)
 
+    # Find a valid API key
+    api_key = try_to_find_key(args)
+    if api_key is None:
+        print("You must specify an API key.", file=sys.stderr)
+        sys.exit(__ERR_API_KEY_NOT_GIVEN__)
+
+    # Proxy
+    proxy = args.proxy or os.environ.get("https_proxy") or os.environ.get("http_proxy")
+
     # List devices?
     if args.list_devices:
         print("Devices:")
-
-        pb = None  # type: AsyncPushbullet
         try:
-            pb = AsyncPushbullet(api_key, proxy=proxy)
-            pb.verify_key()
+            async with AsyncPushbullet(api_key, proxy=proxy) as pb:
+                async for dev in pb.devices_asynciter():
+                    print("\t", dev.nickname)
+
         except InvalidKeyError as exc:
             print(exc, file=sys.stderr)
             sys.exit(__ERR_INVALID_API_KEY__)
@@ -163,8 +157,6 @@ def do_main(args):
             print(exc, file=sys.stderr)
             sys.exit(__ERR_CONNECTING_TO_PB__)
         else:
-            for dev in pb.get_devices():
-                print("\t", dev.nickname)
             sys.exit(0)
 
     # Throttle
@@ -220,7 +212,8 @@ def do_main(args):
 
     exit_code = None
     try:
-        exit_code = loop.run_until_complete(listen_app.run())
+        # exit_code = loop.run_until_complete(listen_app.run())
+        exit_code = await listen_app.run()
     except KeyboardInterrupt as e:
         print("Caught keyboard interrupt")
     finally:
@@ -229,6 +222,28 @@ def do_main(args):
             exit_code = 0
         sys.exit(exit_code)
         # END OF PROGRAM
+
+
+def try_to_find_key(args):
+    # Key
+    api_key = oauth2.get_oauth2_key()  # Try this first
+    if api_key:
+        print("Found saved oauth2 key.")
+
+    if "PUSHBULLET_API_KEY" in os.environ:
+        api_key = os.environ["PUSHBULLET_API_KEY"].strip()
+        print("Found key in PUSHBULLET_API_KEY environment variable.")
+
+    if args.key:
+        api_key = args.key.strip()
+        print("Found key given on command line.")
+
+    if args.key_file:
+        with open(args.key_file) as f:
+            api_key = f.read().strip()
+        print("Found key in key file", args.key_file)
+
+    return api_key
 
 
 def parse_args():

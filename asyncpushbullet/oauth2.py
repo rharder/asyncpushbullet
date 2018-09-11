@@ -42,17 +42,18 @@ async def async_gain_oauth2_access():
         webbrowser.open(oauth2_url)
 
         # Wait for token
-        token = await asyncio.wait_for(queue.get(), 120)
+        resp = await asyncio.wait_for(queue.get(), 120)
         ws = await queue.get()  # type: web.WebSocketResponse
 
-        if isinstance(token, PushbulletError):
+        if isinstance(resp, PushbulletError):
             await ws.send_json({"success": False})
-            raise token
-
-        PREFS.set(OAUTH2_TOKEN_KEY, token)
-        print("Oauth2 token successfully retrieved.")
-        await ws.send_json({"success": True})
-        return token
+            raise resp
+        else:
+            token = resp  # type: str
+            PREFS.set(OAUTH2_TOKEN_KEY, token)
+            print("Oauth2 token successfully retrieved.")
+            await ws.send_json({"success": True})
+            return token
 
     except futures.TimeoutError as te:
         print("Timed out.  Did the user forget to authenticate?", file=sys.stderr)

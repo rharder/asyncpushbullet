@@ -30,30 +30,19 @@ optional arguments:
 """
 import argparse
 import asyncio
+import logging
 import os
 import sys
-from functools import partial
 from typing import List
 
 # from .async_pushbullet import AsyncPushbullet
 from asyncpushbullet import AsyncPushbullet, oauth2
 from asyncpushbullet import Device
 from asyncpushbullet import InvalidKeyError, PushbulletError
-
-# Exit codes
-from asyncpushbullet.oauth2 import gain_oauth2_access, OAUTH2_TOKEN_KEY
-from asyncpushbullet.prefs import Prefs
-
-__ERR_API_KEY_NOT_GIVEN__ = 1
-__ERR_INVALID_API_KEY__ = 2
-__ERR_CONNECTING_TO_PB__ = 3
-__ERR_FILE_NOT_FOUND__ = 4
-__ERR_DEVICE_NOT_FOUND__ = 5
-__ERR_NOTHING_TO_DO__ = 6
-__ERR_KEYBOARD_INTERRUPT__ = 7
-__ERR_UNKNOWN__ = 99
-
-
+from asyncpushbullet.command_line_listen import try_to_find_key
+from asyncpushbullet.errors import __ERR_KEYBOARD_INTERRUPT__, __ERR_UNKNOWN__, __ERR_API_KEY_NOT_GIVEN__, \
+    __ERR_INVALID_API_KEY__, __ERR_CONNECTING_TO_PB__, __ERR_NOTHING_TO_DO__, __ERR_DEVICE_NOT_FOUND__, \
+    __EXIT_NO_ERROR__, __ERR_FILE_NOT_FOUND__
 
 # logging.basicConfig(logging.ERROR)
 
@@ -65,6 +54,7 @@ __ERR_UNKNOWN__ = 99
 # sys.argv.append("--oauth2")
 # sys.argv.append("--list-devices")
 # sys.argv += ["-t", "test to device", "--device", "baddevice"]
+# sys.argv += ["-d", "DoorSign"]
 # sys.argv += ["-t", "my title", "-b", "my body"]
 # sys.argv += ["-t", "Read stdin", "-b", "-"]
 
@@ -76,6 +66,10 @@ __ERR_UNKNOWN__ = 99
 # sys.argv.append("--transfer.sh")
 
 # sys.argv += ["-t", "foo"]
+
+def main():
+    main_pbpush()  # Default
+    # main_pbtransfer()
 
 
 def main_pbpush():
@@ -105,67 +99,59 @@ def do_main(args):
 
 
 async def _run(args):
-    # Key
-    api_key = oauth2.get_oauth2_key()  # Try this first
 
-    if "PUSHBULLET_API_KEY" in os.environ:
-        api_key = os.environ["PUSHBULLET_API_KEY"].strip()
-        if not args.quiet:
-            print("API key retrieved from environment variable PUSHBULLET_API_KEY")
+    # Logging levels
+    if args.debug:  # Debug?
+        print("Log level: DEBUG")
+        logging.basicConfig(level=logging.DEBUG)
+    elif args.verbose:  # Verbose?
+        print("Log level: INFO")
+        logging.basicConfig(level=logging.INFO)
 
-    if args.key_file:
-        with open(args.key_file) as f:
-            api_key = f.read().strip()
-        if not args.quiet:
-            print("API key read from file {}".format(args.key_file))
+    # Request setting up oauth2 access?
+    if args.oauth2:
+        token = await oauth2.async_gain_oauth2_access()
+        if token:
+            print("Successfully authenticated using OAuth2.")
+            print("You should now be able to use the command line tools without specifying an API key.")
+            sys.exit(0)
+        else:
+            print("There was a problem authenticating.")
+            sys.exit(1)
 
-    if args.key:
-        api_key = args.key.strip()
-        if not args.quiet:
-            print("API key retrieved from command line argument")
-
-    if api_key == "":
-        print(
-            "You must specify an API key, either at the command line or with the PUSHBULLET_API_KEY environment variable.",
-            file=sys.stderr)
-        return __ERR_API_KEY_NOT_GIVEN__
+    # Find a valid API key
+    api_key = try_to_find_key(args)
+    if api_key is None:
+        print("You must specify an API key.", file=sys.stderr)
+        sys.exit(__ERR_API_KEY_NOT_GIVEN__)
 
     # Proxy
     proxy = args.proxy or os.environ.get("https_proxy") or os.environ.get("http_proxy")
 
     try:
-        async with AsyncPushbullet(api_key, proxy=proxy) as pb:
-
-            # Request setting up oauth2 access?
-            if args.oauth2:
-                token = await oauth2.async_gain_oauth2_access()
-                if token:
-                    print("Successfully authenticated using OAuth2.")
-                    print("You should now be able to use the command line tools without specifying an API key.")
-                    sys.exit(0)
-                else:
-                    print("There was an unknown problem authenticating.")
-                    sys.exit(1)
-
-
-            # List devices?
-            if args.list_devices:
-                print("Devices:")
-                devs = await pb.async_get_devices()  # type: List[Device]
-                for dev in devs:
+        # List devices?
+        if args.list_devices:
+            print("Devices:")
+            async with AsyncPushbullet(api_key, proxy=proxy) as pb:
+                async for dev in pb.devices_asynciter():
                     print("\t", dev.nickname)
-                return
+            return __EXIT_NO_ERROR__
 
-            # Specify a device?
-            target_device = None  # type: Device
-            if args.device:
+        # Specify a device?
+        target_device = None  # type: Device
+        if args.device:
+            async with AsyncPushbullet(api_key, proxy=proxy) as pb:
                 target_device = await pb.async_get_device(nickname=args.device)
-                if target_device is None:
-                    print("Device not found:", args.device, file=sys.stderr)
-                    return __ERR_DEVICE_NOT_FOUND__
 
-            # Transfer single file?
-            if getattr(args, "file", False):
+            if target_device is None:
+                print("Device not found:", args.device, file=sys.stderr)
+                return __ERR_DEVICE_NOT_FOUND__
+            else:
+                print("Target device:", target_device.nickname)
+
+        # Transfer single file?
+        if getattr(args, "file", False):
+            async with AsyncPushbullet(api_key, proxy=proxy) as pb:
                 return await _transfer_file(pb=pb,
                                             file_path=args.file,
                                             use_transfer_sh=args.transfer_sh,
@@ -174,7 +160,8 @@ async def _run(args):
                                             body=args.body,
                                             target_device=target_device)
 
-            elif getattr(args, "files", False):
+        elif getattr(args, "files", False):
+            async with AsyncPushbullet(api_key, proxy=proxy) as pb:
                 for file_path in args.files:  # type str
                     _ = await _transfer_file(pb=pb,
                                              file_path=file_path,
@@ -185,9 +172,10 @@ async def _run(args):
                                              target_device=target_device)
 
 
-            # Push note
-            elif args.title or args.body:
+        # Push note
+        elif args.title or args.body:
 
+            async with AsyncPushbullet(api_key, proxy=proxy) as pb:
                 if args.body is not None and args.body == "-":
                     body = sys.stdin.read().rstrip()
                 else:
@@ -197,14 +185,15 @@ async def _run(args):
                     if not args.quiet:
                         print("Pushing note...")
                     _ = await pb.async_push_note(title=args.title, body=body, device=target_device)
+                    print(_)
                 else:
                     if not args.quiet:
                         print("Pushing link...")
                     _ = await pb.async_push_link(title=args.title, url=url, body=body, device=target_device)
 
-            else:
-                print("Nothing to do.")
-                return __ERR_NOTHING_TO_DO__
+        else:
+            print("Nothing to do.")
+            return __ERR_NOTHING_TO_DO__
 
     except InvalidKeyError as exc:
         print(exc, file=sys.stderr)
@@ -257,7 +246,6 @@ async def _transfer_file(pb: AsyncPushbullet,
 
 
 def parse_args_pbpush():
-
     parser = argparse.ArgumentParser()
     parser.add_argument("-k", "--key", help="Your Pushbullet.com API key")
     parser.add_argument("--key-file", help="Text file containing your Pushbullet.com API key")
@@ -272,6 +260,8 @@ def parse_args_pbpush():
                         help="Use www.transfer.sh website for uploading files (use with --file)")
     parser.add_argument("-q", "--quiet", action="store_true", help="Suppress all output")
     parser.add_argument("--oauth2", action="store_true", help="Register your command line tool using OAuth2")
+    parser.add_argument("--debug", action="store_true", help="Turn on debug logging")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Turn on verbose logging (INFO messages)")
 
     args = parser.parse_args()
 
@@ -283,7 +273,6 @@ def parse_args_pbpush():
 
 
 def parse_args_pbtransfer():
-
     parser = argparse.ArgumentParser()
     parser.add_argument("-k", "--key", help="Your Pushbullet.com API key")
     parser.add_argument("--key-file", help="Text file containing your Pushbullet.com API key")
@@ -293,6 +282,9 @@ def parse_args_pbtransfer():
     parser.add_argument("-f", "--file", help="Pathname to file to push")
     parser.add_argument('files', nargs='*', help="Remaining arguments will be files to push")
     parser.add_argument("-q", "--quiet", action="store_true", help="Suppress all output")
+    parser.add_argument("--oauth2", action="store_true", help="Register your command line tool using OAuth2")
+    parser.add_argument("--debug", action="store_true", help="Turn on debug logging")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Turn on verbose logging (INFO messages)")
 
     args = parser.parse_args()
 
@@ -309,5 +301,4 @@ def parse_args_pbtransfer():
 
 
 if __name__ == "__main__":
-    main_pbpush()  # Default
-    # main_pbtransfer()
+    main()
