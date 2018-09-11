@@ -58,11 +58,11 @@ from functools import partial
 from typing import List
 
 # sys.path.append("..")
-from asyncpushbullet import Device
+from asyncpushbullet import Device, oauth2
 from asyncpushbullet import InvalidKeyError, PushbulletError
 from asyncpushbullet import LiveStreamListener
 from asyncpushbullet import AsyncPushbullet
-from asyncpushbullet.oauth2 import gain_oauth2_access
+from asyncpushbullet.oauth2 import gain_oauth2_access, OAUTH2_TOKEN_KEY
 from asyncpushbullet.prefs import Prefs
 from asyncpushbullet.websocket_server import WebServer
 
@@ -82,8 +82,7 @@ DEFAULT_THROTTLE_COUNT = 10
 DEFAULT_THROTTLE_SECONDS = 10
 ENCODING = "utf-8"
 
-PREFS = Prefs("asyncpushbullet", "net.iharder.asyncpushbullet")
-OAUTH_TOKEN_KEY = "oauth2_token"
+LOG = logging.getLogger(__name__)
 
 # sys.argv.append("--oauth2")
 # sys.argv.append("-h")
@@ -95,6 +94,8 @@ OAUTH_TOKEN_KEY = "oauth2_token"
 # sys.argv.append("--echo")
 # sys.argv += ["--proxy", ""]
 # sys.argv.append("--list-devices")
+
+
 # sys.argv += ["--exec-simple", r"C:\windows\System32\clip.exe"]
 # sys.argv += ["--exec", r"C:\windows\System32\notepad.exe"]
 # sys.argv += ["--exec", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_imagesnap.py"]
@@ -108,27 +109,21 @@ def main():
 
 def do_main(args):
     # Key
-    api_key = ""
+    api_key = oauth2.get_oauth2_key()  # Try this first
 
-    if PREFS.get(OAUTH_TOKEN_KEY):
-        print("Retrieved API key from oauth2 token")
-        api_key = PREFS.get("oauth2_token")
+    if "PUSHBULLET_API_KEY" in os.environ:
+        api_key = os.environ["PUSHBULLET_API_KEY"].strip()
 
-    # if "PUSHBULLET_API_KEY" in os.environ:
-    #     api_key = os.environ["PUSHBULLET_API_KEY"].strip()
-    #
-    # if args.key:
-    #     api_key = args.key.strip()
-    #
-    # if args.key_file:
-    #     with open(args.key_file) as f:
-    #         api_key = f.read().strip()
-    #
-    # if api_key == "":
-    #     print(
-    #         "You must specify an API key, either at the command line or with the PUSHBULLET_API_KEY environment variable.",
-    #         file=sys.stderr)
-    #     sys.exit(__ERR_API_KEY_NOT_GIVEN__)
+    if args.key:
+        api_key = args.key.strip()
+
+    if args.key_file:
+        with open(args.key_file) as f:
+            api_key = f.read().strip()
+
+    if api_key == "":
+        print("You must specify an API key.", file=sys.stderr)
+        sys.exit(__ERR_API_KEY_NOT_GIVEN__)
 
     # Logging levels
     if args.debug:  # Debug?
@@ -142,16 +137,15 @@ def do_main(args):
     # Proxy
     proxy = args.proxy or os.environ.get("https_proxy") or os.environ.get("http_proxy")
 
-    # OAuth?
+    # Request setting up oauth2 access?
     if args.oauth2:
         token = gain_oauth2_access()
         if token:
-            PREFS.set(OAUTH_TOKEN_KEY, token)
             print("Successfully authenticated using OAuth2.")
-            print("You should not be able to use the command line tools without specifying an API key.")
+            print("You should now be able to use the command line tools without specifying an API key.")
             sys.exit(0)
         else:
-            print("There was an unknown problem authenticating.")
+            print("There was a problem authenticating.")
             sys.exit(1)
 
     # List devices?
@@ -235,9 +229,6 @@ def do_main(args):
             exit_code = 0
         sys.exit(exit_code)
         # END OF PROGRAM
-
-
-
 
 
 def parse_args():

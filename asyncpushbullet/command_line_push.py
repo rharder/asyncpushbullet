@@ -32,14 +32,18 @@ import argparse
 import asyncio
 import os
 import sys
+from functools import partial
 from typing import List
 
 # from .async_pushbullet import AsyncPushbullet
-from asyncpushbullet import AsyncPushbullet
+from asyncpushbullet import AsyncPushbullet, oauth2
 from asyncpushbullet import Device
 from asyncpushbullet import InvalidKeyError, PushbulletError
 
 # Exit codes
+from asyncpushbullet.oauth2 import gain_oauth2_access, OAUTH2_TOKEN_KEY
+from asyncpushbullet.prefs import Prefs
+
 __ERR_API_KEY_NOT_GIVEN__ = 1
 __ERR_INVALID_API_KEY__ = 2
 __ERR_CONNECTING_TO_PB__ = 3
@@ -50,6 +54,7 @@ __ERR_KEYBOARD_INTERRUPT__ = 7
 __ERR_UNKNOWN__ = 99
 
 
+
 # logging.basicConfig(logging.ERROR)
 
 # sys.argv.append("--help")
@@ -57,6 +62,7 @@ __ERR_UNKNOWN__ = 99
 # sys.argv += ["--key", "badkey"]
 # sys.argv += ["--key-file", "../api_key.txt"]
 
+# sys.argv.append("--oauth2")
 # sys.argv.append("--list-devices")
 # sys.argv += ["-t", "test to device", "--device", "baddevice"]
 # sys.argv += ["-t", "my title", "-b", "my body"]
@@ -100,7 +106,8 @@ def do_main(args):
 
 async def _run(args):
     # Key
-    api_key = ""
+    api_key = oauth2.get_oauth2_key()  # Try this first
+
     if "PUSHBULLET_API_KEY" in os.environ:
         api_key = os.environ["PUSHBULLET_API_KEY"].strip()
         if not args.quiet:
@@ -128,6 +135,18 @@ async def _run(args):
 
     try:
         async with AsyncPushbullet(api_key, proxy=proxy) as pb:
+
+            # Request setting up oauth2 access?
+            if args.oauth2:
+                token = await oauth2.async_gain_oauth2_access()
+                if token:
+                    print("Successfully authenticated using OAuth2.")
+                    print("You should now be able to use the command line tools without specifying an API key.")
+                    sys.exit(0)
+                else:
+                    print("There was an unknown problem authenticating.")
+                    sys.exit(1)
+
 
             # List devices?
             if args.list_devices:
@@ -252,6 +271,7 @@ def parse_args_pbpush():
     parser.add_argument("--transfer.sh", dest="transfer_sh", action="store_true",
                         help="Use www.transfer.sh website for uploading files (use with --file)")
     parser.add_argument("-q", "--quiet", action="store_true", help="Suppress all output")
+    parser.add_argument("--oauth2", action="store_true", help="Register your command line tool using OAuth2")
 
     args = parser.parse_args()
 

@@ -98,7 +98,7 @@ class Pushbullet:
         """ Creates the http session upon first use. """
         session = self._session
         if session is None:
-            self.log.info("Creating requests-based, synchronous session.")
+            self.log.debug("Creating requests-based, synchronous session.")
             if self.__class__.__name__ == "AsyncPushbullet":
                 self.log.debug(
                     "A requests-based, synchronous session is being created from AsyncPushbullet--" +
