@@ -278,7 +278,7 @@ class Pushbullet:
         data = dict()
 
         if device:
-            data["device_iden"] = device.device_iden
+            data["device_iden"] = device.iden
             if device.push_token:
                 data["push_token"] = device.push_token
         elif chat:
@@ -286,7 +286,7 @@ class Pushbullet:
         elif email:
             data["email"] = email
         elif channel:
-            data["channel_tag"] = channel.channel_tag
+            data["channel_tag"] = channel.tag
 
         return data
 
@@ -361,7 +361,7 @@ class Pushbullet:
             if nickname:
                 return next((x for x in self._devices if x.nickname == nickname), None)
             elif iden:
-                return next((x for x in self._devices if x.device_iden == iden), None)
+                return next((x for x in self._devices if x.iden == iden), None)
 
         x = _get()
         if x is None:
@@ -416,7 +416,7 @@ class Pushbullet:
                                           manufacturer=manufacturer, icon=icon, has_sms=has_sms)
         xfer = next(gen)  # Prep http params
         data = xfer.get('data', {})
-        xfer["msg"] = self._post_data("{}/{}".format(self.DEVICES_URL, device.device_iden), data=json.dumps(data))
+        xfer["msg"] = self._post_data("{}/{}".format(self.DEVICES_URL, device.iden), data=json.dumps(data))
         return next(gen)  # Post process response
 
     def _edit_device_generator(self, device: Device, nickname: str = None,
@@ -437,7 +437,7 @@ class Pushbullet:
         yield new_device
 
     def remove_device(self, device: Device):
-        msg = self._delete_data("{}/{}".format(self.DEVICES_URL, device.device_iden))
+        msg = self._delete_data("{}/{}".format(self.DEVICES_URL, device.iden))
         return msg
 
     # ################
@@ -611,7 +611,7 @@ class Pushbullet:
         _ = self.get_channels()  # If no cached copy, create one
 
         def _get():
-            return next((x for x in self._channels if x.channel_tag == channel_tag), None)
+            return next((x for x in self._channels if x.tag == channel_tag), None)
 
         x = _get()
         if x is None:
@@ -698,7 +698,7 @@ class Pushbullet:
 
         def _get():
             return next((x for x in self._subscriptions
-                         if x.channel and x.channel.channel_tag == channel_tag), None)
+                         if x.channel and x.channel.tag == channel_tag), None)
 
         x = _get()
         if x is None:
@@ -842,7 +842,7 @@ class Pushbullet:
                 "type": "messaging_extension_reply",
                 "package_name": "com.pushbullet.android",
                 "source_user_iden": user_info['iden'],
-                "target_device_iden": device.device_iden,
+                "target_device_iden": device.iden,
                 "conversation_iden": number,
                 "message": message
             }

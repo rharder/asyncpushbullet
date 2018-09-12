@@ -24,10 +24,14 @@ def main():
 
     async def _run():
 
-        devices = await pb.async_get_devices()
-        for d in devices:
-            print(d)
-        # print(devices)
+        xx = await pb.async_get_subscriptions()
+        for x in xx:
+            # pprint.pprint(x)
+            print((x))
+
+        # devices = await pb.async_get_devices()
+        # for d in devices:
+        #     print(d.nickname)
 
         # Name of a device?
         # if devices:

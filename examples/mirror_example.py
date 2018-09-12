@@ -33,13 +33,14 @@ class Mirrorer:
 
         self.device = None
         if device_iden:
-            results = [d for d in self.pb.devices if d.device_iden == device_iden and d.active]
+            devices = self.pb.get_devices()
+            results = [d for d in devices if d.iden == device_iden and d.active]
             self.device = results[0] if results else None
 
         if not self.device:
             try:
                 device = self.pb.new_device(device_name)
-                print("Created new device:", device_name, "iden:", device.device_iden)
+                print("Created new device:", device_name, "iden:", device.iden)
                 self.device = device
             except:
                 print("Error: Unable to create device")
@@ -64,7 +65,7 @@ class Mirrorer:
             if not isinstance(push, dict):
                 # not a push object
                 continue
-            if ((push.get("target_device_iden", self.device.device_iden) == self.device.device_iden) and not (
+            if ((push.get("target_device_iden", self.device.iden) == self.device.iden) and not (
             push.get("dismissed", True))):
                 self.notify(push.get("title", ""), push.get("body", ""))
                 self.pb.dismiss_push(push.get("iden"))
@@ -89,7 +90,7 @@ class Mirrorer:
         config = {"temp_folder": self.temp_folder,
                   "auth_key": self._auth_key,
                   "device_name": self.device.nickname,
-                  "device_iden": self.device.device_iden}
+                  "device_iden": self.device.iden}
         with open(path, "w") as conf:
             json.dump(config, conf)
 

@@ -167,7 +167,7 @@ class WebsocketHandler(WebHandler):
         # https://docs.aiohttp.org/en/stable/faq.html#how-do-i-programmatically-close-a-websocket-server-side
         ws_closers = [ws.close() for ws in set(self.websockets) if not ws.closed]
         ws_closers and await asyncio.gather(*ws_closers)
-        print("close_websockets exiting")
+        # print("close_websockets exiting")
 
     async def on_incoming_http(self, route: str, request: web.BaseRequest):
         """Handles the incoming HTTP(S) request and converts it to a WebSocketResponse.

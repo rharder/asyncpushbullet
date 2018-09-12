@@ -3,6 +3,9 @@
 from __future__ import unicode_literals
 
 import sys
+from functools import update_wrapper
+
+import aiohttp
 
 
 def use_appropriate_encoding(fn):
@@ -32,3 +35,20 @@ def print_function_name(enclosing_class=None):
     except KeyError as ke:
         raise ke
         pass  # In case the function name is not found in the globals dictionary.
+
+class reify():
+    """
+    From https://github.com/Pylons/pyramid and their BSD-style license
+    """
+    def __init__(self, wrapped):
+        self.wrapped = wrapped
+        update_wrapper(self, wrapped)
+
+    def __get__(self, inst, objtype=None):
+        if inst is None:
+            return self
+        val = self.wrapped(inst)
+        setattr(inst, self.wrapped.__name__, val)
+        return val
+
+

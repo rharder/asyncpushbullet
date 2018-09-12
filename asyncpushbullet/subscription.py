@@ -5,23 +5,21 @@ from __future__ import unicode_literals
 import pprint
 
 from .channel import Channel
-from .helpers import use_appropriate_encoding
+from .helpers import use_appropriate_encoding, reify
 
 
 class Subscription:
-    SUBSCRIPTION_ATTRIBUTES = ("iden", "active", "created", "modified", "muted", "channel")
+    SUBSCRIPTION_ATTRIBUTES = ("iden", "active", "created", "modified", "muted")
 
     def __init__(self, account, subscription_info):
         self._account = account
         self.subscription_info = subscription_info
-        self.iden = subscription_info.get("iden")
+        self.channel = Channel(account, subscription_info.get("channel"))  # type: Channel
 
         # Transfer attributes
         for attr in self.SUBSCRIPTION_ATTRIBUTES:
             setattr(self, attr, subscription_info.get(attr))
 
-        # Special transfer of enclosed channel
-        self.channel = Channel(account, subscription_info.get("channel"))
 
     @use_appropriate_encoding
     def __str__(self):
@@ -31,7 +29,26 @@ class Subscription:
     def __repr__(self):
         attr_map = {k: self.__getattribute__(k) for k in self.SUBSCRIPTION_ATTRIBUTES}
         attr_str = pprint.pformat(attr_map)
-        # _str = "Subscription to ({})".format(repr(self.channel))
         _str = "Subscription({}".format(repr(self.channel))
         _str += ",\n{}".format(attr_str)
         return _str
+
+    @reify
+    def iden(self):
+        return getattr(self, "iden")
+
+    @reify
+    def active(self):
+        return getattr(self, "active")
+
+    @reify
+    def created(self):
+        return getattr(self, "created")
+
+    @reify
+    def modified(self):
+        return getattr(self, "modified")
+
+    @reify
+    def muted(self):
+        return getattr(self, "muted")

@@ -10,8 +10,8 @@ from asyncpushbullet import device
 class TestDevices:
 
     def setup_class(cls):
-        cls.device_iden = "test_iden"
-        device_info = {"active": True, "iden": cls.device_iden, "created": time.time(), "modified": time.time(),
+        cls.iden = "test_iden"
+        device_info = {"active": True, "iden": cls.iden, "created": time.time(), "modified": time.time(),
                        "icon": "system", "generated_nickname": False, "nickname": "test dev", "manufacturer": "test c",
                        "model": "test m", "has_sms": False}
         cls.account = mock.Mock(return_value=True)
@@ -29,21 +29,21 @@ class TestDevices:
         title = "test title"
         body = "test body"
         self.device.push_note(title, body)
-        pushed_data = {"type": "note", "title": title, "body": body, "device_iden": self.device_iden}
+        pushed_data = {"type": "note", "title": title, "body": body, "device_iden": self.iden}
         self.account._push.assert_called_with(pushed_data)
 
     # def test_push_address(self):
     #     name = "test name"
     #     address = "test address"
     #     self.device.push_address(name, address)
-    #     pushed_data = {"type": "note", "title": name, "body": address, "device_iden": self.device_iden}
+    #     pushed_data = {"type": "note", "title": name, "body": address, "device_iden": self.iden}
     #     self.account._push.assert_called_with(pushed_data)
 
     # def test_push_list(self):
     #     title = "test title"
     #     items = ["test item 1", "test item 2"]
     #     self.device.push_list(title, items)
-    #     pushed_data = {"type": "note", "title": title, "body": ",".join(items), "device_iden": self.device_iden}
+    #     pushed_data = {"type": "note", "title": title, "body": ",".join(items), "device_iden": self.iden}
     #     self.account._push.assert_called_with(pushed_data)
 
     def test_push_link(self):
@@ -51,7 +51,7 @@ class TestDevices:
         url = "http://test.url"
         body = "test body"
         self.device.push_link(title, url, body)
-        pushed_data = {"type": "link", "title": title, "url": url, "body": body, "device_iden": self.device_iden}
+        pushed_data = {"type": "link", "title": title, "url": url, "body": body, "device_iden": self.iden}
         self.account._push.assert_called_with(pushed_data)
 
     def test_push_file(self):
@@ -67,5 +67,5 @@ class TestDevices:
     def test_push(self):
         data = {"title": "test title"}
         self.device._push(data)
-        pushed_data = {"title": "test title", "device_iden": self.device_iden}
+        pushed_data = {"title": "test title", "device_iden": self.iden}
         self.account._push.assert_called_with(pushed_data)

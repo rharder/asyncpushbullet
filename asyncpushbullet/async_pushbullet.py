@@ -460,7 +460,7 @@ class AsyncPushbullet(Pushbullet):
             if nickname:
                 return next((z for z in self._devices if getattr(z, "nickname") == nickname), None)
             elif iden:
-                return next((y for y in self._devices if y.device_iden == iden), None)
+                return next((y for y in self._devices if y.iden == iden), None)
 
         x = _get()
         if x is None:
@@ -485,11 +485,11 @@ class AsyncPushbullet(Pushbullet):
                                           manufacturer=manufacturer, icon=icon, has_sms=has_sms)
         xfer = next(gen)
         data = xfer["data"]
-        xfer["msg"] = await self._async_post_data("{}/{}".format(self.DEVICES_URL, device.device_iden), data=data)
+        xfer["msg"] = await self._async_post_data("{}/{}".format(self.DEVICES_URL, device.iden), data=data)
         return next(gen)
 
     async def async_remove_device(self, device: Device) -> dict:
-        data = await self._async_delete_data("{}/{}".format(self.DEVICES_URL, device.device_iden))
+        data = await self._async_delete_data("{}/{}".format(self.DEVICES_URL, device.iden))
         return data
 
     # ################
@@ -641,7 +641,7 @@ class AsyncPushbullet(Pushbullet):
         _ = await self.async_get_channels()  # If no cached copy, create one
 
         def _get():
-            return next((z for z in self._channels if z.channel_tag == channel_tag), None)
+            return next((z for z in self._channels if z.tag == channel_tag), None)
 
         x = _get()
         if x is None:
@@ -728,7 +728,7 @@ class AsyncPushbullet(Pushbullet):
 
         def _get():
             return next((z for z in self._subscriptions
-                         if z.channel and z.channel.channel_tag == channel_tag), None)
+                         if z.channel and z.channel.tag == channel_tag), None)
 
         x = _get()
         if x is None:
