@@ -32,7 +32,7 @@ class WebServer:
 
     """
 
-    def __init__(self, host: str = None, port: int = None):
+    def __init__(self, host: str = None, port: int = None, ssl_context=None):
         """
         Create a new WebServer that will listen on the given port.
 
@@ -44,6 +44,7 @@ class WebServer:
         # Passed parameters
         self.host = host
         self.port = port
+        self.ssl_context = ssl_context
 
         # Internal use
         self.app = None  # type: web.Application
@@ -93,7 +94,7 @@ class WebServer:
 
         self.runner = web.AppRunner(self.app)
         await self.runner.setup()
-        self.site = web.TCPSite(self.runner, port=self.port, host=self.host)
+        self.site = web.TCPSite(self.runner, port=self.port, host=self.host, ssl_context=self.ssl_context)
         await self.site.start()
 
         self._running = True
