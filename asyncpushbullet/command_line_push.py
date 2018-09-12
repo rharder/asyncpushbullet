@@ -121,7 +121,7 @@ async def _run(args):
             sys.exit(1)
 
     # Find a valid API key
-    api_key = try_to_find_key(args)
+    api_key = try_to_find_key(args, not args.quiet)
     if api_key is None:
         print("You must specify an API key.", file=sys.stderr)
         sys.exit(errors.__ERR_API_KEY_NOT_GIVEN__)
@@ -184,13 +184,16 @@ async def _run(args):
                 url = args.url
                 if url is None:
                     if not args.quiet:
-                        print("Pushing note...")
+                        print("Pushing note...", end="", flush=True)
                     _ = await pb.async_push_note(title=args.title, body=body, device=target_device)
-                    print(_)
+                    if not args.quiet:
+                        print("Done.", flush=True)
                 else:
                     if not args.quiet:
                         print("Pushing link...")
                     _ = await pb.async_push_link(title=args.title, url=url, body=body, device=target_device)
+                    if not args.quiet:
+                        print("Done.", flush=True)
 
         else:
             print("Nothing to do.")

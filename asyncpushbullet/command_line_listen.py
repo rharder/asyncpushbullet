@@ -134,7 +134,7 @@ async def _run(args):
             sys.exit(1)
 
     # Find a valid API key
-    api_key = try_to_find_key(args)
+    api_key = try_to_find_key(args, not args.quiet)
     if api_key is None:
         print("You must specify an API key.", file=sys.stderr)
         sys.exit(errors.__ERR_API_KEY_NOT_GIVEN__)
@@ -224,23 +224,27 @@ async def _run(args):
         # END OF PROGRAM
 
 
-def try_to_find_key(args):
+def try_to_find_key(args, verbose: bool = False):
     api_key = oauth2.get_oauth2_key()  # Try this first
     if api_key:
-        print("Found saved oauth2 key.")
+        if verbose:
+            print("Found saved oauth2 key.")
 
     if not api_key and "PUSHBULLET_API_KEY" in os.environ:
         api_key = os.environ["PUSHBULLET_API_KEY"].strip()
-        print("Found key in PUSHBULLET_API_KEY environment variable.")
+        if verbose:
+            print("Found key in PUSHBULLET_API_KEY environment variable.")
 
     if args.key:
         api_key = args.key.strip()
-        print("Found key given on command line.")
+        if verbose:
+            print("Found key given on command line.")
 
     if args.key_file:
         with open(args.key_file) as f:
             api_key = f.read().strip()
-        print("Found key in key file", args.key_file)
+        if verbose:
+            print("Found key in key file", args.key_file)
 
     return api_key
 
