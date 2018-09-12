@@ -5,7 +5,7 @@ Easy to use Websocket Server.
 Source: https://github.com/rharder/handy
 
 June 2018 - Updated for aiohttp v3.3
-August 2018 - Updated for Python 3.7, made WsServer support multiple routes on one port
+August 2018 - Updated for Python 3.7, made WebServer support multiple routes on one port
 """
 import asyncio
 import weakref
