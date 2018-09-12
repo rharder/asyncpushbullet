@@ -23,26 +23,21 @@ def main():
     pb = AsyncPushbullet(API_KEY, proxy=proxy)
 
     async def _run():
-
-        xx = await pb.async_get_subscriptions()
-        for x in xx:
-            # pprint.pprint(x)
-            print((x))
-
-        # devices = await pb.async_get_devices()
-        # for d in devices:
-        #     print(d.nickname)
+        devices = await pb.async_get_devices()
+        print("Devices:")
+        for d in devices:
+            print("\t", d.nickname)
 
         # Name of a device?
-        # if devices:
-        #     name = devices[0].nickname
-        #     this_device = await pb.async_get_device(nickname=name)
-        #     print("Retrieved device by it's name {}: {}".format(name, this_device))
-        #
-        # # Do we have a device named foobar?  Returns None if not found.
-        # name = "foobar"
-        # this_device = await pb.async_get_device(nickname=name)
-        # print("Retrieved device by it's name {}: {}".format(name, this_device))
+        if devices:
+            name = devices[0].nickname
+            this_device = await pb.async_get_device(nickname=name)
+            print("Retrieved device by it's name '{}': {}".format(name, this_device))
+
+        # Do we have a device named foobar?  Returns None if not found.
+        name = "foobar"
+        this_device = await pb.async_get_device(nickname=name)
+        print("Retrieved device by it's name '{}': {}".format(name, this_device))
 
         await pb.async_close()
 
