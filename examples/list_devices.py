@@ -19,6 +19,7 @@ def main():
     pb = AsyncPushbullet(API_KEY, proxy=proxy)
 
     async def _run():
+
         devices = await pb.async_get_devices()
         print(devices)
 

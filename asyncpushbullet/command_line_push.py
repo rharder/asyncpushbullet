@@ -8,7 +8,7 @@ This file contains entry points for both pbpush and pbtransfer.
 usage: command_line_push.py [-h] [-k KEY] [--key-file KEY_FILE]
                             [--proxy PROXY] [-t TITLE] [-b BODY] [-d DEVICE]
                             [--list-devices] [-u URL] [-f FILE]
-                            [--transfer.sh] [-q]
+                            [--transfer.sh] [-q] [--oauth2] [--debug] [-v]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -26,6 +26,10 @@ optional arguments:
   --transfer.sh         Use www.transfer.sh website for uploading files (use
                         with --file)
   -q, --quiet           Suppress all output
+  --oauth2              Register your command line tool using OAuth2
+  --debug               Turn on debug logging
+  -v, --verbose         Turn on verbose logging (INFO messages)
+
 
 """
 import argparse
@@ -33,41 +37,39 @@ import asyncio
 import logging
 import os
 import sys
-from typing import List
 
-# from .async_pushbullet import AsyncPushbullet
-from asyncpushbullet import AsyncPushbullet, oauth2
+from asyncpushbullet import AsyncPushbullet
 from asyncpushbullet import Device
 from asyncpushbullet import InvalidKeyError, PushbulletError
+from asyncpushbullet import errors
+from asyncpushbullet import oauth2
 from asyncpushbullet.command_line_listen import try_to_find_key
-from asyncpushbullet.errors import __ERR_KEYBOARD_INTERRUPT__, __ERR_UNKNOWN__, __ERR_API_KEY_NOT_GIVEN__, \
-    __ERR_INVALID_API_KEY__, __ERR_CONNECTING_TO_PB__, __ERR_NOTHING_TO_DO__, __ERR_DEVICE_NOT_FOUND__, \
-    __EXIT_NO_ERROR__, __ERR_FILE_NOT_FOUND__
+
 
 # logging.basicConfig(logging.ERROR)
 
-# sys.argv.append("--help")
-# sys.argv.append("--quiet")
-# sys.argv += ["--key", "badkey"]
-# sys.argv += ["--key-file", "../api_key.txt"]
-
-# sys.argv.append("--oauth2")
-# sys.argv.append("--list-devices")
-# sys.argv += ["-t", "test to device", "--device", "baddevice"]
-# sys.argv += ["-d", "DoorSign"]
-# sys.argv += ["-t", "my title", "-b", "my body"]
-# sys.argv += ["-t", "Read stdin", "-b", "-"]
-
-# sys.argv += [ "--file", __file__]
-# sys.argv += [__file__]
-
-
-# sys.argv += ["--file", "badfile.txt"]
-# sys.argv.append("--transfer.sh")
-
-# sys.argv += ["-t", "foo"]
 
 def main():
+    # sys.argv.append("--help")
+    # sys.argv.append("--quiet")
+    # sys.argv += ["--key", "badkey"]
+    # sys.argv += ["--key-file", "../api_key.txt"]
+
+    # sys.argv.append("--oauth2")
+    # sys.argv.append("--list-devices")
+    # sys.argv += ["-t", "test to device", "--device", "baddevice"]
+    # sys.argv += ["-d", "Kanga"]
+    # sys.argv += ["-t", "my title", "-b", "my body"]
+    # sys.argv += ["-t", "Read stdin", "-b", "-"]
+
+    # sys.argv += [ "--file", __file__]
+    # sys.argv += [__file__]
+
+    # sys.argv += ["--file", "badfile.txt"]
+    # sys.argv.append("--transfer.sh")
+
+    # sys.argv += ["-t", "foo"]
+
     main_pbpush()  # Default
     # main_pbtransfer()
 
@@ -90,16 +92,15 @@ def do_main(args):
     try:
         exit_code = loop.run_until_complete(_run(args))
     except KeyboardInterrupt:
-        exit_code = __ERR_KEYBOARD_INTERRUPT__
+        exit_code = errors.__ERR_KEYBOARD_INTERRUPT__
     except Exception as ex:
         print("Error:", ex, file=sys.stderr)
-        exit_code = __ERR_UNKNOWN__
+        exit_code = errors.__ERR_UNKNOWN__
     finally:
         return exit_code or 0
 
 
 async def _run(args):
-
     # Logging levels
     if args.debug:  # Debug?
         print("Log level: DEBUG")
@@ -123,7 +124,7 @@ async def _run(args):
     api_key = try_to_find_key(args)
     if api_key is None:
         print("You must specify an API key.", file=sys.stderr)
-        sys.exit(__ERR_API_KEY_NOT_GIVEN__)
+        sys.exit(errors.__ERR_API_KEY_NOT_GIVEN__)
 
     # Proxy
     proxy = args.proxy or os.environ.get("https_proxy") or os.environ.get("http_proxy")
@@ -135,7 +136,7 @@ async def _run(args):
             async with AsyncPushbullet(api_key, proxy=proxy) as pb:
                 async for dev in pb.devices_asynciter():
                     print("\t", dev.nickname)
-            return __EXIT_NO_ERROR__
+            return errors.__EXIT_NO_ERROR__
 
         # Specify a device?
         target_device = None  # type: Device
@@ -145,7 +146,7 @@ async def _run(args):
 
             if target_device is None:
                 print("Device not found:", args.device, file=sys.stderr)
-                return __ERR_DEVICE_NOT_FOUND__
+                return errors.__ERR_DEVICE_NOT_FOUND__
             else:
                 print("Target device:", target_device.nickname)
 
@@ -193,15 +194,15 @@ async def _run(args):
 
         else:
             print("Nothing to do.")
-            return __ERR_NOTHING_TO_DO__
+            return errors.__ERR_NOTHING_TO_DO__
 
     except InvalidKeyError as exc:
         print(exc, file=sys.stderr)
-        return __ERR_INVALID_API_KEY__
+        return errors.__ERR_INVALID_API_KEY__
 
     except PushbulletError as exc:
         print(exc, file=sys.stderr)
-        return __ERR_CONNECTING_TO_PB__
+        return errors.__ERR_CONNECTING_TO_PB__
 
 
 # Transfer file sub-function
@@ -214,7 +215,7 @@ async def _transfer_file(pb: AsyncPushbullet,
                          target_device: Device = None):
     if not os.path.isfile(file_path):
         print("File not found:", file_path, file=sys.stderr)
-        return __ERR_FILE_NOT_FOUND__
+        return errors.__ERR_FILE_NOT_FOUND__
 
     info = {}
     show_progress = not quiet
@@ -267,7 +268,7 @@ def parse_args_pbpush():
 
     if len(sys.argv) == 1:
         parser.print_help()
-        sys.exit(__ERR_NOTHING_TO_DO__)
+        sys.exit(errors.__ERR_NOTHING_TO_DO__)
 
     return args
 
@@ -290,7 +291,7 @@ def parse_args_pbtransfer():
 
     if len(sys.argv) == 1:
         parser.print_help()
-        sys.exit(__ERR_NOTHING_TO_DO__)
+        sys.exit(errors.__ERR_NOTHING_TO_DO__)
 
     # Emulate the arguments used in the regular push function
     setattr(args, "transfer_sh", True)

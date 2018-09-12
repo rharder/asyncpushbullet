@@ -3,11 +3,13 @@
 """
 A command line script for listening for pushes.
 
-usage: command_line_listen.py [-h] [-k KEY] [--key-file KEY_FILE] [-e] [-x EXEC [EXEC ...]]
-                 [-s EXEC_SIMPLE [EXEC_SIMPLE ...]]
-                 [--throttle-count THROTTLE_COUNT]
-                 [--throttle-seconds THROTTLE_SECONDS] [-d DEVICE]
-                 [--list-devices] [--debug] [-v]
+usage: command_line_listen.py [-h] [-k KEY] [--key-file KEY_FILE] [-e]
+                              [-x EXEC [EXEC ...]]
+                              [-s EXEC_SIMPLE [EXEC_SIMPLE ...]]
+                              [--throttle-count THROTTLE_COUNT]
+                              [--throttle-seconds THROTTLE_SECONDS]
+                              [-d DEVICE] [--list-devices] [--proxy PROXY]
+                              [--debug] [-v] [--oauth2]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -17,11 +19,11 @@ optional arguments:
   -x EXEC [EXEC ...], --exec EXEC [EXEC ...]
                         ACTION: Execute a script to receive push as json via
                         stdin. Your script can write json to stdout to send
-                        pushes back. { "pushes" : [ { "title" = "Fish Food
-                        Served", "body" = "Your automated fish feeding gadget
-                        has fed your fish. " } ] } Or simpler form for a
-                        single push: { "title" = "title here", "body" = "body
-                        here"}
+                        pushes back. [ { "title" : "Fish Food Served", "body"
+                        : "Your automated fish feeding gadget has fed your
+                        fish. " }, { "title" : "Second push", "body" : "Second
+                        body" } ] Or simpler form for a single push: { "title"
+                        : "title here", "body" : "body here"}
   -s EXEC_SIMPLE [EXEC_SIMPLE ...], --exec-simple EXEC_SIMPLE [EXEC_SIMPLE ...]
                         ACTION: Execute a script to receive push in simplified
                         form via stdin. The first line of stdin will be the
@@ -38,10 +40,11 @@ optional arguments:
   -d DEVICE, --device DEVICE
                         Only listen for pushes targeted at given device name
   --list-devices        List registered device names
-  --proxy p             Specify a proxy; otherwise use value of https_proxy or
-                        http_proxy environment variables
+  --proxy PROXY         Optional web proxy
   --debug               Turn on debug logging
   -v, --verbose         Turn on verbose logging (INFO messages)
+  --oauth2              Register your command line tool using OAuth2
+
 
 """
 import argparse
@@ -58,13 +61,11 @@ from functools import partial
 from typing import List
 
 from asyncpushbullet import AsyncPushbullet
-# sys.path.append("..")
-from asyncpushbullet import Device, oauth2
+from asyncpushbullet import Device
 from asyncpushbullet import InvalidKeyError, PushbulletError
 from asyncpushbullet import LiveStreamListener
-from asyncpushbullet.errors import __ERR_KEYBOARD_INTERRUPT__, __ERR_UNKNOWN__, __ERR_API_KEY_NOT_GIVEN__, \
-    __ERR_INVALID_API_KEY__, __ERR_CONNECTING_TO_PB__, __ERR_NOTHING_TO_DO__
-from asyncpushbullet.oauth2 import gain_oauth2_access
+from asyncpushbullet import errors
+from asyncpushbullet import oauth2
 
 __author__ = "Robert Harder"
 __email__ = "rob@iHarder.net"
@@ -72,28 +73,28 @@ __email__ = "rob@iHarder.net"
 DEFAULT_THROTTLE_COUNT = 10
 DEFAULT_THROTTLE_SECONDS = 10
 ENCODING = "utf-8"
-
 LOG = logging.getLogger(__name__)
 
-# sys.argv.append("--oauth2")
-# sys.argv.append("-h")
-# sys.argv.append("-v")
-# sys.argv.append("--debug")
-# sys.argv += ["-k", "badkey"]
-# sys.argv += ["--key-file", "../api_key.txt"]
-# sys.argv += ["--device", "Kanga"]
-# sys.argv.append("--echo")
-# sys.argv += ["--proxy", ""]
-# sys.argv.append("--list-devices")
-
-# sys.argv += ["--exec-simple", r"C:\windows\System32\clip.exe"]
-# sys.argv += ["--exec", r"C:\windows\System32\notepad.exe"]
-# sys.argv += ["--exec", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_imagesnap.py"]
-# sys.argv += ["--exec-simple", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_exec_simple.py"]
-
-# oauth2.PREFS.set(oauth2.OAUTH2_TOKEN_KEY, None)
 
 def main():
+    # sys.argv.append("--oauth2")
+    # sys.argv.append("-h")
+    # sys.argv.append("-v")
+    # sys.argv.append("--debug")
+    # sys.argv += ["-k", "badkey"]
+    # sys.argv += ["--key-file", "../api_key.txt"]
+    # sys.argv += ["--device", "Kanga"]
+    # sys.argv.append("--echo")
+    # sys.argv += ["--proxy", ""]
+    # sys.argv.append("--list-devices")
+
+    # sys.argv += ["--exec-simple", r"C:\windows\System32\clip.exe"]
+    # sys.argv += ["--exec", r"C:\windows\System32\notepad.exe"]
+    # sys.argv += ["--exec", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_imagesnap.py"]
+    # sys.argv += ["--exec-simple", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_exec_simple.py"]
+
+    # oauth2.PREFS.set(oauth2.OAUTH2_TOKEN_KEY, None)
+
     args = parse_args()
     do_main(args)
 
@@ -104,16 +105,15 @@ def do_main(args):
     try:
         exit_code = loop.run_until_complete(_run(args))
     except KeyboardInterrupt:
-        exit_code = __ERR_KEYBOARD_INTERRUPT__
+        exit_code = errors.__ERR_KEYBOARD_INTERRUPT__
     except Exception as ex:
         print("Error:", ex, file=sys.stderr)
-        exit_code = __ERR_UNKNOWN__
+        exit_code = errors.__ERR_UNKNOWN__
     finally:
-        return exit_code or 0
+        return exit_code or errors.__EXIT_NO_ERROR__
 
 
 async def _run(args):
-
     # Logging levels
     if args.debug:  # Debug?
         print("Log level: DEBUG")
@@ -137,7 +137,7 @@ async def _run(args):
     api_key = try_to_find_key(args)
     if api_key is None:
         print("You must specify an API key.", file=sys.stderr)
-        sys.exit(__ERR_API_KEY_NOT_GIVEN__)
+        sys.exit(errors.__ERR_API_KEY_NOT_GIVEN__)
 
     # Proxy
     proxy = args.proxy or os.environ.get("https_proxy") or os.environ.get("http_proxy")
@@ -152,10 +152,10 @@ async def _run(args):
 
         except InvalidKeyError as exc:
             print(exc, file=sys.stderr)
-            sys.exit(__ERR_INVALID_API_KEY__)
+            sys.exit(errors.__ERR_INVALID_API_KEY__)
         except PushbulletError as exc:
             print(exc, file=sys.stderr)
-            sys.exit(__ERR_CONNECTING_TO_PB__)
+            sys.exit(errors.__ERR_CONNECTING_TO_PB__)
         else:
             sys.exit(0)
 
@@ -225,12 +225,11 @@ async def _run(args):
 
 
 def try_to_find_key(args):
-    # Key
     api_key = oauth2.get_oauth2_key()  # Try this first
     if api_key:
         print("Found saved oauth2 key.")
 
-    if "PUSHBULLET_API_KEY" in os.environ:
+    if not api_key and "PUSHBULLET_API_KEY" in os.environ:
         api_key = os.environ["PUSHBULLET_API_KEY"].strip()
         print("Found key in PUSHBULLET_API_KEY environment variable.")
 
@@ -302,7 +301,7 @@ def parse_args():
 
     if len(sys.argv) == 1:
         parser.print_help()
-        sys.exit(__ERR_NOTHING_TO_DO__)
+        sys.exit(errors.__ERR_NOTHING_TO_DO__)
 
     return args
 
@@ -666,13 +665,13 @@ class ListenApp:
                                     ex.with_traceback()
 
             except InvalidKeyError as ex:
-                exit_code = __ERR_INVALID_API_KEY__
+                exit_code = errors.__ERR_INVALID_API_KEY__
                 print(ex, file=sys.stderr, flush=True)
                 self.persistent_connection = False  # Invalid key results in immediate exit
 
             except Exception as ex:
                 print(ex, file=sys.stderr, flush=True)
-                exit_code = __ERR_UNKNOWN__  # exit code
+                exit_code = errors.__ERR_UNKNOWN__  # exit code
 
             else:
                 print("Connection closed.")

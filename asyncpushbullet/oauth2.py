@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import asyncio
 import sys
 import webbrowser
@@ -10,22 +12,23 @@ from asyncpushbullet import PushbulletError
 from asyncpushbullet.prefs import Prefs
 from asyncpushbullet.websocket_server import WebServer, WebsocketHandler, WebHandler
 
-ASYNCPUSHBULLET_OAUTH2_CLIENT_ID = "wS8zyC2gTU1WiROYlll60vAkpq7DTwjU"  # This project is registered on Pushbullet
-OAUTH2_URL_TEMPLATE = "https://www.pushbullet.com/authorize?client_id={client_id}&redirect_uri=http%3A%2F%2Flocalhost%3A{port}%2Fpb_oauth2&response_type=token&scope=everything"
 OAUTH2_TOKEN_KEY = "oauth2_token"
-OAUTH2_REDIRECT_PORT = 31772  # Thank you, random.org
-PREFS = Prefs("asyncpushbullet", "net.iharder.asyncpushbullet")
+
+__ASYNCPUSHBULLET_OAUTH2_CLIENT_ID__ = "wS8zyC2gTU1WiROYlll60vAkpq7DTwjU"  # This project is registered on Pushbullet
+__OAUTH2_URL_TEMPLATE__ = "https://www.pushbullet.com/authorize?client_id={client_id}&redirect_uri=http%3A%2F%2Flocalhost%3A{port}%2Fpb_oauth2&response_type=token&scope=everything"
+__OAUTH2_REDIRECT_PORT__ = 31772  # Thank you, random.org
+__PREFS_FOR_OAUTH2__ = Prefs("asyncpushbullet", "net.iharder.asyncpushbullet")
 
 
 def get_oauth2_key():
-    token = PREFS.get(OAUTH2_TOKEN_KEY)
+    token = __PREFS_FOR_OAUTH2__.get(OAUTH2_TOKEN_KEY)
     return token
 
 
 async def async_gain_oauth2_access():
-    PREFS.set(OAUTH2_TOKEN_KEY, None)
-    port = OAUTH2_REDIRECT_PORT
-    oauth2_url = OAUTH2_URL_TEMPLATE.format(client_id=ASYNCPUSHBULLET_OAUTH2_CLIENT_ID, port=port)
+    __PREFS_FOR_OAUTH2__.set(OAUTH2_TOKEN_KEY, None)
+    port = __OAUTH2_REDIRECT_PORT__
+    oauth2_url = __OAUTH2_URL_TEMPLATE__.format(client_id=__ASYNCPUSHBULLET_OAUTH2_CLIENT_ID__, port=port)
 
     server = WebServer(port=port)
     token = None
@@ -50,7 +53,7 @@ async def async_gain_oauth2_access():
             raise resp
         else:
             token = resp  # type: str
-            PREFS.set(OAUTH2_TOKEN_KEY, token)
+            __PREFS_FOR_OAUTH2__.set(OAUTH2_TOKEN_KEY, token)
             print("Oauth2 token successfully retrieved.")
             await ws.send_json({"success": True})
             return token
@@ -68,52 +71,7 @@ async def async_gain_oauth2_access():
         return token
 
 
-
 def gain_oauth2_access():
-    # PREFS.set(OAUTH2_TOKEN_KEY, None)
-    # port = OAUTH2_REDIRECT_PORT
-    # oauth2_url = OAUTH2_URL_TEMPLATE.format(client_id=ASYNCPUSHBULLET_OAUTH2_CLIENT_ID, port=port)
-
-    # async def _run():
-    #     server = WebServer(port=port)
-    #     token = None
-    #     try:
-    #         queue = asyncio.Queue()
-    #         oauth_handler = OauthResponseHandler(port=port)
-    #         token_handler = RegisterTokenWebsocketHandler(queue)
-    #         server.add_route("/pb_oauth2", oauth_handler)
-    #         server.add_route("/register_token", token_handler)
-    #         await server.start()
-    #
-    #         # Open a web page for the user to authorize the app
-    #         print("Experimental: Waiting for user to authenticate through their web browser...")
-    #         webbrowser.open(oauth2_url)
-    #
-    #         # Wait for token
-    #         token = await asyncio.wait_for(queue.get(), 120)
-    #         ws = await queue.get()  # type: web.WebSocketResponse
-    #
-    #         if isinstance(token, PushbulletError):
-    #             await ws.send_json({"success": False})
-    #             raise token
-    #
-    #         PREFS.set(OAUTH2_TOKEN_KEY, token)
-    #         print("Oauth2 token successfully retrieved.")
-    #         await ws.send_json({"success": True})
-    #         return token
-    #
-    #     except futures.TimeoutError as te:
-    #         print("Timed out.  Did the user forget to authenticate?", file=sys.stderr)
-    #
-    #     except Exception as ex:
-    #         # print("Oauth2 token was not retrieved.", ex)
-    #         # print(ex, file=sys.stderr)
-    #         pass
-    #
-    #     finally:
-    #         await server.shutdown()
-    #         return token
-
     loop = asyncio.get_event_loop()
     token = loop.run_until_complete(async_gain_oauth2_access())
     return token
@@ -138,7 +96,7 @@ class OauthResponseHandler(WebHandler):
 var access_token = null;
 var connection = null;
 var WebSocket = WebSocket || MozWebSocket;
-var port = """ + str(OAUTH2_REDIRECT_PORT) + """;
+var port = """ + str(__OAUTH2_REDIRECT_PORT__) + """;
     
 function connect() {
     if (window.location.hash) {
