@@ -18,7 +18,7 @@ from tkinter import filedialog
 from tkinter_tools import BindableTextArea
 
 sys.path.append("..")  # Since examples are buried one level into source tree
-from asyncpushbullet import AsyncPushbullet, LiveStreamListener
+from asyncpushbullet import AsyncPushbullet, LiveStreamListener, oauth2
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
@@ -214,7 +214,8 @@ def main():
 
 
 if __name__ == '__main__':
-    if API_KEY == "":
+    API_KEY = oauth2.get_oauth2_key()
+    if not API_KEY:
         with open("../api_key.txt") as f:
             API_KEY = f.read().strip()
 

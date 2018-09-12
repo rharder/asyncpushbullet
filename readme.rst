@@ -68,13 +68,14 @@ The ``asyncpushbullet`` package has some scripts that can be run from the
 command line.  One is for sending pushes.  Two are for listening for and
 responding to pushes.
 
-There are three ways to authenticate your Pushbullet.com API key when using
+There are several ways to authenticate your Pushbullet.com API key when using
 the command line:
 
     1. Set the ``PUSHBULLET_API_KEY`` environment variable.
     2. Use the ``--key`` command line option and include the key as an argument.
     3. Use the ``--key-file`` command line option and point to a text file
        containing the API key.
+    4. Use the --oauth2 flag once to authenticate your command line tools using OAuth2.
 
 
 Pushing a Note from the Command Line
@@ -95,7 +96,7 @@ The flags available for the ``pbpush`` command line script: ::
 
     usage: pbpush [-h] [-k KEY] [--key-file KEY_FILE] [--proxy PROXY] [-t TITLE]
                   [-b BODY] [-d DEVICE] [--list-devices] [-u URL] [-f FILE]
-                  [--transfer.sh] [-q]
+                  [--transfer.sh] [-q] [--oauth2] [--debug] [-v]
 
     optional arguments:
       -h, --help            show this help message and exit
@@ -113,6 +114,10 @@ The flags available for the ``pbpush`` command line script: ::
       --transfer.sh         Use www.transfer.sh website for uploading files (use
                             with --file)
       -q, --quiet           Suppress all output
+      --oauth2              Register your command line tool using OAuth2
+      --debug               Turn on debug logging
+      -v, --verbose         Turn on verbose logging (INFO messages)
+
 
 There is also a variant of ``pbpush`` called ``pbtransfer`` that makes it even
 faster and easier to send off files using the http://transfer.sh service. ::

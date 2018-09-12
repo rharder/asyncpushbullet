@@ -30,13 +30,13 @@ def main():
 
             # Take a picture and upload
             # PRETEND TO TAKE A PICTURE
-            import shutil
-            fakepic = os.path.join(os.path.dirname(os.path.abspath(__file__)), "snapshot.jpg")
-            shutil.copy(fakepic, temp_img.name)
+            # import shutil
+            # fakepic = os.path.join(os.path.dirname(os.path.abspath(__file__)), "snapshot.jpg")
+            # shutil.copy(fakepic, temp_img.name)
 
             # Take a picture
-            # proc = subprocess.run(["imagesnap", temp_img.name],
-            proc = subprocess.run(["clip.exe"],  # Debugging
+            proc = subprocess.run(["imagesnap", temp_img.name],
+            # proc = subprocess.run(["clip.exe"],  # Debugging
                                   stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE,
                                   timeout=10,
@@ -44,8 +44,8 @@ def main():
 
             # Upload picture
             with AsyncPushbullet(API_KEY, proxy=PROXY) as pb:
-                resp = pb.upload_file(temp_img.name)  # Upload here
-                # resp = pb.upload_file_to_transfer_sh(temp_img.name)  # Upload here
+                # resp = pb.upload_file(temp_img.name)  # Upload here
+                resp = pb.upload_file_to_transfer_sh(temp_img.name)  # Upload here
             del pb
 
             file_type = resp.get("file_type")

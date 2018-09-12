@@ -46,8 +46,9 @@ install_reqs = [
     "requests",
     "python-magic",
     "aiohttp",
-    "tqdm"  # ,
-    # "pillow"
+    "tqdm",
+    "appdirs"
+    #, "pillow"
 ]
 
 

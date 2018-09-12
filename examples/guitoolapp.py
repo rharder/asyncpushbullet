@@ -24,14 +24,16 @@ except ImportError as ie:
 import tkinter_tools
 
 sys.path.append("..")  # Since examples are buried one level into source tree
-from asyncpushbullet import Device
+from asyncpushbullet import Device, oauth2
 from asyncpushbullet import AsyncPushbullet
 from asyncpushbullet import LiveStreamListener
+from asyncpushbullet.prefs import Prefs
 
 __author__ = 'Robert Harder'
 __email__ = "rob@iharder.net"
 
-API_KEY = ""  # YOUR API KEY
+PREFS = Prefs("asyncpushbullet.guitoolapp", "net.iharder.asyncpushbullet")
+API_KEY = PREFS.get("api_key")
 
 
 class GuiToolApp():
@@ -67,8 +69,8 @@ class GuiToolApp():
         self.create_widgets()
 
         # Connections / Bindings
+        tkinter_tools.bind_tk_var_to_method(partial(PREFS.set, "api_key"), self.key_var)
         self.key_var.set(API_KEY)
-        self.connect_button_clicked()
 
     @property
     def status(self):
@@ -126,11 +128,17 @@ class GuiToolApp():
         parent = self.window
 
         # API Key
-        lbl_key = tk.Label(parent, text="API Key:")
+        frm_key = tk.Frame(parent)
+        frm_key.grid(row=0, column=0, sticky="NSEW")
+        lbl_key = tk.Label(frm_key, text="API Key:")
         lbl_key.grid(row=0, column=0, sticky=tk.W)
-        txt_key = tk.Entry(parent, textvariable=self.key_var)
+        txt_key = tk.Entry(frm_key, textvariable=self.key_var)
         txt_key.grid(row=0, column=1, sticky=tk.W + tk.E, columnspan=2)
-        tk.Grid.grid_columnconfigure(parent, 1, weight=1)
+        btn_oauth2 = tk.Button(frm_key, text="Authenticate online...")
+        btn_oauth2.configure(command=partial(self.oauth2_clicked, btn_oauth2))
+        btn_oauth2.grid(row=0, column=2, sticky=tk.W)
+        tk.Grid.grid_columnconfigure(frm_key, 1, weight=1)
+        tk.Grid.grid_columnconfigure(parent, 0, weight=1)
 
         # Top level notebook
         notebook = ttk.Notebook(parent)
@@ -201,6 +209,21 @@ class GuiToolApp():
             # If there are no devices loaded, go ahead and try
             if self.devices_in_listbox is None:
                 self.load_devices_clicked()
+
+    def oauth2_clicked(self, btn: tk.Button):
+        btn.configure(state=tk.DISABLED)
+        self.status = "Authenticating online using OAuth2..."
+
+        async def _auth():
+            token = await oauth2.async_gain_oauth2_access()
+            if token:
+                self.key_var.set(token)
+                self.status = "Authentication using OAuth2 succeeded."
+            else:
+                self.status = "Authentication using OAuth2 failed."
+            btn.configure(state=tk.NORMAL)
+
+        asyncio.run_coroutine_threadsafe(_auth(), self.ioloop)
 
     def connect_button_clicked(self):
         self.status = "Connecting to Pushbullet..."
@@ -354,14 +377,11 @@ class GuiToolApp():
 
 def main():
     tk1 = tk.Tk()
-    program1 = GuiToolApp(tk1)
+    _ = GuiToolApp(tk1)
     tk1.mainloop()
 
 
 if __name__ == '__main__':
-    if API_KEY == "":
-        with open("../api_key.txt") as f:
-            API_KEY = f.read().strip()
     try:
         main()
     except KeyboardInterrupt:

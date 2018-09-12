@@ -152,7 +152,7 @@ def main():
 
 if __name__ == '__main__':
     API_KEY = oauth2.get_oauth2_key()
-    if API_KEY == "":
+    if not API_KEY:
         with open("../api_key.txt") as f:
             API_KEY = f.read().strip()
 
