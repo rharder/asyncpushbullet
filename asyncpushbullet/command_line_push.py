@@ -59,7 +59,7 @@ def main():
     # sys.argv.append("--list-devices")
     # sys.argv += ["-t", "test to device", "--device", "baddevice"]
     # sys.argv += ["-d", "Kanga"]
-    # sys.argv += ["-t", "my title", "-b", "my body"]
+    # sys.argv += ["-t", "my title", "-b", "foo"]
     # sys.argv += ["-t", "Read stdin", "-b", "-"]
 
     # sys.argv += [ "--file", __file__]

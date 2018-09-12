@@ -185,14 +185,15 @@ class LiveStreamListener:
 
     async def _process_pushbullet_message_tickle_push(self):  # , msg: dict):
         """When we received a tickle regarding a push."""
+        self.log.debug("Received a push tickle.  Looking for new pushes...")
         await self.pb.async_verify_key()
         pushes = await self.pb.async_get_pushes(modified_after=self.pb.most_recent_timestamp,
                                                 active_only=self._active_only)
-        self.log.debug("Retrieved {} pushes".format(len(pushes)))
+        self.log.debug("After a push tickle, retrieved {} pushes".format(len(pushes)))
 
         # Update timestamp for most recent push so we only get "new" pushes
-        if len(pushes) > 0 and pushes[0].get('modified', 0) > self.pb.most_recent_timestamp:
-            self.pb.most_recent_timestamp = pushes[0]['modified']
+        # if len(pushes) > 0 and pushes[0].get('modified', 0) > self.pb.most_recent_timestamp:
+        #     self.pb.most_recent_timestamp = pushes[0]['modified']
 
         # Process each push
         for push in pushes:

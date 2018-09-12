@@ -3,16 +3,14 @@
 """
 Experimental script that responds to a ListenApp exec command.
 """
-import io
 import json
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
 
 sys.path.append("..")  # Since examples are buried one level into source tree
-from asyncpushbullet import Pushbullet, AsyncPushbullet
+from asyncpushbullet import AsyncPushbullet
 
 ENCODING = "utf-8"
 API_KEY = ""  # YOUR API KEY
@@ -20,7 +18,6 @@ PROXY = os.environ.get("https_proxy") or os.environ.get("http_proxy")
 
 
 def main():
-
     recvd_push = json.loads(sys.stdin.read())  # Throw whatever exceptions to stderr
 
     if recvd_push.get("body", "").lower().strip() == "imagesnap":
@@ -33,12 +30,13 @@ def main():
 
             # Take a picture and upload
             # PRETEND TO TAKE A PICTURE
-            # fakepic = os.path.join(os.path.dirname(os.path.abspath(__file__)), "snapshot.jpg")
-            # shutil.copy(fakepic, temp_img.name)
+            import shutil
+            fakepic = os.path.join(os.path.dirname(os.path.abspath(__file__)), "snapshot.jpg")
+            shutil.copy(fakepic, temp_img.name)
 
             # Take a picture
-            proc = subprocess.run(["imagesnap", temp_img.name],
-            #proc = subprocess.run(["clip.exe", temp_img.name],
+            # proc = subprocess.run(["imagesnap", temp_img.name],
+            proc = subprocess.run(["clip.exe"],  # Debugging
                                   stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE,
                                   timeout=10,

@@ -4,12 +4,13 @@
 Demonstrates how to consume new pushes in an asyncio for loop.
 """
 import asyncio
+import logging
 import os
 import pprint
 import sys
 
 sys.path.append("..")  # Since examples are buried one level into source tree
-from asyncpushbullet import AsyncPushbullet
+from asyncpushbullet import AsyncPushbullet, oauth2
 from asyncpushbullet.async_listeners import LiveStreamListener
 
 __author__ = 'Robert Harder'
@@ -18,6 +19,7 @@ __email__ = "rob@iharder.net"
 API_KEY = ""  # YOUR API KEY
 PROXY = os.environ.get("https_proxy") or os.environ.get("http_proxy")
 
+# logging.basicConfig(level=logging.DEBUG)
 
 def main():
     async def _run():
@@ -26,6 +28,7 @@ def main():
                 print("Connectiong to Pushbullet...", end="", flush=True)
                 async with LiveStreamListener(pb, types=()) as lll:
                     print("Connected.", flush=True)
+                    # await pb.async_push_note(title="Connected", body=__name__)
 
                     # Wait indefinitely for pushes and other notifications
                     async for item in lll:
@@ -42,7 +45,9 @@ def main():
 
 
 if __name__ == '__main__':
-    if API_KEY == "":
+    API_KEY = oauth2.get_oauth2_key()
+    if not API_KEY:
+        print("Reading API key from file")
         with open("../api_key.txt") as f:
             API_KEY = f.read().strip()
 

@@ -2,6 +2,7 @@
 """Asyncio version of Pushbullet class."""
 
 import asyncio
+import datetime
 import logging
 import os
 import sys
@@ -165,34 +166,33 @@ class PushbulletAsyncIterator(AsyncIterator, Generic[T]):
             await _check_if_paused()
 
             if self._limit and self._total_objects_returned >= self._limit:
-                raise StopAsyncIteration("Already returned {} objects (limit = {})"
-                                         .format(self._total_objects_returned, self._limit))
+                raise StopAsyncIteration("Already returned {} objects ({}) (limit = {})"
+                                         .format(self._total_objects_returned, self._item_name, self._limit))
 
             # If empty, get some stuff
             empty_in_a_row = 0
             while self._get_more and not self._objects and self._pb._aio_session:
                 await _check_if_paused()
-                # print("Retrieving...", end="", flush=True)
                 try:
 
                     # Do I/O
                     msg = await self._pb._async_get_data(self._url, params=self._params)
 
                 except PushbulletError as pe:
-                    self.log.debug(
-                        "An error aborted the network request for _objects_asynciter: {}".format(pe))
-                    raise StopAsyncIteration(pe)
+                    self.log.debug("An error aborted the network request for _objects_asynciter: {}".format(pe))
+                    raise StopAsyncIteration(pe).with_traceback(sys.exc_info()[2])
 
                 else:
                     items_this_round = msg.get(self._item_name, [])
-                    self.log.debug("Retrieved {} items.".format(len(items_this_round)))
+                    self.log.debug("Retrieved {} objects ({}).".format(len(items_this_round), self._item_name))
                     self._objects += items_this_round
 
                     if items_this_round:
                         empty_in_a_row = 0
                     else:
                         empty_in_a_row += 1
-                        err_msg = "Received empty data from pushbullet {} times.".format(empty_in_a_row)
+                        err_msg = "Received empty data ({}) from pushbullet {} times.".format(self._item_name,
+                                                                                              empty_in_a_row)
                         self.log.debug(err_msg)
                         await asyncio.sleep(0.25 * empty_in_a_row)  # Just a little bit of throttling
                         if empty_in_a_row >= 3:
@@ -208,14 +208,18 @@ class PushbulletAsyncIterator(AsyncIterator, Generic[T]):
                 # await asyncio.sleep(1)
 
             if not self._objects:
-                raise StopAsyncIteration("No more objects available from pushbullet.com.")
+                raise StopAsyncIteration("No more objects ({}) available from pushbullet.com."
+                                         .format(self._item_name))
 
             # Prepare item to return
             await _check_if_paused()
             item = self._objects.pop(0)
             self._total_objects_returned += 1
             if self._post_process:
-                return self._post_process(item)
+                if asyncio.iscoroutinefunction(self._post_process):
+                    return await self._post_process(item)
+                else:
+                    return self._post_process(item)
             else:
                 return item
 
@@ -759,7 +763,8 @@ class AsyncPushbullet(Pushbullet):
                          limit: int = None,
                          page_size: int = None,
                          active_only: bool = None,
-                         modified_after: float = None) -> PushbulletAsyncIterator[dict]:
+                         modified_after: float = None,
+                         dereference_device_iden: bool = True) -> PushbulletAsyncIterator[dict]:
         """Returns an interator that retrieves pushes.
 
         The iterator can be paused with its pause/resume functions.
@@ -779,22 +784,39 @@ class AsyncPushbullet(Pushbullet):
         active_only = True if active_only is None else active_only  # Default value
         modified_after = self.most_recent_timestamp if modified_after is None else modified_after  # Default value
 
-        def _check_modification_timestamp(push):
+        async def _post_process_push(push):
             # Bookkeeping: keep track of the most recent timestamp ever seen
             modified = push.get("modified", 0)
             if modified > self.most_recent_timestamp:
                 self.most_recent_timestamp = modified
+
+            # Add human-readable fields for date/time stamps
+            for date_field in ("modified", "created"):
+                if push.get(date_field):
+                    date_cleartext = datetime.datetime.fromtimestamp(push.get(date_field)).strftime('%c')
+                    push["{}:cleartext".format(date_field)] = date_cleartext
+
+            # Derereference device iden?
+            if dereference_device_iden:
+                for field in ("source_device_iden", "target_device_iden"):
+                    if field in push:
+                        dev_iden = push.get(field)
+                        dev = await self.async_get_device(iden=dev_iden)
+                        if dev:
+                            push["{}:nickname".format(field)] = dev.nickname
+
             return push
 
         return self._objects_asynciter(url, item_name, limit=limit, page_size=page_size,
                                        active_only=active_only, modified_after=modified_after,
-                                       post_process=_check_modification_timestamp)
+                                       post_process=_post_process_push)
 
     async def async_get_pushes(self,
                                limit: int = None,
                                page_size: int = None,
                                active_only: bool = None,
-                               modified_after: float = None) -> List[dict]:
+                               modified_after: float = None,
+                               dereference_device_iden: bool = True) -> List[dict]:
 
         """Returns a list of pushes.
 
@@ -808,7 +830,8 @@ class AsyncPushbullet(Pushbullet):
         items = [x async for x in self.pushes_asynciter(limit=limit,
                                                         page_size=page_size,
                                                         active_only=active_only,
-                                                        modified_after=modified_after)]
+                                                        modified_after=modified_after,
+                                                        dereference_device_iden=dereference_device_iden)]
         return items
 
     async def async_get_new_pushes(self, limit: int = None, active_only: bool = True):

@@ -14,7 +14,7 @@ from functools import partial
 from tkinter_tools import BindableTextArea
 
 sys.path.append("..")  # Since examples are buried one level into source tree
-from asyncpushbullet import AsyncPushbullet
+from asyncpushbullet import AsyncPushbullet, oauth2
 from asyncpushbullet.async_listeners import LiveStreamListener
 
 __author__ = 'Robert Harder'
@@ -151,6 +151,7 @@ def main():
 
 
 if __name__ == '__main__':
+    API_KEY = oauth2.get_oauth2_key()
     if API_KEY == "":
         with open("../api_key.txt") as f:
             API_KEY = f.read().strip()
