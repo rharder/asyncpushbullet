@@ -26,17 +26,24 @@ if sys.argv[-1] in ('build', 'all'):
     try:
         os.system('python3 setup.py sdist bdist_wheel')
     except:
-        os.system('python3 setup.py sdist bdist_wheel')
+        print("Do you need to pip install wheel?", file=sys.stderr)
+        # os.system('python3 setup.py sdist bdist_wheel')
     # sys.exit()
 
 if sys.argv[-1] in ('test', 'all'):
     print("TEST")
-    os.system('twine upload -r pypitest dist/*')
+    try:
+        os.system('twine upload -r pypitest dist/*')
+    except:
+        print("Do you need to pip install twine?", file=sys.stderr)
     # sys.exit()
 
 if sys.argv[-1] in ('publish', 'all'):
     print("PUBLISH")
-    os.system('twine upload -r pypi dist/*')
+    try:
+        os.system('twine upload -r pypi dist/*')
+    except:
+        print("Do you need to pip install twine?", file=sys.stderr)
     # sys.exit()
 
 if sys.argv[-1] in ('build', 'test', 'publish', 'all'):
@@ -48,7 +55,7 @@ install_reqs = [
     "aiohttp",
     "tqdm",
     "appdirs"
-    #, "pillow"
+    # , "pillow"
 ]
 
 
