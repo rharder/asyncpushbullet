@@ -74,7 +74,8 @@ class PushApp():
         lbl_data = tk.Label(self.window, text="Incoming Pushes...")
         lbl_data.grid(row=4, column=0, sticky=tk.W)
         txt_data = BindableTextArea(self.window, textvariable=self.pushes_var, width=80, height=10)
-        txt_data.grid(row=5, column=0, columnspan=2)
+        txt_data.grid(row=5, column=0, columnspan=2, sticky="NSEW")
+        tk.Grid.grid_rowconfigure(self.window, 5, weight=1)
 
     def connect_button_clicked(self):
         self.close()

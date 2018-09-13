@@ -149,8 +149,8 @@ class GuiToolApp():
         notebook.bind("<<NotebookTabChanged>>", self.notebook_tab_changed)
 
         # Status line
-        status_line = tk.Frame(parent)
-        status_line.grid(row=999, column=0, sticky=tk.W, columnspan=2)
+        status_line = tk.Frame(parent, borderwidth=2, relief=tk.GROOVE)
+        status_line.grid(row=999, column=0, sticky="EW", columnspan=2)
         self.lbl_photo = tk.Label(status_line)  # , text="", width=16, height=16)
         self.lbl_photo.grid(row=0, column=0, sticky=tk.W)
         self.lbl_status = tk.Label(status_line, textvar=self.status_var)

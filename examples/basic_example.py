@@ -42,7 +42,7 @@ def main():
 
                     # Alternately get pushes with a 3 second inter-push timeout
                     print("Awaiting pushes with 3 second inter-push timeout...")
-                    async for push in pl.timeout(3):
+                    async for push in pl.with_timeout(3):
                         print("Push received:", push)
 
                     # Alternately get pushes forever
