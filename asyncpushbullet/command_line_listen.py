@@ -299,6 +299,7 @@ def parse_args():
     parser.add_argument("--proxy", help="Optional web proxy")
     parser.add_argument("--debug", action="store_true", help="Turn on debug logging")
     parser.add_argument("-v", "--verbose", action="store_true", help="Turn on verbose logging (INFO messages)")
+    parser.add_argument("-q", "--quiet", action="store_true", help="Suppress all output")
     parser.add_argument("--oauth2", action="store_true", help="Register your command line tool using OAuth2")
 
     args = parser.parse_args()
