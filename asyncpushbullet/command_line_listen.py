@@ -60,7 +60,7 @@ import time
 from functools import partial
 from typing import List
 
-from asyncpushbullet import AsyncPushbullet
+from asyncpushbullet import AsyncPushbullet, __version__
 from asyncpushbullet import Device
 from asyncpushbullet import InvalidKeyError, PushbulletError
 from asyncpushbullet import LiveStreamListener
@@ -78,6 +78,7 @@ LOG = logging.getLogger(__name__)
 
 def main():
     # sys.argv.append("--oauth2")
+    # sys.argv.append("--version")
     # sys.argv.append("-h")
     # sys.argv.append("-v")
     # sys.argv.append("--debug")
@@ -203,6 +204,10 @@ async def _run(args):
             action = ExecutableActionSimplified(cmd_path, cmd_args, loop=proc_loop)
             listen_app.add_action(action)
 
+    # Echo
+    if args.echo:
+        listen_app.add_action(EchoAction())
+
     # Default action if none specified
     if not listen_app.actions:
         print("No actions specified -- defaulting to Echo.")
@@ -301,6 +306,8 @@ def parse_args():
     parser.add_argument("-v", "--verbose", action="store_true", help="Turn on verbose logging (INFO messages)")
     parser.add_argument("-q", "--quiet", action="store_true", help="Suppress all output")
     parser.add_argument("--oauth2", action="store_true", help="Register your command line tool using OAuth2")
+    parser.add_argument("--version", action="version", version='%(prog)s ' + __version__)
+
 
     args = parser.parse_args()
 

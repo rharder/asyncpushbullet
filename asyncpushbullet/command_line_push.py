@@ -38,7 +38,7 @@ import logging
 import os
 import sys
 
-from asyncpushbullet import AsyncPushbullet
+from asyncpushbullet import AsyncPushbullet, __version__
 from asyncpushbullet import Device
 from asyncpushbullet import InvalidKeyError, PushbulletError
 from asyncpushbullet import errors
@@ -56,6 +56,7 @@ def main():
     # sys.argv += ["--key-file", "../api_key.txt"]
 
     # sys.argv.append("--oauth2")
+    # sys.argv.append("--version")
     # sys.argv.append("--list-devices")
     # sys.argv += ["-t", "test to device", "--device", "baddevice"]
     # sys.argv += ["-d", "Kanga"]
@@ -266,6 +267,7 @@ def parse_args_pbpush():
     parser.add_argument("--oauth2", action="store_true", help="Register your command line tool using OAuth2")
     parser.add_argument("--debug", action="store_true", help="Turn on debug logging")
     parser.add_argument("-v", "--verbose", action="store_true", help="Turn on verbose logging (INFO messages)")
+    parser.add_argument("--version", action="version", version='%(prog)s ' + __version__)
 
     args = parser.parse_args()
 
@@ -289,6 +291,7 @@ def parse_args_pbtransfer():
     parser.add_argument("--oauth2", action="store_true", help="Register your command line tool using OAuth2")
     parser.add_argument("--debug", action="store_true", help="Turn on debug logging")
     parser.add_argument("-v", "--verbose", action="store_true", help="Turn on verbose logging (INFO messages)")
+    parser.add_argument("--version", action="version", version='%(prog)s ' + __version__)
 
     args = parser.parse_args()
 
