@@ -855,13 +855,17 @@ class AsyncPushbullet(Pushbullet):
         msg = await self._async_delete_data(self.PUSH_URL)
         return msg
 
-    async def async_push_note(self, title: str,
-                              body: str,
+    async def async_push_note(self, title: str = None,
+                              body: str = None,
                               device: Device = None,
                               chat: Chat = None,
                               email: str = None,
                               channel: Channel = None) -> dict:
-        data = {"type": "note", "title": title, "body": body}
+        data = {"type": "note"}#, "title": title, "body": body}
+        if title:
+            data["title"] = str(title)
+        if body:
+            data["body"] = str(body)
         data.update(Pushbullet._recipient(device=device,
                                           chat=chat,
                                           email=email,

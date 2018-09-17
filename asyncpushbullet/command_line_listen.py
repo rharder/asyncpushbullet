@@ -49,6 +49,7 @@ optional arguments:
 """
 import argparse
 import asyncio
+import inspect
 import json
 import logging
 import os
@@ -57,8 +58,12 @@ import sys
 import textwrap
 import threading
 import time
+import traceback
 from functools import partial
 from typing import List
+import importlib.util
+
+import wrapt
 
 from asyncpushbullet import AsyncPushbullet, __version__
 from asyncpushbullet import Device
@@ -81,17 +86,19 @@ def main():
     # sys.argv.append("--version")
     # sys.argv.append("-h")
     # sys.argv.append("-v")
-    # sys.argv.append("--debug")
+    sys.argv.append("--debug")
     # sys.argv += ["-k", "badkey"]
-    # sys.argv += ["--key-file", "../api_key.txt"]
+    sys.argv += ["--key-file", "../api_key.txt"]
     # sys.argv += ["--device", "Kanga"]
     # sys.argv.append("--echo")
-    # sys.argv += ["--proxy", ""]
+    # sys.argv += ["--proxy", "foo"]
     # sys.argv.append("--list-devices")
 
     # sys.argv += ["--exec-simple", r"C:\windows\System32\clip.exe"]
     # sys.argv += ["--exec", r"C:\windows\System32\notepad.exe"]
     # sys.argv += ["--exec", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_imagesnap.py"]
+    sys.argv += ["--exec-python",
+                 r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\exec_python_example.py"]
     # sys.argv += ["--exec-simple", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_exec_simple.py"]
 
     # oauth2.PREFS.set(oauth2.OAUTH2_TOKEN_KEY, None)
@@ -109,6 +116,7 @@ def do_main(args):
         exit_code = errors.__ERR_KEYBOARD_INTERRUPT__
     except Exception as ex:
         print("Error:", ex, file=sys.stderr)
+        traceback.print_tb(sys.exc_info()[2])
         exit_code = errors.__ERR_UNKNOWN__
     finally:
         return exit_code or errors.__EXIT_NO_ERROR__
@@ -141,12 +149,14 @@ async def _run(args):
         sys.exit(errors.__ERR_API_KEY_NOT_GIVEN__)
 
     # Proxy
-    proxy = args.proxy or os.environ.get("https_proxy") or os.environ.get("http_proxy")
+    proxy = lambda: args.proxy or os.environ.get("https_proxy") or os.environ.get("http_proxy")
 
     # List devices?
     if args.list_devices:
         print("Devices:")
         try:
+            proxy = str(proxy()) if callable(proxy) else str(proxy)
+
             async with AsyncPushbullet(api_key, proxy=proxy) as pb:
                 async for dev in pb.devices_asynciter():
                     print("\t", dev.nickname)
@@ -202,6 +212,13 @@ async def _run(args):
             cmd_path = cmd_opts[0]
             cmd_args = cmd_opts[1:]
             action = ExecutableActionSimplified(cmd_path, cmd_args, loop=proc_loop)
+            listen_app.add_action(action)
+
+    # Add actions from command line arguments
+    if args.exec_python:
+        for cmd_opts in args.exec_python:
+            cmd_path = cmd_opts[0]
+            action = ExecutableActionPython(cmd_path)
             listen_app.add_action(action)
 
     # Echo
@@ -285,6 +302,12 @@ def parse_args():
                         push back.  The first line of stdout will be the title, and
                         subsequent lines will be the body.
                         """))
+    parser.add_argument("-p", "--exec-python", nargs="+", action="append",
+                        help=textwrap.dedent("""
+                        ACTION: Load the given python file and execute it by calling
+                        its main() function with a single argument: the push that was
+                        received.
+                        """))
 
     parser.add_argument("--throttle-count", type=int, default=DEFAULT_THROTTLE_COUNT,
                         help=textwrap.dedent("""
@@ -308,7 +331,6 @@ def parse_args():
     parser.add_argument("--oauth2", action="store_true", help="Register your command line tool using OAuth2")
     parser.add_argument("--version", action="version", version='%(prog)s ' + __version__)
 
-
     args = parser.parse_args()
 
     if len(sys.argv) == 1:
@@ -324,7 +346,7 @@ class Action:
     def __init__(self):
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
-    async def do(self, push: dict, app):
+    async def on_push(self, push: dict, app):
         """
 
         :param dict push:
@@ -340,7 +362,7 @@ class Action:
 class EchoAction(Action):
     """ Echoes pushes in json format to standard out. """
 
-    async def do(self, push: dict, app):  # pb: AsyncPushbullet):  # , device:Device):
+    async def on_push(self, push: dict, app):  # pb: AsyncPushbullet):  # , device:Device):
         # json_push = json.dumps(push)
         # print(json_push, end="\n\n", flush=True)
         print("Echo push:", pprint.pformat(push))
@@ -398,7 +420,7 @@ class ExecutableAction(Action):
     def __repr__(self):
         return "{}({} {})".format(super().__repr__(), self.path_to_executable, " ".join(self.args_for_exec))
 
-    async def do(self, push: dict, app):  # pb: AsyncPushbullet):  # , device:Device):
+    async def on_push(self, push: dict, app):  # pb: AsyncPushbullet):  # , device:Device):
         io_loop = asyncio.get_event_loop()  # Loop handling the pushbullet IO
 
         async def _on_proc_loop():
@@ -556,20 +578,78 @@ class ExecutableActionSimplified(ExecutableAction):
         await super().handle_process_response(stdout_data=stdout_data, stderr_data=stderr_data, app=app)  # pb=pb)
 
 
+class ExecutableActionPython(Action):
+    """
+    Interprets subprocess response from stdout as line1 = title and remaining lines = body.
+
+    Example response from subprocess:
+
+        Fish Food Served
+        Your automated fish feeding gadget has fed your fish.
+
+    """
+
+    def __init__(self, path):
+        super().__init__()
+        self.path = path
+
+    def load_module(self, path):
+        spec = importlib.util.spec_from_file_location("action_module", self.path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    async def on_push(self, push: dict, app):
+        """
+
+        :param dict push:
+        :param ListenApp app:
+        :return:
+        """
+        try:
+            mod = self.load_module(self.path)
+            pb = wrapt.ObjectProxy(app.account)
+
+            resp = await mod.on_push(push, pb)
+            # if resp and "iden" in resp and resp.get("iden"):
+            #     app.sent_push_idens.append(resp.get("iden"))
+
+            # klasses = []
+            # for name, obj in inspect.getmembers(mod, inspect.isclass):
+            #     if obj.__module__ == "action_module":
+            #         klasses.append(obj)
+            # if klasses:
+            #     for klass in klasses:
+            #         action = klass()
+            #         if isinstance(action, Action):
+            #             self.log.debug("Calling action class {} found in {}".format(klass.__name__, self.path))
+            #             await action.on_push(push, app)
+            # else:
+            #     self.log.warning("Found no Action classes in {}".format(self.path))
+        except Exception as ex:
+            print(ex)
+            traceback.print_tb(sys.exc_info()[2])
+        finally:
+            print("leaving", self)
+
+        # await mod.onpush(push, app)
+
+
 class ListenApp:
     def __init__(self, api_key: str,
-                 proxy: str = None,
+                 proxy=None,
                  throttle_count: int = DEFAULT_THROTTLE_COUNT,
                  throttle_seconds: float = DEFAULT_THROTTLE_SECONDS,
                  device: str = None):
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
         # self.pb = AsyncPushbullet(api_key=api_key, proxy=proxy)
-        self.account = None  # type: AsyncPushbullet
+        self._account = None  # type: AsyncPushbullet
+        self._wrapped_account = None  # type: AsyncPushbullet
         self._listener = None  # type: LiveStreamListener
 
         self.api_key = api_key
-        self.proxy = proxy
+        self.proxy = proxy  # string or Callable
         self.throttle_max_count = throttle_count
         self.throttle_max_seconds = throttle_seconds
         self.device_name = device
@@ -580,6 +660,34 @@ class ListenApp:
         self.sent_push_idens = []  # type: List[str]
         self.persistent_connection = True
         self.persistent_connection_wait_interval = 10  # seconds between retry
+
+    @property
+    def account(self):
+        return self.wrapped_account
+
+    @property
+    def wrapped_account(self):
+        if self._wrapped_account is None:
+
+            class Wrapper(AsyncPushbullet):
+                def __init__(self, *kargs, **kwargs):
+                    pass
+
+                async def _async_push(*kargs, **kwargs):
+                    resp = await super()._async_push(*kargs, **kwargs)
+                    print("I GOT A RESPONSE!", resp)
+
+
+            # self._wrapped_account = wrapt.ObjectProxy(self._account)  # type: AsyncPushbullet
+            # self._wrapped_account.__orig_async_push = self._wrapped_account._async_push
+            #
+            # async def _wrapped_async_push(*kargs, **kwargs):
+            #     resp = await self._wrapped_account.__orig_async_push(*kargs, **kwargs)
+            #     print("I GOT A RESPONSE!", resp)
+
+            self._wrapped_account = Wrapper.__init__(self._account)
+
+        return self._wrapped_account
 
     def add_action(self, action: Action):
         self.actions.append(action)
@@ -631,7 +739,10 @@ class ListenApp:
         exit_code = 0
         while self.persistent_connection:
             try:
-                async with AsyncPushbullet(api_key=self.api_key, proxy=self.proxy) as self.account:
+                # Live update the proxy setting
+                proxy = str(self.proxy()) if callable(self.proxy) else str(self.proxy)
+                self.log.info("Proxy: {}".format(proxy))
+                async with AsyncPushbullet(api_key=self.api_key, proxy=proxy) as self._account:
                     # self.pb = AsyncPushbullet(api_key=self.api_key, proxy=self.proxy)
 
                     # If filtering on device, find or create device with that name
@@ -663,18 +774,23 @@ class ListenApp:
 
                             if push.get("iden") in self.sent_push_idens:
                                 # This is one we sent - ignore it
-                                # print("Received a push we sent. Ignoring it.")
+                                self.log.debug(
+                                    "Received a push we sent. Ignoring it. (iden={})".format(push.get('iden')))
                                 continue
 
                             for action in self.actions:  # type: Action
                                 self.log.debug("Calling action {}".format(repr(action)))
                                 try:
-                                    await action.do(push, self)
+                                    await action.on_push(push, self)
                                     await asyncio.sleep(0)
 
                                 except Exception as ex:
-                                    print("Action {} caused exception {}".format(action, ex))
-                                    ex.with_traceback()
+                                    err_msg = "Action {} caused exception {}".format(action, ex)
+                                    if not self.log.isEnabledFor(logging.DEBUG):
+                                        err_msg += " (turn on --debug to see traceback)"
+                                    self.log.warning(err_msg)
+                                    if self.log.isEnabledFor(logging.DEBUG):
+                                        traceback.print_tb(sys.exc_info()[2])
 
             except InvalidKeyError as ex:
                 exit_code = errors.__ERR_INVALID_API_KEY__
@@ -683,6 +799,7 @@ class ListenApp:
 
             except Exception as ex:
                 print(ex, file=sys.stderr, flush=True)
+                traceback.print_tb(sys.exc_info()[2])
                 exit_code = errors.__ERR_UNKNOWN__  # exit code
 
             else:
