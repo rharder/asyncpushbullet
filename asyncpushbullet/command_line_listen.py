@@ -59,6 +59,7 @@ import textwrap
 import threading
 import time
 import traceback
+import types
 from functools import partial
 from typing import List
 import importlib.util
@@ -608,9 +609,9 @@ class ExecutableActionPython(Action):
         """
         try:
             mod = self.load_module(self.path)
-            pb = wrapt.ObjectProxy(app.account)
+            # pb = wrapt.ObjectProxy(app.account)
 
-            resp = await mod.on_push(push, pb)
+            resp = await mod.on_push(push, app.wrapped_account)
             # if resp and "iden" in resp and resp.get("iden"):
             #     app.sent_push_idens.append(resp.get("iden"))
 
@@ -668,24 +669,17 @@ class ListenApp:
     @property
     def wrapped_account(self):
         if self._wrapped_account is None:
+            acct = self._account
 
-            class Wrapper(AsyncPushbullet):
-                def __init__(self, *kargs, **kwargs):
-                    pass
+            async def _new(zelf, *kargs, **kwargs):
+                resp = await zelf.__orig_async_push(*kargs, **kwargs)
+                if resp and "iden" in resp:
+                    self.sent_push_idens.append(resp.get("iden"))
+                print("I GOT A RESPONSE!", resp)
 
-                async def _async_push(*kargs, **kwargs):
-                    resp = await super()._async_push(*kargs, **kwargs)
-                    print("I GOT A RESPONSE!", resp)
-
-
-            # self._wrapped_account = wrapt.ObjectProxy(self._account)  # type: AsyncPushbullet
-            # self._wrapped_account.__orig_async_push = self._wrapped_account._async_push
-            #
-            # async def _wrapped_async_push(*kargs, **kwargs):
-            #     resp = await self._wrapped_account.__orig_async_push(*kargs, **kwargs)
-            #     print("I GOT A RESPONSE!", resp)
-
-            self._wrapped_account = Wrapper.__init__(self._account)
+            acct.__orig_async_push = acct._async_push
+            acct._async_push = types.MethodType(_new, acct)
+            self._wrapped_account = acct
 
         return self._wrapped_account
 

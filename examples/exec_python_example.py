@@ -18,7 +18,7 @@ async def on_push(push: dict, pb: AsyncPushbullet):
     print("title={}, body={}".format(push.get("title"), push.get("body")), flush=True)
 
     if push.get("body", "").strip().lower() == "a":
-        pb.log.info("{} sending a note".format(__file__))
+        # pb.log.info("{} sending a note".format(__file__))
         # pb = app.account
         p = await pb.async_push_note(title="Got an A!", body="foo")
         # await app.respond(title="my response", body="foo")
