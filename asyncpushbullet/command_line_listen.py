@@ -347,13 +347,7 @@ class Action:
     def __init__(self):
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
-    async def on_push(self, push: dict, app):
-        """
-
-        :param dict push:
-        :param ListenApp app:
-        :return:
-        """
+    async def on_push(self, push: dict, pb: AsyncPushbullet):
         pass
 
     def __repr__(self):
@@ -363,9 +357,7 @@ class Action:
 class EchoAction(Action):
     """ Echoes pushes in json format to standard out. """
 
-    async def on_push(self, push: dict, app):  # pb: AsyncPushbullet):  # , device:Device):
-        # json_push = json.dumps(push)
-        # print(json_push, end="\n\n", flush=True)
+    async def on_push(self, push: dict, pb: AsyncPushbullet):
         print("Echo push:", pprint.pformat(push))
 
 
@@ -421,7 +413,7 @@ class ExecutableAction(Action):
     def __repr__(self):
         return "{}({} {})".format(super().__repr__(), self.path_to_executable, " ".join(self.args_for_exec))
 
-    async def on_push(self, push: dict, app):  # pb: AsyncPushbullet):  # , device:Device):
+    async def on_push(self, push: dict, pb: AsyncPushbullet):
         io_loop = asyncio.get_event_loop()  # Loop handling the pushbullet IO
 
         async def _on_proc_loop():
@@ -458,7 +450,7 @@ class ExecutableAction(Action):
                         self.log.info("Nothing was returned from executable {}".format(
                             [self.path_to_executable, *self.args_for_exec]))
                     asyncio.run_coroutine_threadsafe(
-                        self.handle_process_response(stdout_data, stderr_data, app),
+                        self.handle_process_response(stdout_data, stderr_data, pb),
                         loop=io_loop)
                 finally:
                     self.log.debug("Process complete {}".format([self.path_to_executable, *self.args_for_exec]))
@@ -474,14 +466,7 @@ class ExecutableAction(Action):
         input_bytes = json_push.encode(ENCODING)
         return input_bytes
 
-    async def handle_process_response(self, stdout_data: bytes, stderr_data: bytes, app):
-        """
-
-        :param bytes stdout_data:
-        :param bytes stderr_data:
-        :param ListenApp app:
-        :return:
-        """
+    async def handle_process_response(self, stdout_data: bytes, stderr_data: bytes, pb: AsyncPushbullet):
 
         # Any stderr output?
         if stderr_data != b"":
@@ -501,7 +486,8 @@ class ExecutableAction(Action):
         if stderr_txt is not None:
             title = "Error"
             body = "Stderr: {}\nStdout: {}".format(stderr_txt, stdout_txt)
-            await app.respond(title=title, body=body)
+            # await app.respond(title=title, body=body)
+            await pb.async_push_note(title=title, body=body)
 
         elif stdout_txt is not None:
             # See if we got a structured response with JSON data
@@ -511,7 +497,8 @@ class ExecutableAction(Action):
                 # Not json, just respond with a simple push
                 title = "Response"
                 body = stdout_txt
-                await app.respond(title=title, body=body)
+                # await app.respond(title=title, body=body)
+                await pb.async_push_note(title=title, body=body)
 
             else:
 
@@ -524,13 +511,13 @@ class ExecutableAction(Action):
                         file_type = _resp.get("file_type")
                         file_url = _resp.get("file_url")
                         file_name = _resp.get("file_name")
-                        await app.respond_file(file_name=file_name,
-                                               file_url=file_url,
-                                               file_type=file_type,
-                                               title=title,
-                                               body=body)
+                        await pb.async_push_file(file_name=file_name,
+                                                 file_url=file_url,
+                                                 file_type=file_type,
+                                                 title=title,
+                                                 body=body)
                     else:
-                        await app.respond(title=title, body=body)
+                        await pb.async_push_note(title=title, body=body)
 
                 if type(response) == list:
                     for resp in response:
@@ -539,7 +526,7 @@ class ExecutableAction(Action):
                     await _hndl_resp(response)
                 else:
                     # Not sure what was returned
-                    await app.respond(title="Response", body=str(response))
+                    await pb.async_push_note(title="Response", body=str(response))
         else:
             pass
             # Nothing sent back in stdout or stderr: send no push
@@ -600,7 +587,7 @@ class ExecutableActionPython(Action):
         spec.loader.exec_module(module)
         return module
 
-    async def on_push(self, push: dict, app):
+    async def on_push(self, push: dict, pb:AsyncPushbullet):
         """
 
         :param dict push:
@@ -611,7 +598,7 @@ class ExecutableActionPython(Action):
             mod = self.load_module(self.path)
             # pb = wrapt.ObjectProxy(app.account)
 
-            resp = await mod.on_push(push, app.wrapped_account)
+            resp = await mod.on_push(push, pb)
             # if resp and "iden" in resp and resp.get("iden"):
             #     app.sent_push_idens.append(resp.get("iden"))
 
