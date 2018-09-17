@@ -52,6 +52,7 @@ import asyncio
 import inspect
 import json
 import logging
+import math
 import os
 import pprint
 import sys
@@ -580,48 +581,25 @@ class ExecutableActionPython(Action):
     def __init__(self, path):
         super().__init__()
         self.path = path
+        self._mod_cache = None
+        self._mod_path_last_timestamp = 0
 
-    def load_module(self, path):
-        spec = importlib.util.spec_from_file_location("action_module", self.path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        return module
+    @property
+    def module(self):
+        mtime = os.stat(self.path).st_mtime
+        mcache = self._mod_path_last_timestamp
+        if mtime > mcache and not math.isclose(mtime, mcache):
+            self._mod_path_last_timestamp = mtime
+            self._mod_cache = None
+        if self._mod_cache is None:
+            spec = importlib.util.spec_from_file_location("action_module", self.path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            self._mod_cache = module
+        return self._mod_cache
 
-    async def on_push(self, push: dict, pb:AsyncPushbullet):
-        """
-
-        :param dict push:
-        :param ListenApp app:
-        :return:
-        """
-        try:
-            mod = self.load_module(self.path)
-            # pb = wrapt.ObjectProxy(app.account)
-
-            resp = await mod.on_push(push, pb)
-            # if resp and "iden" in resp and resp.get("iden"):
-            #     app.sent_push_idens.append(resp.get("iden"))
-
-            # klasses = []
-            # for name, obj in inspect.getmembers(mod, inspect.isclass):
-            #     if obj.__module__ == "action_module":
-            #         klasses.append(obj)
-            # if klasses:
-            #     for klass in klasses:
-            #         action = klass()
-            #         if isinstance(action, Action):
-            #             self.log.debug("Calling action class {} found in {}".format(klass.__name__, self.path))
-            #             await action.on_push(push, app)
-            # else:
-            #     self.log.warning("Found no Action classes in {}".format(self.path))
-        except Exception as ex:
-            print(ex)
-            traceback.print_tb(sys.exc_info()[2])
-        finally:
-            print("leaving", self)
-
-        # await mod.onpush(push, app)
-
+    async def on_push(self, push: dict, pb: AsyncPushbullet):
+        return await self.module.on_push(push, pb)
 
 class ListenApp:
     def __init__(self, api_key: str,
@@ -662,7 +640,7 @@ class ListenApp:
                 resp = await zelf.__orig_async_push(*kargs, **kwargs)
                 if resp and "iden" in resp:
                     self.sent_push_idens.append(resp.get("iden"))
-                print("I GOT A RESPONSE!", resp)
+                # print("I GOT A RESPONSE!", resp)
 
             acct.__orig_async_push = acct._async_push
             acct._async_push = types.MethodType(_new, acct)
@@ -762,7 +740,7 @@ class ListenApp:
                             for action in self.actions:  # type: Action
                                 self.log.debug("Calling action {}".format(repr(action)))
                                 try:
-                                    await action.on_push(push, self)
+                                    await action.on_push(push, self.wrapped_account)
                                     await asyncio.sleep(0)
 
                                 except Exception as ex:
