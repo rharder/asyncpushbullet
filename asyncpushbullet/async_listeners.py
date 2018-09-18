@@ -27,7 +27,7 @@ class LiveStreamListener:
                  active_only: bool = True,
                  ignore_dismissed: bool = True,
                  only_this_device_nickname: str = None,
-                 types: Iterable[str] = ("push",)):
+                 types: Iterable[str] = None):
         """Listens for events on the pushbullet live stream websocket.
 
         The types parameter can be used to limit which kinds of pushes
@@ -59,7 +59,7 @@ class LiveStreamListener:
         # Push types are what should be allowed through.
         # Ephemerals can be sub-typed like so: ephemeral:clip
         # The ephemeral_types variable contains the post-colon words
-        self.push_types = set(types)  # type: Set[str]
+        self.push_types = set(types) if types else ("push",)  # type: Set[str]
         self.ephemeral_types = tuple([x.split(":")[-1] for x in self.push_types if len(x.split(":")) > 1])
 
     @property
@@ -163,7 +163,7 @@ class LiveStreamListener:
                 await self._queue.put(msg)
 
             # If we got a push tickle, retrieve pushes
-            if msg.get("subtype") == "push":
+            if msg.get("subtype") == "push" and ("push" in self.push_types or not self.push_types):
                 await self._process_pushbullet_message_tickle_push()
 
             elif msg.get("subtype") == "device":

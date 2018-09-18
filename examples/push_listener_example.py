@@ -25,12 +25,14 @@ def main():
     async def _run():
         print("Connectiong to Pushbullet...", end="", flush=True)
         try:
-            types=("push",)
-            types=("tickle", "push")
-            types=("nop",)
-            # types=()
+            types_try_this = None
+            # types_try_this=("push",)  # Default
+            # types_try_this=("tickle")
+            # types_try_this=("tickle", "push", "ephemeral")
+            # types_try_this=("nop",)
+            # types_try_this=()  # Everything
             async with AsyncPushbullet(api_key=API_KEY, proxy=PROXY) as pb:
-                async with LiveStreamListener(pb, types=types) as lll:
+                async with LiveStreamListener(pb, types=types_try_this) as lll:
                     print("Connected.", flush=True)
 
                     # Wait indefinitely for pushes and other notifications
