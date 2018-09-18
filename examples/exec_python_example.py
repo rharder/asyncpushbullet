@@ -14,7 +14,7 @@ from asyncpushbullet.command_line_listen import ListenApp, Action
 
 # async def on_push(push: dict, app: ListenApp):
 async def on_push(push: dict, pb: AsyncPushbullet):
-    await asyncio.sleep(1)
+    await asyncio.sleep(5)
     print("title={}, body={}".format(push.get("title"), push.get("body")), flush=True)
 
     if push.get("body", "").strip().lower() == "a":
