@@ -87,11 +87,12 @@ def main():
     # sys.argv.append("--oauth2")
     # sys.argv.append("--version")
     # sys.argv.append("-h")
-    # sys.argv.append("-v")
-    sys.argv.append("--debug")
+    sys.argv.append("-v")
+    # sys.argv.append("--debug")
     # sys.argv += ["-k", "badkey"]
     # sys.argv += ["--key-file", "../api_key.txt"]
     # sys.argv += ["--device", "Kanga"]
+    sys.argv += ["--timeout", "1"]
     # sys.argv.append("--echo")
     # sys.argv += ["--proxy", "foo"]
     # sys.argv.append("--list-devices")
@@ -99,7 +100,7 @@ def main():
     # sys.argv += ["--exec-simple", r"C:\windows\System32\clip.exe"]
     # sys.argv += ["--exec", r"C:\windows\System32\notepad.exe"]
     # sys.argv += ["--exec", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_imagesnap.py"]
-    sys.argv += ["--exec-python", r"../examples/exec_python_example.py"]
+    # sys.argv += ["--exec-python", r"../examples/exec_python_example.py"]
     sys.argv += ["--exec-python", r"../examples/exec_python_imagesnap.py"]
     #              r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\exec_python_example.py"]
     # sys.argv += ["--exec-simple", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_exec_simple.py"]
@@ -166,12 +167,13 @@ async def _run(args):
 
         except InvalidKeyError as exc:
             print(exc, file=sys.stderr)
-            sys.exit(errors.__ERR_INVALID_API_KEY__)
+            return errors.__ERR_INVALID_API_KEY__
         except PushbulletError as exc:
             print(exc, file=sys.stderr)
-            sys.exit(errors.__ERR_CONNECTING_TO_PB__)
+            return errors.__ERR_CONNECTING_TO_PB__
         else:
-            sys.exit(0)
+            # sys.exit(0)
+            return errors.__EXIT_NO_ERROR__
 
     # Throttle
     throttle_count = args.throttle_count
@@ -180,12 +182,18 @@ async def _run(args):
     # Device
     device = args.device
 
+    # Timeout
+    timeout = None
+    if args.timeout:
+        timeout = float(args.timeout)
+
     # Create ListenApp
     listen_app = ListenApp(api_key,
                            proxy=proxy,
                            throttle_count=throttle_count,
                            throttle_seconds=throttle_seconds,
-                           device=device)
+                           device=device,
+                           timeout=timeout)
 
     # Windows needs special event loop in order to launch processes on it
     proc_loop = None  # type: asyncio.BaseEventLoop
@@ -200,13 +208,14 @@ async def _run(args):
         loop.run_forever()
 
     threading.Thread(target=partial(_run, proc_loop), name="Thread-proc", daemon=True).start()
+    # proc_loop = asyncio.get_event_loop()
 
     # Add actions from command line arguments
     if args.exec:
         for cmd_opts in args.exec:
             cmd_path = cmd_opts[0]
             cmd_args = cmd_opts[1:]
-            action = ExecutableAction(cmd_path, cmd_args, loop=proc_loop)
+            action = ExecutableAction(cmd_path, cmd_args, loop=proc_loop, timeout=timeout)
             listen_app.add_action(action)
 
     # Add actions from command line arguments
@@ -214,7 +223,7 @@ async def _run(args):
         for cmd_opts in args.exec_simple:
             cmd_path = cmd_opts[0]
             cmd_args = cmd_opts[1:]
-            action = ExecutableActionSimplified(cmd_path, cmd_args, loop=proc_loop)
+            action = ExecutableActionSimplified(cmd_path, cmd_args, loop=proc_loop, timeout=timeout)
             listen_app.add_action(action)
 
     # Add actions from command line arguments
@@ -233,19 +242,20 @@ async def _run(args):
         print("No actions specified -- defaulting to Echo.")
         listen_app.add_action(EchoAction())
 
-    loop = asyncio.get_event_loop()
+    # loop = asyncio.get_event_loop()
 
     exit_code = None
     try:
-        # exit_code = loop.run_until_complete(listen_app.run())
         exit_code = await listen_app.run()
     except KeyboardInterrupt as e:
         print("Caught keyboard interrupt")
     finally:
-        loop.run_until_complete(listen_app.close())
+        # loop.run_until_complete(listen_app.close())
+        await listen_app.close()
         if exit_code is None:
-            exit_code = 0
-        sys.exit(exit_code)
+            exit_code = errors.__EXIT_NO_ERROR__
+        # sys.exit(exit_code)
+        return exit_code
         # END OF PROGRAM
 
 
@@ -311,7 +321,7 @@ def parse_args():
                         its main() function with a single argument: the push that was
                         received.
                         """))
-
+    parser.add_argument("-t", "--timeout", help="Timeout in seconds to use for actions being called.")
     parser.add_argument("--throttle-count", type=int, default=DEFAULT_THROTTLE_COUNT,
                         help=textwrap.dedent("""
                         Pushes will be throttled to this many pushes (default {})
@@ -399,7 +409,7 @@ class ExecutableAction(Action):
         def process_exited(self):
             print("_ProcessProtocol.process_exited")
 
-    def __init__(self, path_to_executable, args_for_exec=(), loop: asyncio.BaseEventLoop = None, timeout=30):
+    def __init__(self, path_to_executable, args_for_exec=(), loop: asyncio.BaseEventLoop = None, timeout=None):
         super().__init__()
         self.path_to_executable = path_to_executable
         self.args_for_exec = args_for_exec
@@ -553,7 +563,7 @@ class ExecutableActionSimplified(ExecutableAction):
         output_bytes = output.encode(ENCODING)
         return output_bytes
 
-    async def handle_process_response(self, stdout_data: bytes, stderr_data: bytes, app):  # pb: AsyncPushbullet):
+    async def handle_process_response(self, stdout_data: bytes, stderr_data: bytes, pb: AsyncPushbullet):
 
         if stdout_data != b"":
             data = stdout_data.decode(ENCODING, "replace")
@@ -565,7 +575,7 @@ class ExecutableActionSimplified(ExecutableAction):
                 resp = {"title": title, "body": body}
                 stdout_data = json.dumps(resp).encode(ENCODING)
 
-        await super().handle_process_response(stdout_data=stdout_data, stderr_data=stderr_data, app=app)  # pb=pb)
+        await super().handle_process_response(stdout_data=stdout_data, stderr_data=stderr_data, pb=pb)
 
 
 class ExecutableActionPython(Action):
@@ -611,7 +621,8 @@ class ListenApp:
                  proxy=None,
                  throttle_count: int = DEFAULT_THROTTLE_COUNT,
                  throttle_seconds: float = DEFAULT_THROTTLE_SECONDS,
-                 device: str = None):
+                 device: str = None,
+                 timeout: float = None):
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
         # self.pb = AsyncPushbullet(api_key=api_key, proxy=proxy)
@@ -624,7 +635,7 @@ class ListenApp:
         self.throttle_max_count = throttle_count
         self.throttle_max_seconds = throttle_seconds
         self.device_name = device
-        self.action_timeout = 3
+        self.action_timeout = timeout
 
         self._throttle_timestamps = []  # type: [float]
         self.actions = []  # type: [Action]
@@ -661,9 +672,9 @@ class ListenApp:
     async def close(self):
         if self._listener is not None:
             await self._listener.close()
-        # self.pb.close_all_threadsafe()
-        if self.account is not None:
-            await self.account.async_close()
+
+        if self._account is not None:
+            await self._account.async_close()
 
     async def _throttle(self):
         """ Makes one tick and stalls if necessary """
@@ -681,25 +692,6 @@ class ListenApp:
             self.log.warning("Throttling pushes that are coming too fast. Stalling {:0.1f} seconds ...".format(stall))
             await asyncio.sleep(stall)
 
-    # async def respond(self, title=None, body=None, type="note", device_iden=None):
-    #     """Actions can use this to respond to a push."""
-    #     # print("Responding with title={}, body={}".format(title, body), flush=True)
-    #     device = None if device_iden is None else Device(None, {"iden": device_iden})
-    #     resp = await self.account.async_push_note(title=title, body=body, device=device)
-    #     self.sent_push_idens.append(resp.get("iden"))
-    #
-    # async def respond_file(self, file_name: str, file_url: str, file_type: str,
-    #                        body: str = None, title: str = None, device_iden=None):
-    #
-    #     device = None if device_iden is None else Device(None, {"iden": device_iden})
-    #     resp = await self.account.async_push_file(file_name=file_name,
-    #                                               file_url=file_url,
-    #                                               file_type=file_type,
-    #                                               title=title,
-    #                                               body=body,
-    #                                               device=device)
-    #     self.sent_push_idens.append(resp.get("iden"))
-
     async def run(self):
         exit_code = 0
         while self.persistent_connection:
@@ -708,6 +700,8 @@ class ListenApp:
                 _proxy = self.proxy() if callable(self.proxy) else self.proxy
                 if _proxy:
                     self.log.info("Proxy: {}".format(_proxy))
+
+                print("Connecting to pushbullet...", end="", flush=True)
                 async with AsyncPushbullet(api_key=self.api_key, proxy=_proxy) as self._account:
 
                     # If filtering on device, find or create device with that name
@@ -720,7 +714,6 @@ class ListenApp:
                             else:
                                 self.log.info("Device {} was not found, so we created it.".format(self.device_name))
 
-                    print("Connecting to pushbullet...", end="", flush=True)
                     async with LiveStreamListener(self.account, only_this_device_nickname=self.device_name) as pl2:
                         print("Connected.", flush=True)
                         self.log.info("Connected to Pushbullet.com service.")
@@ -732,7 +725,9 @@ class ListenApp:
                             print("Awaiting pushes to device {}...".format(self.device_name))
 
                         async for push in pl2:
-                            self.log.info("Received push {}".format(push))
+                            self.log.info("Received push (title={}, body={}) {}"
+                                          .format(push.get("title"), push.get("body"), push))
+                            # print("Received push: title={}, body={}".format(push.get("title"), push.get("body")), flush=True)
 
                             await self._throttle()
 
@@ -743,12 +738,19 @@ class ListenApp:
                                 continue
 
                             async def _send_to_on_push(_action):
-                                self.log.debug("Calling action {}".format(repr(_action)))
+                                self.log.info("Calling action {}".format(repr(_action)))
                                 try:
                                     await asyncio.wait_for(_action.on_push(push, self.wrapped_account),
                                                            timeout=self.action_timeout)
                                     await asyncio.sleep(0)
-# TODO: timeout isn't handled right
+
+
+                                except asyncio.CancelledError as ce:
+                                    err_msg = "Action {} cancelled due to timeout of {} seconds".format(_action,
+                                                                                            self.action_timeout)
+                                    raise PushbulletError(err_msg, ce).with_traceback(sys.exc_info()[2])
+
+
                                 except asyncio.TimeoutError as te:
                                     err_msg = "Action {} timed out after {} seconds".format(_action,
                                                                                             self.action_timeout)
@@ -759,19 +761,16 @@ class ListenApp:
                                     raise PushbulletError(err_msg, ex).with_traceback(sys.exc_info()[2])
 
                                 finally:
-                                    print('leaving')
-                                    # self.log.debug("Leaving action {}".format(repr(_action)))
-
-
+                                    pass
+                                    # print('leaving')
+                                    self.log.debug("Leaving action {}".format(repr(_action)))
 
                             try:
                                 _actions = [_send_to_on_push(a) for a in self.actions]
                                 _actions and await asyncio.gather(*_actions)
 
                             except Exception as ex:
-                                # err_msg = "Action {} caused exception {}".format(action, ex)
-                                # err_msg = "Action caused an exception: {}".format(ex)
-                                err_msg = str(ex)
+                                err_msg = "{}: {}".format(ex.__class__.__name__, ex)
                                 if not self.log.isEnabledFor(logging.DEBUG):
                                     err_msg += " (turn on --debug to see traceback)"
                                 self.log.warning(err_msg)
@@ -780,13 +779,21 @@ class ListenApp:
 
 
             except InvalidKeyError as ex:
+                print(flush=True)
                 exit_code = errors.__ERR_INVALID_API_KEY__
-                print(ex, file=sys.stderr, flush=True)
+                # print(ex, file=sys.stderr, flush=True)
+                self.log.warning(ex)
                 self.persistent_connection = False  # Invalid key results in immediate exit
 
             except Exception as ex:
-                print(ex, file=sys.stderr, flush=True)
-                traceback.print_tb(sys.exc_info()[2])
+                print(flush=True)
+                err_msg = "{}: {}".format(ex.__class__.__name__, ex)
+                if not self.log.isEnabledFor(logging.DEBUG):
+                    err_msg += " (turn on --debug to see traceback)"
+                self.log.warning(err_msg)
+                if self.log.isEnabledFor(logging.DEBUG):
+                    traceback.print_tb(sys.exc_info()[2])
+                # print(ex, file=sys.stderr, flush=True)
                 exit_code = errors.__ERR_UNKNOWN__  # exit code
 
             else:
@@ -795,7 +802,8 @@ class ListenApp:
             finally:
                 # print("ListenApp.run() try block exiting. self.persistent_connection =", self.persistent_connection)
                 if self.persistent_connection:
-                    print("Waiting {} seconds to try again...".format(self.persistent_connection_wait_interval))
+                    print("Waiting {} seconds to try again...".format(self.persistent_connection_wait_interval),
+                          flush=True)
                     await asyncio.sleep(self.persistent_connection_wait_interval)
 
         return exit_code

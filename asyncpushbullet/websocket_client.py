@@ -202,7 +202,7 @@ class WebsocketClient():
         try:
             self._session = self._session or await self._create_session()
             self.socket = await self._session.ws_connect(self.url, proxy=self.proxy)
-            self.log.info("Connected socket {} to {}".format(id(self.socket), self.url))
+            self.log.debug("Connected socket {} to {}".format(id(self.socket), self.url))
         except Exception as ex:
             if self._session:
                 await self._session.close()

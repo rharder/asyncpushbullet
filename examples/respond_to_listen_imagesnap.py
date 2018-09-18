@@ -3,6 +3,7 @@
 """
 Experimental script that responds to a ListenApp exec command.
 """
+import asyncio
 import json
 import os
 import subprocess
@@ -30,13 +31,13 @@ def main():
 
             # Take a picture and upload
             # PRETEND TO TAKE A PICTURE
-            # import shutil
-            # fakepic = os.path.join(os.path.dirname(os.path.abspath(__file__)), "snapshot.jpg")
-            # shutil.copy(fakepic, temp_img.name)
+            import shutil
+            fakepic = os.path.join(os.path.dirname(os.path.abspath(__file__)), "snapshot.jpg")
+            shutil.copy(fakepic, temp_img.name)
 
             # Take a picture
-            proc = subprocess.run(["imagesnap", temp_img.name],
-            # proc = subprocess.run(["clip.exe"],  # Debugging
+            # proc = subprocess.run(["imagesnap", temp_img.name],
+            proc = subprocess.run(["notepad.exe"],  # Debugging
                                   stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE,
                                   timeout=10,

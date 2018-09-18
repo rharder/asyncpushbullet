@@ -16,7 +16,7 @@ import aiohttp  # pip install aiohttp
 from .channel import Channel
 from .chat import Chat
 from .device import Device
-from .errors import HttpError, PushbulletError
+from .errors import HttpError, PushbulletError, InvalidKeyError
 from .filetype import get_file_type
 from .pushbullet import Pushbullet
 from .subscription import Subscription
@@ -160,7 +160,7 @@ class PushbulletAsyncIterator(AsyncIterator, Generic[T]):
             await self._paused_lock.acquire()
             self._paused_lock.release()
             if self.stopped:
-                raise StopAsyncIteration("PushbulletAsyncIterator was told to stop.")
+                raise StopAsyncIteration("PushbulletAsyncIterator has been told to stop.")
 
         try:
             await _check_if_paused()
@@ -178,9 +178,13 @@ class PushbulletAsyncIterator(AsyncIterator, Generic[T]):
                     # Do I/O
                     msg = await self._pb._async_get_data(self._url, params=self._params)
 
+                except InvalidKeyError as ike:
+                    raise ike  # Pass this one along
+
                 except PushbulletError as pe:
                     self.log.debug("An error aborted the network request for _objects_asynciter: {}".format(pe))
-                    raise StopAsyncIteration(pe).with_traceback(sys.exc_info()[2])
+                    # raise StopAsyncIteration(pe).with_traceback(sys.exc_info()[2])
+                    raise pe
 
                 else:
                     items_this_round = msg.get(self._item_name, [])
@@ -225,8 +229,6 @@ class PushbulletAsyncIterator(AsyncIterator, Generic[T]):
 
         except StopAsyncIteration as sai:
             self.log.debug("Reason for iterator stopping: {}".format(sai))
-            # print("Caught StopAsyncIteration", sai, flush=True)
-            # traceback.print_tb(sys.exc_info()[2])
             self._stop = sai
             raise sai
 
@@ -270,7 +272,7 @@ class AsyncPushbullet(Pushbullet):
         session = self._aio_session
 
         if session is None or session.closed:
-            self.log.info("Creating aiohttp-based, asyncio session.")
+            self.log.debug("Creating aiohttp-based, asyncio session.")
 
             self.loop = asyncio.get_event_loop()
 
@@ -287,6 +289,7 @@ class AsyncPushbullet(Pushbullet):
             self._aio_session = session
 
             try:
+                # raise Exception("Foo!")
                 # This will recursively call aio_session() but that's OK
                 # because self._aio_session caches it until we determine
                 # if the key is valid in the line below.
@@ -298,11 +301,12 @@ class AsyncPushbullet(Pushbullet):
             except Exception as ex:
                 await session.close()
                 self._aio_session = None
-                if isinstance(ex, PushbulletError):
-                    raise ex
-                else:
-                    tb = sys.exc_info()[2]
-                    raise PushbulletError(ex).with_traceback(tb) from ex
+                raise ex
+                # if isinstance(ex, PushbulletError):
+                #     raise ex
+                # else:
+                #     tb = sys.exc_info()[2]
+                #     raise PushbulletError(ex).with_traceback(tb) from ex
 
         return session
 
@@ -328,7 +332,7 @@ class AsyncPushbullet(Pushbullet):
 
     async def _async_http(self, aiohttp_func, url: str, **kwargs) -> dict:
 
-        try:
+        # try:
             async with aiohttp_func(url + "", proxy=self.proxy, **kwargs) as resp:  # Do HTTP
                 code = resp.status
                 msg = None
@@ -344,12 +348,11 @@ class AsyncPushbullet(Pushbullet):
 
                 return self._interpret_response(code, resp.headers, msg)
 
-        except Exception as ex:
-            if isinstance(ex, PushbulletError):
-                raise ex
-            else:
-                tb = sys.exc_info()[2]
-                raise PushbulletError(ex).with_traceback(tb) from ex
+        # except Exception as ex:
+        #     if isinstance(ex, PushbulletError):
+        #         raise ex
+        #     else:
+        #         raise PushbulletError(ex).with_traceback(sys.exc_info()[2]) from ex
 
     async def _async_get_data(self, url: str, **kwargs) -> dict:
         session = await self.aio_session()
