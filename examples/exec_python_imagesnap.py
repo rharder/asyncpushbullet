@@ -19,6 +19,8 @@ ENCODING = "utf-8"
 
 
 async def on_push(recvd_push: dict, pb: AsyncPushbullet):
+
+    await asyncio.sleep(99)
     if recvd_push.get("body", "").lower().strip() == "imagesnap":
 
         # Temp file to house the image file
@@ -34,6 +36,11 @@ async def on_push(recvd_push: dict, pb: AsyncPushbullet):
 
             stdout_txt = None  # type: str
             stderr_txt = None  # type: str
+
+            cmd_path = "imagesnap"
+            cmd_path = "notepad.exe"
+            # cmd_path = "clip.exe"
+            cmd_args = [temp_img.name]
             if sys.platform == "win32":
 
                 # Using subprocess.run hangs up the event thread, but if we're
@@ -45,35 +52,22 @@ async def on_push(recvd_push: dict, pb: AsyncPushbullet):
                 # is calling on_push, so be careful with subprocess.run, and always
                 # include your own timeout=xxx parameter.
 
-                # proc = subprocess.run(["imagesnap", temp_img.name],
-                proc = subprocess.run(["notepad.exe"],  # Debugging
+                proc = subprocess.run([cmd_path] + cmd_args,
                                       stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE,
-                                      timeout=999,
+                                      timeout=1000,
                                       encoding=ENCODING)
                 stdout_txt = proc.stdout
                 stderr_txt = proc.stderr
             else:
-                path = "notepad.exe"
-                args = []
-                proc = await asyncio.create_subprocess_exec(path, *args,
+                proc = await asyncio.create_subprocess_exec(cmd_path, *cmd_args,
                                                             stdin=asyncio.subprocess.PIPE,
                                                             stdout=asyncio.subprocess.PIPE,
                                                             stderr=asyncio.subprocess.PIPE)
                 stdout_data, stderr_data = await asyncio.wait_for(proc.communicate(input=b''),
-                                                                  timeout=999)
+                                                                  timeout=1000)
                 stdout_txt = stdout_data.decode(encoding=ENCODING)
                 stderr_txt = stderr_data.decode(encoding=ENCODING)
-
-            # raise Exception("FOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO")
-            # proc = await asyncio.create_subprocess_exec(
-            #     "notepad.exe",
-            #     stdout=asyncio.subprocess.PIPE,
-            #     stderr=asyncio.subprocess.PIPE)
-            #     # timeout=10,
-            #     # encoding=ENCODING)
-            # stdout_data, stderr_data = await asyncio.wait_for(proc.communicate(),
-            #                                                   timeout=5)
 
             # Upload picture
 
@@ -88,15 +82,16 @@ async def on_push(recvd_push: dict, pb: AsyncPushbullet):
             await pb.async_push_file(file_name=file_name, file_url=file_url, file_type=file_type,
                                      title="Imagesnap", body="{}\n{}".format(stdout_txt, stderr_txt).strip(),
                                      device=dev)
-        except asyncio.CancelledError as ce:
-            print("CANCELLED!", ce)
-            # traceback.print_tb(sys.exc_info()[2])
-            raise ce
-
-        except Exception as e:
-            # print("Error:", e, file=sys.stderr)
-            # traceback.print_tb(sys.exc_info()[2])
-            raise e
+            print("File uploaded and pushed: {}".format(file_url))
+        # except asyncio.CancelledError as ce:
+        #     # print("CANCELLED!", ce)
+        #     # traceback.print_tb(sys.exc_info()[2])
+        #     raise ce
+        #
+        # except Exception as e:
+        #     # print("Error:", e, file=sys.stderr)
+        #     # traceback.print_tb(sys.exc_info()[2])
+        #     raise e
 
         finally:
             os.remove(temp_img.name)
