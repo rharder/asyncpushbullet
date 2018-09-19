@@ -59,7 +59,7 @@ class LiveStreamListener:
         # Push types are what should be allowed through.
         # Ephemerals can be sub-typed like so: ephemeral:clip
         # The ephemeral_types variable contains the post-colon words
-        self.push_types = set(types) if types else ("push",)  # type: Set[str]
+        self.push_types = set(types) if types is not None else ("push",)  # type: Set[str]
         self.ephemeral_types = tuple([x.split(":")[-1] for x in self.push_types if len(x.split(":")) > 1])
 
     @property

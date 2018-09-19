@@ -19,6 +19,7 @@ __email__ = "rob@iharder.net"
 API_KEY = ""  # YOUR API KEY
 PROXY = os.environ.get("https_proxy") or os.environ.get("http_proxy")
 
+
 # logging.basicConfig(level=logging.DEBUG)
 
 def main():
@@ -30,13 +31,13 @@ def main():
             # types_try_this=("tickle")
             # types_try_this=("tickle", "push", "ephemeral")
             # types_try_this=("nop",)
-            # types_try_this=()  # Everything
+            types_try_this = ()  # Everything
             async with AsyncPushbullet(api_key=API_KEY, proxy=PROXY) as pb:
-                async with LiveStreamListener(pb, types=types_try_this) as lll:
+                async with LiveStreamListener(pb, types=types_try_this) as lsl:
                     print("Connected.", flush=True)
 
                     # Wait indefinitely for pushes and other notifications
-                    async for item in lll:
+                    async for item in lsl:
                         print("Live stream item:", pprint.pformat(item))
 
         except Exception as ex:
