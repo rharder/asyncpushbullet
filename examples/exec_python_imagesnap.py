@@ -38,7 +38,6 @@ async def on_push(recvd_push: dict, pb: AsyncPushbullet):
             stderr_txt = None  # type: str
 
             cmd_path = "imagesnap"
-            # cmd_path = "mate"
             # cmd_path = "notepad.exe"
             # cmd_path = "clip.exe"
             cmd_args = [temp_img.name]
@@ -62,6 +61,7 @@ async def on_push(recvd_push: dict, pb: AsyncPushbullet):
                 stdout_txt = proc.stdout
                 stderr_txt = proc.stderr
             else:
+                # Non-Windows platforms
                 proc = await asyncio.create_subprocess_exec(cmd_path, *cmd_args,
                                                             stdin=asyncio.subprocess.PIPE,
                                                             stdout=asyncio.subprocess.PIPE,
@@ -72,7 +72,6 @@ async def on_push(recvd_push: dict, pb: AsyncPushbullet):
                 stderr_txt = stderr_data.decode(encoding=ENCODING)
 
             # Upload picture
-
             resp = await pb.async_upload_file_to_transfer_sh(temp_img.name)
             file_type = resp.get("file_type")
             file_url = resp.get("file_url")
@@ -90,10 +89,10 @@ async def on_push(recvd_push: dict, pb: AsyncPushbullet):
         #     # traceback.print_tb(sys.exc_info()[2])
         #     raise ce
         #
-        # except Exception as e:
-        #     # print("Error:", e, file=sys.stderr)
-        #     # traceback.print_tb(sys.exc_info()[2])
-        #     raise e
+        except Exception as e:
+            # print("Error in {}:".format(__name__), e, file=sys.stderr)
+            # traceback.print_tb(sys.exc_info()[2])
+            raise e
 
         finally:
             os.remove(temp_img.name)

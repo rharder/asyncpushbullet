@@ -15,7 +15,10 @@ from asyncpushbullet.command_line_listen import ListenApp, Action
 # async def on_push(push: dict, app: ListenApp):
 async def on_push(push: dict, pb: AsyncPushbullet):
     print("title={}, body={}".format(push.get("title"), push.get("body")), flush=True)
-    await asyncio.sleep(3)
+
+    # raise Exception("FOO! {}".format(__name__))
+
+    await asyncio.sleep(1)
 
     if push.get("body", "").strip().lower() == "a":
         # pb.log.info("{} sending a note".format(__file__))

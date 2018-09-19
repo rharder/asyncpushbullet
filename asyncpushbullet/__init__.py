@@ -10,3 +10,5 @@ from .device import Device
 from .channel import Channel
 from .chat import Chat
 from .subscription import Subscription
+
+from .oauth2 import gain_oauth2_access, get_oauth2_key, async_gain_oauth2_access

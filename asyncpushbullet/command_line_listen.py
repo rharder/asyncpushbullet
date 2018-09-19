@@ -61,7 +61,7 @@ optional arguments:
 """
 import argparse
 import asyncio
-import inspect
+import importlib.util
 import json
 import logging
 import math
@@ -75,16 +75,14 @@ import traceback
 import types
 from functools import partial
 from typing import List
-import importlib.util
-
-# import wrapt
 
 from asyncpushbullet import AsyncPushbullet, __version__
-from asyncpushbullet import Device
 from asyncpushbullet import InvalidKeyError, PushbulletError
 from asyncpushbullet import LiveStreamListener
 from asyncpushbullet import errors
 from asyncpushbullet import oauth2
+
+# import wrapt
 
 __author__ = "Robert Harder"
 __email__ = "rob@iHarder.net"
@@ -104,7 +102,7 @@ def main():
     # sys.argv += ["-k", "badkey"]
     # sys.argv += ["--key-file", "../api_key.txt"]
     # sys.argv += ["--device", "Kanga"]
-    # sys.argv += ["--timeout", "3"]
+    sys.argv += ["--timeout", "3"]
     # sys.argv.append("--echo")
     # sys.argv += ["--proxy", "foo"]
     # sys.argv.append("--list-devices")
@@ -112,7 +110,7 @@ def main():
     # sys.argv += ["--exec-simple", r"C:\windows\System32\clip.exe"]
     # sys.argv += ["--exec", r"C:\windows\System32\notepad.exe"]
     # sys.argv += ["--exec", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_imagesnap.py"]
-    # sys.argv += ["--exec-python", r"../examples/exec_python_example.py"]
+    sys.argv += ["--exec-python", r"../examples/exec_python_example.py"]
     # sys.argv += ["--exec-python", r"../examples/exec_python_imagesnap.py"]
     #              r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\exec_python_example.py"]
     # sys.argv += ["--exec-simple", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_exec_simple.py"]
@@ -600,11 +598,12 @@ class ExecutableActionPython(Action):
 
     """
 
-    def __init__(self, path):
+    def __init__(self, path: str):
         super().__init__()
-        self.path = path
+        self.path = path  # type: str
         self._mod_cache = None
-        self._mod_path_last_timestamp = 0
+        self._mod_path_last_timestamp = 0.0  # type: float
+        self.module_prefix = "{}_{}".format(self.__class__.__name__, id(self))  # type: str
 
     def __repr__(self):
         return super().__repr__() + "({})".format(self.path)
@@ -620,7 +619,7 @@ class ExecutableActionPython(Action):
             self._mod_cache = None
 
         if self._mod_cache is None:
-            spec = importlib.util.spec_from_file_location("action_module", self.path)
+            spec = importlib.util.spec_from_file_location(self.module_prefix, self.path)
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
             self._mod_cache = module
@@ -749,7 +748,7 @@ class ListenApp:
                                     "Ignoring an incoming push that we sent. (iden={})".format(push.get('iden')))
                                 continue
 
-                            async def _call_on_push(_action:Action):
+                            async def _call_on_push(_action: Action):
                                 self.log.info("Calling action {}".format(repr(_action)))
                                 try:
                                     await asyncio.wait_for(_action.on_push(push, self.wrapped_account),
@@ -758,7 +757,7 @@ class ListenApp:
 
                                 except asyncio.TimeoutError as te:
                                     err_msg = "Action {} timed out after {}+ seconds".format(_action,
-                                                                                            self.action_timeout)
+                                                                                             self.action_timeout)
                                     if not self.log.isEnabledFor(logging.DEBUG):
                                         err_msg += " (turn on --debug to see traceback)"
                                     self.log.warning(err_msg)
