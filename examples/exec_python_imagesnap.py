@@ -20,7 +20,7 @@ ENCODING = "utf-8"
 
 async def on_push(recvd_push: dict, pb: AsyncPushbullet):
 
-    await asyncio.sleep(99)
+    # await asyncio.sleep(99)
     if recvd_push.get("body", "").lower().strip() == "imagesnap":
 
         # Temp file to house the image file
@@ -30,17 +30,19 @@ async def on_push(recvd_push: dict, pb: AsyncPushbullet):
         try:
             # Take a picture and upload
             # PRETEND TO TAKE A PICTURE DURING DEBUGGING
-            import shutil
-            fakepic = os.path.join(os.path.dirname(os.path.abspath(__file__)), "snapshot.jpg")
-            shutil.copy(fakepic, temp_img.name)
+            # import shutil
+            # fakepic = os.path.join(os.path.dirname(os.path.abspath(__file__)), "snapshot.jpg")
+            # shutil.copy(fakepic, temp_img.name)
 
             stdout_txt = None  # type: str
             stderr_txt = None  # type: str
 
             cmd_path = "imagesnap"
-            cmd_path = "notepad.exe"
+            # cmd_path = "mate"
+            # cmd_path = "notepad.exe"
             # cmd_path = "clip.exe"
             cmd_args = [temp_img.name]
+
             if sys.platform == "win32":
 
                 # Using subprocess.run hangs up the event thread, but if we're
@@ -55,7 +57,7 @@ async def on_push(recvd_push: dict, pb: AsyncPushbullet):
                 proc = subprocess.run([cmd_path] + cmd_args,
                                       stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE,
-                                      timeout=1000,
+                                      timeout=10,
                                       encoding=ENCODING)
                 stdout_txt = proc.stdout
                 stderr_txt = proc.stderr
@@ -65,7 +67,7 @@ async def on_push(recvd_push: dict, pb: AsyncPushbullet):
                                                             stdout=asyncio.subprocess.PIPE,
                                                             stderr=asyncio.subprocess.PIPE)
                 stdout_data, stderr_data = await asyncio.wait_for(proc.communicate(input=b''),
-                                                                  timeout=1000)
+                                                                  timeout=10)
                 stdout_txt = stdout_data.decode(encoding=ENCODING)
                 stderr_txt = stderr_data.decode(encoding=ENCODING)
 

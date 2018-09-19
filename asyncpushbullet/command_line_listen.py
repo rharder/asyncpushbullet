@@ -104,7 +104,7 @@ def main():
     # sys.argv += ["-k", "badkey"]
     # sys.argv += ["--key-file", "../api_key.txt"]
     # sys.argv += ["--device", "Kanga"]
-    # sys.argv += ["--timeout", "1"]
+    # sys.argv += ["--timeout", "3"]
     # sys.argv.append("--echo")
     # sys.argv += ["--proxy", "foo"]
     # sys.argv.append("--list-devices")
