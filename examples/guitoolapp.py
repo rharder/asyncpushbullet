@@ -176,8 +176,11 @@ class GuiToolApp():
         self.btn_disconnect.grid(row=0, column=1, sticky=tk.W)
         self.btn_disconnect.configure(state=tk.DISABLED)
 
+        btn_clear = tk.Button(parent, text="Clear", command=partial(self.pushes_var.set, ""))
+        btn_clear.grid(row=0, column=2)
+
         txt_data = tkinter_tools.BindableTextArea(parent, textvariable=self.pushes_var, width=60, height=20)
-        txt_data.grid(row=1, column=0, sticky="NSEW", columnspan=2)
+        txt_data.grid(row=1, column=0, sticky="NSEW", columnspan=3)
         tk.Grid.grid_columnconfigure(parent, 0, weight=1)
         tk.Grid.grid_columnconfigure(parent, 1, weight=1)
         tk.Grid.grid_rowconfigure(parent, 1, weight=1)

@@ -776,18 +776,7 @@ class ListenApp:
                                     self.log.debug("Leaving action {}".format(repr(_action)))
 
                             for a in self._actions:
-                                asyncio.create_task(_call_on_push(a))
-
-                            # try:
-                            #     _action_coros = [_call_on_push(a) for a in self.actions]
-                            #     await asyncio.gather(*_action_coros)
-                            # except Exception as ex:
-                            #     err_msg = "{}: {}".format(ex.__class__.__name__, ex)
-                            #     if not self.log.isEnabledFor(logging.DEBUG):
-                            #         err_msg += " (turn on --debug to see traceback)"
-                            #     self.log.warning(err_msg)
-                            #     if self.log.isEnabledFor(logging.DEBUG):
-                            #         traceback.print_tb(sys.exc_info()[2])
+                                asyncio.get_event_loop().create_task(_call_on_push(a))
 
 
             except InvalidKeyError as ex:
