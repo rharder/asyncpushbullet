@@ -66,7 +66,7 @@ class LiveStreamListener:
         self.push_types = set(types) if types is not None else ("push",)  # type: Set[str]
 
         eph_types = []
-        for x in types:
+        for x in self.push_types:
             compound = x.split(":")
             if len(compound) >= 2 and compound[0] == "ephemeral":
                 eph_types.append(compound[1])
