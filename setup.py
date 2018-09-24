@@ -8,7 +8,7 @@ from setuptools import setup
 with open("./asyncpushbullet/__version__.py") as version_file:
     version = version_file.read().split("\"")[1]
 
-# version += "a2"
+# version += "a0"
 # sys.argv.append("install")
 
 if len(sys.argv) < 2:
