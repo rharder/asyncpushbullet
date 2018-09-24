@@ -8,7 +8,7 @@ import asyncio
 import json
 import logging
 import time
-from typing import AsyncIterator, Set, Iterable
+from typing import AsyncIterator, Set, Iterable, Callable, Dict
 
 import aiohttp  # pip install aiohttp
 
@@ -27,7 +27,8 @@ class LiveStreamListener:
                  active_only: bool = True,
                  ignore_dismissed: bool = True,
                  only_this_device_nickname: str = None,
-                 types: Iterable[str] = None):
+                 types: Iterable[str] = None,
+                 post_process:Callable = None):
         """Listens for events on the pushbullet live stream websocket.
 
         The types parameter can be used to limit which kinds of pushes
@@ -55,12 +56,23 @@ class LiveStreamListener:
         self._ws_client = None  # type: WebsocketClient
         self._loop = None  # type: asyncio.BaseEventLoop
         self._queue = None  # type: asyncio.Queue
+        self._post_process = post_process  # type: Callable
 
         # Push types are what should be allowed through.
         # Ephemerals can be sub-typed like so: ephemeral:clip
         # The ephemeral_types variable contains the post-colon words
+        if type(types) == str:
+            types = (types,)  # Convert to tuple of one
         self.push_types = set(types) if types is not None else ("push",)  # type: Set[str]
-        self.ephemeral_types = tuple([x.split(":")[-1] for x in self.push_types if len(x.split(":")) > 1])
+
+        eph_types = []
+        for x in types:
+            compound = x.split(":")
+            if len(compound) >= 2 and compound[0] == "ephemeral":
+                eph_types.append(compound[1])
+        self.ephemeral_types = tuple(eph_types)
+        # print("Ephemeral types:", self.ephemeral_types)
+        # self.ephemeral_types = tuple([x.split(":")[-1] for x in self.push_types if len(x.split(":")) > 1])
 
     @property
     def closed(self):
@@ -248,14 +260,23 @@ class LiveStreamListener:
         """
         return LiveStreamListener._Iterator(self, timeout=timeout)
 
-    async def next_push(self, timeout: float = None) -> dict:
+    async def next_push(self, timeout: float = None) -> Dict:
         if timeout is None:
+            if self._queue is None:  # __aenter__ never called -- call it now
+                await self.__aenter__()
             push = await self._queue.get()
             if type(push) == StopAsyncIteration:
                 raise push
-            return push
+            # return push
         else:
             push = await asyncio.wait_for(self.next_push(), timeout=timeout)
+            # return push
+
+        if asyncio.iscoroutinefunction(self._post_process):
+            post = await self._post_process(push)
+        elif callable(self._post_process):
+            post = self._post_process(push)
+        else:
             return push
 
     class _Iterator(AsyncIterator):

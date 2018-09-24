@@ -111,9 +111,9 @@ class FormattableTkStringVar(tk.StringVar):
         :param str str_format: the string format, eg, "Age: {}"
         :param var_list: the list of tk.xxxVar objects that feed into the string format
         """
-        tk.StringVar.__init__(self, **kwargs)
+        super().__init__(**kwargs)
         self._format = str_format
-        self._vars = [v for v in vars]
+        self._vars = list(vars)
 
         for v in self._vars:
             v.trace("w", self.var_changed)  # Bind to all underlying vars
@@ -152,7 +152,7 @@ class BindableTextArea(tk.scrolledtext.ScrolledText):
             """ At conclusion of operation, resume the trace. """
             self.__parent._trace_id = self.__parent._textvariable.trace("w", self.__parent._variable_value_changed)
 
-    def __init__(self, parent, textvariable: tk.StringVar = None, **kwargs):
+    def __init__(self, parent, textvariable: tk.StringVar = None, autoscroll=True, **kwargs):
         tk.scrolledtext.ScrolledText.__init__(self, parent, **kwargs)
         self._textvariable = None  # type: tk.StringVar
         self._trace_id = None
@@ -161,6 +161,7 @@ class BindableTextArea(tk.scrolledtext.ScrolledText):
         else:
             self.textvariable = textvariable
         self.bind("<KeyRelease>", self._key_released)
+        self.autoscroll = autoscroll
 
     @property
     def textvariable(self):
@@ -186,6 +187,9 @@ class BindableTextArea(tk.scrolledtext.ScrolledText):
         text = self._textvariable.get()
         self.delete("1.0", tk.END)
         self.insert(tk.END, text)
+
+        if self.autoscroll:
+            self.see(tk.END)
 
         # Restore previous state, whatever that was
         self["state"] = prev_state
