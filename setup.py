@@ -8,8 +8,8 @@ from setuptools import setup
 with open("./asyncpushbullet/__version__.py") as version_file:
     version = version_file.read().split("\"")[1]
 
-# version += "a2"
-# sys.argv.append("install")
+version += "a3"
+sys.argv.append("install")
 
 if len(sys.argv) < 2:
     cmd = input("Command (build | test | publish | all ): ")

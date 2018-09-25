@@ -276,7 +276,6 @@ class AsyncPushbullet(Pushbullet):
 
             self.loop = asyncio.get_event_loop()
 
-            # print("Session is None, creating new one")
             headers = {"Access-Token": self.api_key}
 
             aio_connector = None  # type: aiohttp.TCPConnector

@@ -117,8 +117,8 @@ class LiveStreamListener:
         session = await self.pb.aio_session()
         wc = WebsocketClient(url=self.PUSHBULLET_WEBSOCKET_URL + self.pb.api_key,
                              proxy=self.pb.proxy,
-                             verify_ssl=self.pb.verify_ssl,
-                             session=session)
+                             verify_ssl=self.pb.verify_ssl)#,
+                             # session=session)
         self._ws_client = await wc.__aenter__()
         asyncio.get_event_loop().create_task(_listen_for_websocket_messages(wc))
         await asyncio.sleep(0)
