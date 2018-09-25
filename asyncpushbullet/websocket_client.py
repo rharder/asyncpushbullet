@@ -36,7 +36,8 @@ class WebsocketClient():
         self.headers = headers
         self.verify_ssl = verify_ssl
         self.proxy = None if proxy is None or str(proxy).strip() == "" else str(proxy)
-        self._session = session  # type: aiohttp.ClientSession
+        self._provided_session = session  # type: aiohttp.ClientSession
+        self._created_session = None  # type: aiohttp.ClientSession
         self.socket = None  # type: aiohttp.ClientWebSocketResponse
         self._queue = None  # type: asyncio.Queue
         self.loop = None  # type: asyncio.BaseEventLoop
@@ -101,12 +102,12 @@ class WebsocketClient():
             else:
                 await self.socket.close()
                 self.log.info("Closed socket {}".format(id(self.socket)))
-        if self._session:
-            if self._session.closed:
-                self.log.debug("Session {} already closed".format(id(self._session)))
+        if self._created_session:  # Only close session if we created it here
+            if self._created_session.closed:
+                self.log.debug("Session {} already closed".format(id(self._created_session)))
             else:
-                await self._session.close()
-                self.log.debug("Closed session {}".format(id(self._session)))
+                await self._created_session.close()
+                self.log.debug("Closed session {}".format(id(self._created_session)))
 
     @property
     def closed(self):
@@ -200,13 +201,16 @@ class WebsocketClient():
 
         # Make connection
         try:
-            self._session = self._session or await self._create_session()
-            self.socket = await self._session.ws_connect(self.url, proxy=self.proxy)
+            session = self._provided_session
+            if session is None:
+                self._created_session = await self._create_session()
+                session = self._created_session
+            self.socket = await session.ws_connect(self.url, proxy=self.proxy)
             self.log.debug("Connected socket {} to {}".format(id(self.socket), self.url))
         except Exception as ex:
-            if self._session:
-                await self._session.close()
-                self._session = None
+            if self._provided_session:
+                await self._provided_session.close()
+                self._provided_session = None
             raise ex
 
         # Set up listener to receive messages and put them in a queue
