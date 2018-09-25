@@ -24,6 +24,8 @@ def get_oauth2_key():
     token = __PREFS_FOR_OAUTH2__.get(OAUTH2_TOKEN_KEY)
     return token
 
+def clear_oauth2_key():
+    __PREFS_FOR_OAUTH2__.set(OAUTH2_TOKEN_KEY, None)
 
 async def async_gain_oauth2_access():
     __PREFS_FOR_OAUTH2__.set(OAUTH2_TOKEN_KEY, None)

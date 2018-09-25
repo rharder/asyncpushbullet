@@ -94,6 +94,7 @@ LOG = logging.getLogger(__name__)
 
 
 def main():
+    # sys.argv.append("--clear-oauth2")
     # sys.argv.append("--oauth2")
     # sys.argv.append("--version")
     # sys.argv.append("-h")
@@ -145,16 +146,23 @@ async def _run(args):
         print("Log level: INFO")
         logging.basicConfig(level=logging.INFO)
 
+    # Clear the oauth2 token?
+    if args.clear_oauth2:
+        oauth2.clear_oauth2_key()
+        print("Successfully cleared/unregistered the oauth2 token.")
+        print("The asyncpushbullet command line tools no longer have access to your pushbullet account.")
+        sys.exit(errors.__EXIT_NO_ERROR__)
+
     # Request setting up oauth2 access?
     if args.oauth2:
         token = await oauth2.async_gain_oauth2_access()
         if token:
             print("Successfully authenticated using OAuth2.")
             print("You should now be able to use the command line tools without specifying an API key.")
-            sys.exit(0)
+            sys.exit(errors.__EXIT_NO_ERROR__)
         else:
             print("There was a problem authenticating.")
-            sys.exit(1)
+            sys.exit(errors.__ERR_UNKNOWN__)
 
     # Find a valid API key
     api_key = try_to_find_key(args, not args.quiet)
@@ -353,6 +361,7 @@ def parse_args():
     parser.add_argument("-v", "--verbose", action="store_true", help="Turn on verbose logging (INFO messages)")
     parser.add_argument("-q", "--quiet", action="store_true", help="Suppress all output")
     parser.add_argument("--oauth2", action="store_true", help="Register your command line tool using OAuth2")
+    parser.add_argument("--clear-oauth2", action="store_true", help="Clears/unregisters the oauth2 token")
     parser.add_argument("--version", action="version", version='%(prog)s ' + __version__)
 
     args = parser.parse_args()
