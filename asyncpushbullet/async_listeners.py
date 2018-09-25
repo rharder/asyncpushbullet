@@ -7,6 +7,7 @@ Pushbullet's API: https://docs.pushbullet.com/#realtime-event-stream
 import asyncio
 import json
 import logging
+import sys
 import time
 from typing import AsyncIterator, Set, Iterable, Callable, Dict
 
@@ -105,9 +106,9 @@ class LiveStreamListener:
                     await self._process_websocket_message(msg)
 
             except Exception as e:
-                raise e
-                # sai = StopAsyncIteration(e)
-                # await self._queue.put(sai)
+                # raise e
+                sai = StopAsyncIteration(e).with_traceback(sys.exc_info()[2])
+                await self._queue.put(sai)
             else:
                 msg = "Websocket closed" if _wc.closed else None
                 sai = StopAsyncIteration(msg)
