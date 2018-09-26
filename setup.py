@@ -11,6 +11,8 @@ with open("./asyncpushbullet/__version__.py") as version_file:
 # version += "a2"
 # sys.argv.append("install")
 
+print(f"Version {version}")
+
 if len(sys.argv) < 2:
     cmd = input("Command (build | test | publish | all ): ")
     sys.argv.append(cmd)
