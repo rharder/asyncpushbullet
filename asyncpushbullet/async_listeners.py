@@ -29,7 +29,7 @@ class LiveStreamListener:
                  ignore_dismissed: bool = True,
                  only_this_device_nickname: str = None,
                  types: Iterable[str] = None,
-                 post_process:Callable = None):
+                 post_process: Callable = None):
         """Listens for events on the pushbullet live stream websocket.
 
         The types parameter can be used to limit which kinds of pushes
@@ -49,15 +49,15 @@ class LiveStreamListener:
         """
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
 
-        self.pb = account  # type: AsyncPushbullet
-        self._last_update = 0  # type: float
-        self._active_only = active_only  # type: bool
-        self._ignore_dismissed = ignore_dismissed  # type: bool
-        self._only_this_device_nickname = only_this_device_nickname  # type: str
-        self._ws_client = None  # type: WebsocketClient
-        self._loop = None  # type: asyncio.BaseEventLoop
-        self._queue = None  # type: asyncio.Queue
-        self._post_process = post_process  # type: Callable
+        self.pb: AsyncPushbullet = account
+        self._last_update: float = 0
+        self._active_only: bool = active_only
+        self._ignore_dismissed: bool = ignore_dismissed
+        self._only_this_device_nickname: str = only_this_device_nickname
+        self._ws_client: WebsocketClient = None
+        self._loop: asyncio.BaseEventLoop = None
+        self._queue: asyncio.Queue = None
+        self._post_process: Callable = post_process
 
         # Push types are what should be allowed through.
         # Ephemerals can be sub-typed like so: ephemeral:clip
@@ -117,8 +117,8 @@ class LiveStreamListener:
         session = await self.pb.aio_session()
         wc = WebsocketClient(url=self.PUSHBULLET_WEBSOCKET_URL + self.pb.api_key,
                              proxy=self.pb.proxy,
-                             verify_ssl=self.pb.verify_ssl)#,
-                             # session=session)
+                             verify_ssl=self.pb.verify_ssl)  # ,
+        # session=session)
         self._ws_client = await wc.__aenter__()
         asyncio.get_event_loop().create_task(_listen_for_websocket_messages(wc))
         await asyncio.sleep(0)

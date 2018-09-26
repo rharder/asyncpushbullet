@@ -9,7 +9,7 @@ import sys
 import traceback
 from asyncio import Lock
 from pprint import pprint
-from typing import List, AsyncIterator, Optional, Callable, Generic, TypeVar
+from typing import List, AsyncIterator, Optional, Callable, Generic, TypeVar, Dict
 
 import aiohttp  # pip install aiohttp
 
@@ -41,14 +41,14 @@ class PushbulletAsyncIterator(AsyncIterator, Generic[T]):
                  _modified_after: float = None,
                  _post_process: Callable = None):
         # Passed args
-        self._pb = parent_pb  # type: AsyncPushbullet
-        self._url = _url
-        self._item_name = _item_name
-        self._limit = _limit
-        self._page_size = _page_size
-        self._active_only = _active_only
-        self._modified_after = _modified_after
-        self._post_process = _post_process
+        self._pb: AsyncPushbullet = parent_pb
+        self._url: str = _url
+        self._item_name: str = _item_name
+        self._limit: int = _limit
+        self._page_size: int = _page_size
+        self._active_only: bool = _active_only
+        self._modified_after: float = _modified_after
+        self._post_process: Callable = _post_process
 
         # Parameters for HTTP calls
         self._params = {}
@@ -61,14 +61,14 @@ class PushbulletAsyncIterator(AsyncIterator, Generic[T]):
 
         # Internal management
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
-        self.loop = None  # type: asyncio.BaseEventLoop
-        self._paused = False  # type: bool
-        self._stop = None  # Instructed to stop or end of iterator
-        self._objects = []  # type: List  # Use as FIFO queue of objects retrieved
-        self._total_objects_returned = 0  # type: int # Count of objects actually returned by iterator
-        self._paused_lock = Lock()  # type: asyncio.Lock  # Used to coordinate pausing on asyncio event loop
-        self._get_more = True  # type: bool  # Flag meaning there's more data to retrieve
-        self._first_async_run = True  # type: bool  # First chance in an async function, do some housekeeping
+        self.loop: asyncio.BaseEventLoop = None
+        self._paused: bool = False
+        self._stop: bool = None  # Instructed to stop or end of iterator
+        self._objects: List[Dict] = []  # Use as FIFO queue of objects retrieved
+        self._total_objects_returned: int = 0  # Count of objects actually returned by iterator
+        self._paused_lock: asyncio.Lock = None  # Used to coordinate pausing on asyncio event loop
+        self._get_more: bool = True  # Flag meaning there's more data to retrieve
+        self._first_async_run: bool = True  # First chance in an async function, do some housekeeping
 
         # This is so weird.  When using tkinter, the Lock needs to be saved in a
         # class-level location -- not even object-level -- so that if the application
@@ -102,7 +102,13 @@ class PushbulletAsyncIterator(AsyncIterator, Generic[T]):
 
     @property
     def empty(self):
-        return not bool(self._objects)
+        return len(self._objects) == 0
+
+    @property
+    def paused_lock(self):
+        if self._paused_lock is None:
+            self._paused_lock = asyncio.Lock()
+        return self._paused_lock
 
     async def async_pause(self, val: bool = True):
         """Pauses or unpauses the iterator.
@@ -116,11 +122,11 @@ class PushbulletAsyncIterator(AsyncIterator, Generic[T]):
         """
         if val and not self._paused:
             self._paused = True
-            await self._paused_lock.acquire()
+            await self.paused_lock.acquire()
         elif not val:
             self._paused = False
-            if self._paused_lock.locked():
-                self._paused_lock.release()
+            if self.paused_lock.locked():
+                self.paused_lock.release()
 
     def pause(self, val: bool = True):
         """Pauses or unpauses the iterator.
@@ -150,15 +156,14 @@ class PushbulletAsyncIterator(AsyncIterator, Generic[T]):
         return self
 
     async def __anext__(self) -> T:
-
         if self._first_async_run:
             self.loop = asyncio.get_event_loop()
             await self._pb.async_verify_key()
             self._first_async_run = False
 
         async def _check_if_paused():
-            await self._paused_lock.acquire()
-            self._paused_lock.release()
+            await self.paused_lock.acquire()
+            self.paused_lock.release()
             if self.stopped:
                 raise StopAsyncIteration("PushbulletAsyncIterator has been told to stop.")
 
@@ -237,14 +242,14 @@ class AsyncPushbullet(Pushbullet):
     """Provides access to pushbullet.com services using asyncio."""
 
     # This is weird.  See the note in PushbulletAsyncIterator.
-    _iterator_locks = []  # type: List[asyncio.Lock]
+    # _iterator_locks: List[asyncio.Lock] = []
 
     def __init__(self, api_key: str = None, verify_ssl: bool = None, *kargs, **kwargs):
         Pushbullet.__init__(self, api_key, *kargs, **kwargs)
 
-        self.loop = None  # type: asyncio.BaseEventLoop
-        self._aio_session = None  # type: aiohttp.ClientSession
-        self.verify_ssl = verify_ssl
+        self.loop: asyncio.BaseEventLoop = None
+        self._aio_session: aiohttp.ClientSession = None
+        self.verify_ssl: bool = verify_ssl
 
     async def __aenter__(self):
         await self.async_verify_key()
@@ -269,7 +274,7 @@ class AsyncPushbullet(Pushbullet):
 
          Raises a PushbulletError if something goes wrong.
          """
-        session = self._aio_session
+        session:aiohttp.ClientSession = self._aio_session
 
         if session is None or session.closed:
             self.log.debug("Creating aiohttp-based, asyncio session.")
@@ -288,7 +293,6 @@ class AsyncPushbullet(Pushbullet):
             self._aio_session = session
 
             try:
-                # raise Exception("Foo!")
                 # This will recursively call aio_session() but that's OK
                 # because self._aio_session caches it until we determine
                 # if the key is valid in the line below.
@@ -332,26 +336,26 @@ class AsyncPushbullet(Pushbullet):
     async def _async_http(self, aiohttp_func, url: str, **kwargs) -> dict:
 
         # try:
-            async with aiohttp_func(url + "", proxy=self.proxy, **kwargs) as resp:  # Do HTTP
-                code = resp.status
-                msg = None
-                # noinspection PyBroadException
-                try:
-                    if code != 204:  # 204 would be "No content"
-                        msg = await resp.json()
-                except:
-                    pass
-                finally:
-                    if msg is None:
-                        msg = await resp.read()
+        async with aiohttp_func(url + "", proxy=self.proxy, **kwargs) as resp:  # Do HTTP
+            code = resp.status
+            msg = None
+            # noinspection PyBroadException
+            try:
+                if code != 204:  # 204 would be "No content"
+                    msg = await resp.json()
+            except:
+                pass
+            finally:
+                if msg is None:
+                    msg = await resp.read()
 
-                return self._interpret_response(code, resp.headers, msg)
+            return self._interpret_response(code, resp.headers, msg)
 
-        # except Exception as ex:
-        #     if isinstance(ex, PushbulletError):
-        #         raise ex
-        #     else:
-        #         raise PushbulletError(ex).with_traceback(sys.exc_info()[2]) from ex
+    # except Exception as ex:
+    #     if isinstance(ex, PushbulletError):
+    #         raise ex
+    #     else:
+    #         raise PushbulletError(ex).with_traceback(sys.exc_info()[2]) from ex
 
     async def _async_get_data(self, url: str, **kwargs) -> dict:
         session = await self.aio_session()
@@ -863,7 +867,7 @@ class AsyncPushbullet(Pushbullet):
                               chat: Chat = None,
                               email: str = None,
                               channel: Channel = None) -> dict:
-        data = {"type": "note"}#, "title": title, "body": body}
+        data = {"type": "note"}  # , "title": title, "body": body}
         if title:
             data["title"] = str(title)
         if body:

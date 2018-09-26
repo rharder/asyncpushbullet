@@ -41,8 +41,8 @@ class Pushbullet:
     TRANSFER_SH_URL = "https://transfer.sh/"
 
     def __init__(self, api_key: str = None, encryption_password: str = None, proxy: str = None, verify_ssl=None):
-        self.api_key = api_key
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
+        self.api_key = api_key  # type: str
 
         self._session = None  # type: requests.Session
         self._json_header = {'Content-Type': 'application/json'}
@@ -282,7 +282,7 @@ class Pushbullet:
             if device.push_token:
                 data["push_token"] = device.push_token
         elif chat:
-            data["email"] = chat.email
+            data["email"] = chat.with_email
         elif email:
             data["email"] = email
         elif channel:
@@ -499,7 +499,7 @@ class Pushbullet:
         _ = self.get_devices()  # If no cached copy, create one
 
         def _get():
-            return next((x for x in self._chats if x.email == email), None)
+            return next((x for x in self._chats if x.with_email == email), None)
 
         x = _get()
         if x is None:
