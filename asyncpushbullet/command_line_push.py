@@ -128,13 +128,13 @@ async def _run(args):
         sys.exit(errors.__ERR_API_KEY_NOT_GIVEN__)
 
     # Proxy
-    proxy = args.proxy or os.environ.get("https_proxy") or os.environ.get("http_proxy")
+    proxy = lambda: args.proxy or os.environ.get("https_proxy") or os.environ.get("http_proxy")
 
     try:
         # List devices?
         if args.list_devices:
             print("Devices:")
-            async with AsyncPushbullet(api_key, proxy=proxy) as pb:
+            async with AsyncPushbullet(api_key, proxy=proxy()) as pb:
                 async for dev in pb.devices_asynciter():
                     print("\t", dev.nickname)
             return errors.__EXIT_NO_ERROR__
@@ -142,7 +142,7 @@ async def _run(args):
         # Specify a device?
         target_device = None  # type: Device
         if args.device:
-            async with AsyncPushbullet(api_key, proxy=proxy) as pb:
+            async with AsyncPushbullet(api_key, proxy=proxy()) as pb:
                 target_device = await pb.async_get_device(nickname=args.device)
 
             if target_device is None:
@@ -153,7 +153,7 @@ async def _run(args):
 
         # Transfer single file?
         if getattr(args, "file", False):
-            async with AsyncPushbullet(api_key, proxy=proxy) as pb:
+            async with AsyncPushbullet(api_key, proxy=proxy()) as pb:
                 return await _transfer_file(pb=pb,
                                             file_path=args.file,
                                             use_transfer_sh=args.transfer_sh,
@@ -163,7 +163,7 @@ async def _run(args):
                                             target_device=target_device)
 
         elif getattr(args, "files", False):
-            async with AsyncPushbullet(api_key, proxy=proxy) as pb:
+            async with AsyncPushbullet(api_key, proxy=proxy()) as pb:
                 for file_path in args.files:  # type str
                     _ = await _transfer_file(pb=pb,
                                              file_path=file_path,
@@ -177,7 +177,7 @@ async def _run(args):
         # Push note
         elif args.title or args.body:
 
-            async with AsyncPushbullet(api_key, proxy=proxy) as pb:
+            async with AsyncPushbullet(api_key, proxy=proxy()) as pb:
                 if args.body is not None and args.body == "-":
                     body = sys.stdin.read().rstrip()
                 else:

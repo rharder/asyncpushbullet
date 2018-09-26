@@ -177,7 +177,7 @@ async def _run(args):
     if args.list_devices:
         print("Devices:")
         try:
-            _proxy = str(proxy()) if callable(proxy) else str(proxy)
+            _proxy = proxy() if callable(proxy) else proxy
 
             async with AsyncPushbullet(api_key, proxy=_proxy) as pb:
                 async for dev in pb.devices_asynciter():
