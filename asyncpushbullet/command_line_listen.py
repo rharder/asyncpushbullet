@@ -89,6 +89,7 @@ __email__ = "rob@iHarder.net"
 
 DEFAULT_THROTTLE_COUNT = 10
 DEFAULT_THROTTLE_SECONDS = 10
+DEFAULT_COMMAND_TIMEOUT = 30
 ENCODING = "utf-8"
 LOG = logging.getLogger(__name__)
 
@@ -201,7 +202,7 @@ async def _run(args):
     device = args.device
 
     # Timeout
-    timeout = None
+    timeout = DEFAULT_COMMAND_TIMEOUT
     if args.timeout:
         timeout = float(args.timeout)
 
@@ -340,7 +341,8 @@ def parse_args():
                         received and a live/connected AsyncPushbullet object with which
                         responses may be sent.
                         """))
-    parser.add_argument("-t", "--timeout", help="Timeout in seconds to use for actions being called.")
+    parser.add_argument("-t", "--timeout", help="Timeout in seconds to use for actions being called (default {})."
+                        .format(DEFAULT_COMMAND_TIMEOUT))
     parser.add_argument("--throttle-count", type=int, default=DEFAULT_THROTTLE_COUNT,
                         help=textwrap.dedent("""
                         Pushes will be throttled to this many pushes (default {})
@@ -735,19 +737,21 @@ class ListenApp:
                             else:
                                 self.log.info("Device {} was not found, so we created it.".format(self.device_name))
 
-                    async with LiveStreamListener(pb, only_this_device_nickname=self.device_name) as lll:
+                    async with LiveStreamListener(pb, only_this_device_nickname=self.device_name) as lsl:
                         print("Connected.", flush=True)
                         self.log.info("Connected to Pushbullet websocket.")
-                        self._listener = lll
+                        self._listener = lsl
 
                         if self.device_name is None:
                             print("Awaiting pushes...")
                         else:
                             print("Awaiting pushes to device {}...".format(self.device_name))
 
-                        async for push in lll:
+                        async for push in lsl:
                             self.log.info("Received push (title={}, body={}) {}"
                                           .format(push.get("title"), push.get("body"), push))
+                            print("Received push (title={}, body={})"
+                                  .format(push.get("title"), push.get("body")))
 
                             await self._throttle()
 
