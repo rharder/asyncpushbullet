@@ -9,11 +9,12 @@ import logging
 import os
 import pprint
 import sys
-import threading
 import tkinter as tk
 from functools import partial
 from tkinter import ttk
 from typing import Tuple
+
+from tk_asyncio_base import TkAsyncioBaseApp
 
 try:
     from PIL import Image
@@ -36,8 +37,9 @@ PREFS = Prefs("asyncpushbullet.guitoolapp", "net.iharder.asyncpushbullet")
 API_KEY = PREFS.get("api_key")
 
 
-class GuiToolApp():
+class GuiToolApp(TkAsyncioBaseApp):
     def __init__(self, root):
+        super().__init__(root)
         self.window = root
         root.title("Pushbullet Account Management")
         self.log = logging.getLogger(__name__)
@@ -48,16 +50,12 @@ class GuiToolApp():
         self.key_var = tk.StringVar()  # type: tk.StringVar  # API key
         self.pushes_var = tk.StringVar()  # type: tk.StringVar  # Used in text box to display pushes received
         self.status_var = tk.StringVar()  # type: tk.StringVar  # Bound to bottom of window status bar
-        self.ioloop = None  # type: asyncio.BaseEventLoop
         self.proxy = os.environ.get("https_proxy") or os.environ.get("http_proxy")  # type: str
 
         # Related to Devices
         self.device_detail_var = tk.StringVar()  # type: tk.StringVar  # Used in text box to display device details
         self.devices_in_listbox = None  # type: Tuple[Device]  # Cached devices that were retrieved
         self.device_tab_index = None  # type: int  # The index for the Devices tab
-
-        # IO Loop
-        self.create_io_loop()
 
         # View / Control
         self.btn_connect = None  # type: tk.Button
@@ -78,7 +76,7 @@ class GuiToolApp():
 
     @status.setter
     def status(self, val):
-        self.status_var.set(str(val))
+        self.tk(self.status_var.set, val)
 
     @property
     def pushbullet(self) -> AsyncPushbullet:
@@ -101,30 +99,10 @@ class GuiToolApp():
             self._pushbullet.close_all_threadsafe()
         self._pushbullet = val
 
-    def create_io_loop(self):
-        """Creates a new thread to manage an asyncio event loop specifically for IO to/from Pushbullet."""
-        assert self.ioloop is None  # This should only ever be run once
-
-        def _run(loop):
-            asyncio.set_event_loop(loop)
-            loop.run_forever()
-
-        self.ioloop = asyncio.new_event_loop()
-        self.ioloop.set_exception_handler(self._ioloop_exc_handler)
-        threading.Thread(target=partial(_run, self.ioloop), name="Thread-asyncio", daemon=True).start()
-
-    def _ioloop_exc_handler(self, loop: asyncio.BaseEventLoop, context: dict):
-        print("_exc_handler", loop, context)
-        pprint.pprint(context)
-        if "exception" in context:
-            self.status = context["exception"]
-            self.pushbullet = None
-            self.btn_connect.configure(state=tk.NORMAL)
-            self.btn_disconnect.configure(state=tk.DISABLED)
-        self.status = str(context)
+    def ioloop_exception_happened(self, extype, ex, tb, func):
+        self.status = ex
 
     def create_widgets(self):
-
         parent = self.window
 
         # API Key
@@ -208,7 +186,6 @@ class GuiToolApp():
         nb = event.widget  # type: ttk.Notebook
         index = nb.index("current")
         if index == self.device_tab_index:
-            # print("Devices!")
             # If there are no devices loaded, go ahead and try
             if self.devices_in_listbox is None:
                 self.load_devices_clicked()
@@ -220,13 +197,13 @@ class GuiToolApp():
         async def _auth():
             token = await oauth2.async_gain_oauth2_access()
             if token:
-                self.key_var.set(token)
+                self.tk(self.key_var.set, token)
                 self.status = "Authentication using OAuth2 succeeded."
             else:
                 self.status = "Authentication using OAuth2 failed."
             btn.configure(state=tk.NORMAL)
 
-        asyncio.run_coroutine_threadsafe(_auth(), self.ioloop)
+        self.io(_auth())
 
     def connect_button_clicked(self):
         self.status = "Connecting to Pushbullet..."
@@ -238,7 +215,7 @@ class GuiToolApp():
         if self.pushbullet_listener is not None:
             pl = self.pushbullet_listener  # type: LiveStreamListener
             if pl is not None:
-                asyncio.run_coroutine_threadsafe(pl.close(), self.ioloop)
+                self.io(pl.close())
             self.pushbullet_listener = None
 
         async def _listen():
@@ -259,11 +236,11 @@ class GuiToolApp():
                 # if pl2 is not None:
                 await self.pushlistener_closed(pl2)
 
-        asyncio.run_coroutine_threadsafe(_listen(), self.ioloop)
+        self.io(_listen())
 
     def disconnect_button_clicked(self):
         self.status = "Disconnecting from Pushbullet..."
-        asyncio.run_coroutine_threadsafe(self.pushbullet_listener.close(), self.ioloop)
+        self.io(self.pushbullet_listener.close())
 
     def load_devices_clicked(self):
         self.btn_load_devices.configure(state=tk.DISABLED)
@@ -276,20 +253,20 @@ class GuiToolApp():
             try:
                 await self.verify_key()
                 self.devices_in_listbox = tuple(await self.pushbullet.async_get_devices())
-                self.lb_device.delete(0, tk.END)
+                self.tk(self.lb_device.delete, 0, tk.END)
                 for dev in self.devices_in_listbox:
-                    self.lb_device.insert(tk.END, str(dev.nickname))
+                    self.tk(self.lb_device.insert, tk.END, str(dev.nickname))
                 self.status = "Loaded {} devices".format(len(self.devices_in_listbox))
 
             except Exception as ex:
-                self.lb_device.delete(0, tk.END)
+                self.tk(self.lb_device.delete, 0, tk.END)
                 self.status = "Error retrieving devices: {}".format(ex)
-                ex.with_traceback()
                 raise ex
             finally:
-                self.btn_load_devices.configure(state=tk.NORMAL)
+                self.tk(self.btn_load_devices.configure, state=tk.NORMAL)
 
-        asyncio.run_coroutine_threadsafe(_load(), self.ioloop)
+        # asyncio.run_coroutine_threadsafe(_load(), self.ioloop)
+        self.io(_load())
 
     def device_list_double_clicked(self, event):
         items = self.lb_device.curselection()
@@ -315,14 +292,14 @@ class GuiToolApp():
             # print("To include image support: pip install pillow")
             pass
         finally:
-            self.btn_connect.configure(state=tk.DISABLED)
-            self.btn_disconnect.configure(state=tk.NORMAL)
+            self.tk(self.btn_connect.configure, state=tk.DISABLED)
+            self.tk(self.btn_disconnect.configure, state=tk.NORMAL)
 
     async def pushlistener_closed(self, listener: LiveStreamListener):
         # print_function_name()
         self.status = "Disconnected from Pushbullet"
-        self.btn_connect.configure(state=tk.NORMAL)
-        self.btn_disconnect.configure(state=tk.DISABLED)
+        self.tk(self.btn_connect.configure, state=tk.NORMAL)
+        self.tk(self.btn_disconnect.configure, state=tk.DISABLED)
 
     async def push_received(self, p: dict, listener: LiveStreamListener):
         # print("Push received:", p)
@@ -331,7 +308,7 @@ class GuiToolApp():
             push_type = "ephemeral"
         prev = self.pushes_var.get()
         prev += "Type: {}\n{}\n\n".format(push_type, pprint.pformat(p))
-        self.pushes_var.set(prev)
+        self.tk(self.pushes_var.set, prev)
 
     # ########  O T H E R  ########
 
@@ -359,7 +336,7 @@ class GuiToolApp():
                                 label_size = self.lbl_photo.winfo_height()
                                 img = img.resize((label_size, label_size), Image.ANTIALIAS)
                                 photo = PhotoImage(img)
-                                self.lbl_photo.configure(image=photo)
+                                self.tk(self.lbl_photo.configure, image=photo)
                                 self.lbl_photo.image_ref = photo  # Save for garbage collection protection
                                 self.log.info("Loaded user image from url {}".format(image_url))
 
@@ -373,7 +350,7 @@ class GuiToolApp():
 
         except Exception as e:
             self.status = "Invalid API key: {}".format(api_key)
-            self.lbl_photo.configure(image="")
+            self.tk(self.lbl_photo.configure, image="")
             self.lbl_photo.image_ref = None
             raise e
 
