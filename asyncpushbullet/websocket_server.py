@@ -8,12 +8,12 @@ June 2018 - Updated for aiohttp v3.3
 August 2018 - Updated for Python 3.7, made WebServer support multiple routes on one port
 """
 import asyncio
+import logging
 import weakref
 from functools import partial
 from typing import Dict, Set, List
 
 import aiohttp  # pip install aiohttp
-import logging
 from aiohttp import web
 
 __author__ = "Robert Harder"
@@ -42,19 +42,19 @@ class WebServer:
         self.log = logging.getLogger(__name__ + '.' + self.__class__.__name__)
 
         # Passed parameters
-        self.host = host
-        self.port = port
+        self.host: str = host
+        self.port: int = port
         self.ssl_context = ssl_context
 
         # Internal use
-        self.app = None  # type: web.Application
-        self.site = None  # type: web.TCPSite
-        self.runner = None  # type: web.AppRunner
-        self.route_handlers = {}  # type: Dict[str, WebHandler]
+        self.app: web.Application = None
+        self.site: web.TCPSite = None
+        self.runner: web.AppRunner = None
+        self.route_handlers: Dict[str, WebHandler] = {}
 
-        self._running = False  # type: bool
-        self._shutting_down = False  # type: bool
-        self._starting_up = False  # type: bool
+        self._running: bool = False
+        self._shutting_down: bool = False
+        self._starting_up: bool = False
 
     def __str__(self):
         routes = ", ".join(self.route_handlers.keys())
@@ -137,14 +137,14 @@ class WebServer:
 class WebHandler:
 
     async def on_incoming_http(self, route: str, request: web.BaseRequest):
-        return web.Response(body="")
+        return web.Response(body=str(self.__class__.__name__))
 
 
 class WebsocketHandler(WebHandler):
 
     def __init__(self, *kargs, **kwargs):
         super().__init__(*kargs, **kwargs)
-        self.websockets = weakref.WeakSet()  # type: Set[web.WebSocketResponse]
+        self.websockets: Set[web.WebSocketResponse] = weakref.WeakSet()
 
     async def broadcast_json(self, msg):
         """ Converts msg to json and broadcasts the json data to all connected clients. """
@@ -164,14 +164,11 @@ class WebsocketHandler(WebHandler):
 
     async def close_websockets(self):
         """Closes all active websockets for this handler."""
-        # Technique from
-        # https://docs.aiohttp.org/en/stable/faq.html#how-do-i-programmatically-close-a-websocket-server-side
         ws_closers = [ws.close() for ws in set(self.websockets) if not ws.closed]
         ws_closers and await asyncio.gather(*ws_closers)
-        # print("close_websockets exiting")
 
     async def on_incoming_http(self, route: str, request: web.BaseRequest):
-        """Handles the incoming HTTP(S) request and converts it to a WebSocketResponse.
+        """Handles the incoming http(s) request and converts it to a WebSocketResponse.
 
         This method is not meant to be overridden when subclassed.
         """
@@ -182,8 +179,7 @@ class WebsocketHandler(WebHandler):
             await self.on_websocket(route, ws)
         finally:
             self.websockets.discard(ws)
-
-        return ws
+            return ws
 
     async def on_websocket(self, route: str, ws: web.WebSocketResponse):
         """
@@ -216,7 +212,13 @@ class WebsocketHandler(WebHandler):
         except RuntimeError as e:  # Socket closing throws RuntimeError
             print("RuntimeError - did socket close?", e, flush=True)
             pass
+        finally:
+            await self.on_close(route, ws)
 
     async def on_message(self, route: str, ws: web.WebSocketResponse, ws_msg_from_client: aiohttp.WSMessage):
         """ Override this function to handle incoming messages from websocket clients. """
+        pass
+
+    async def on_close(self, route: str, ws: web.WebSocketResponse):
+        """ Override this function to handle a websocket having closed. """
         pass

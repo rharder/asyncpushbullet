@@ -11,7 +11,6 @@ August 2018 - Initial creation
 import asyncio
 import logging
 import sys
-import traceback
 from typing import AsyncIterator, Callable
 
 import aiohttp  # pip install aiohttp
@@ -36,12 +35,11 @@ class WebsocketClient():
         self.headers = headers
         self.verify_ssl = verify_ssl
         self.proxy = None if proxy is None or str(proxy).strip() == "" else str(proxy)
-        self._provided_session = session  # type: aiohttp.ClientSession
-        self._created_session = None  # type: aiohttp.ClientSession
-        self.socket = None  # type: aiohttp.ClientWebSocketResponse
-        self._queue = None  # type: asyncio.Queue
-        self.loop = None  # type: asyncio.BaseEventLoop
-        # self.log = logging.getLogger("{file}.{klass}:{id}".format(file=__name__, klass=self.__class__.__name__, id=id(self)))
+        self._provided_session: aiohttp.ClientSession = session
+        self._created_session: aiohttp.ClientSession = None
+        self.socket: aiohttp.ClientWebSocketResponse = None
+        self._queue: asyncio.Queue = None
+        self.loop: asyncio.BaseEventLoop = None
         self.log = logging.getLogger(__name__)
 
     @staticmethod
@@ -85,7 +83,7 @@ class WebsocketClient():
     async def _create_session(self) -> aiohttp.ClientSession:
 
         # TCP options
-        aio_connector = None  # type: aiohttp.TCPConnector
+        aio_connector: aiohttp.TCPConnector = None
         if self.verify_ssl is not None and self.verify_ssl is False:
             aio_connector = aiohttp.TCPConnector(ssl=False)
 
@@ -184,12 +182,12 @@ class WebsocketClient():
          period is exceeded without a message being available from the server.
          """
         if timeout is None:
-            msg = await self._queue.get()
+            msg: aiohttp.WSMessage = await self._queue.get()
             if type(msg) == StopAsyncIteration:
                 raise msg
             return msg
         else:
-            msg = await asyncio.wait_for(self.next_msg(), timeout=timeout)
+            msg: aiohttp.WSMessage = await asyncio.wait_for(self.next_msg(), timeout=timeout)
             return msg
 
     async def __aenter__(self):
@@ -197,7 +195,7 @@ class WebsocketClient():
         :rtype: WebsocketClient
         """
         self.loop = asyncio.get_event_loop()
-        self._queue = asyncio.Queue()
+        self._queue: asyncio.Queue = asyncio.Queue()
 
         # Make connection
         try:
@@ -218,7 +216,8 @@ class WebsocketClient():
             try:
 
                 # Spend time here waiting for incoming messages
-                async for msg in self.socket:  # type: aiohttp.WSMessage
+                msg: aiohttp.WSMessage
+                async for msg in self.socket:
                     if self.log.isEnabledFor(logging.DEBUG):
                         self.log.debug("Received {}".format(msg))
                     await self._queue.put(msg)
@@ -253,7 +252,7 @@ class WebsocketClient():
     class _Iterator(AsyncIterator):
         def __init__(self, ws_client, timeout: float = None):
             self.timeout = timeout
-            self.ws_client = ws_client  # type: WebsocketClient
+            self.ws_client: WebsocketClient = ws_client
 
         def __aiter__(self) -> AsyncIterator[aiohttp.WSMessage]:
             return self
