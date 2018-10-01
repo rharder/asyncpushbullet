@@ -34,20 +34,20 @@ def main():
                 print("Push sent:", push)
 
                 # Ways to listen for pushes
-                async with LiveStreamListener(pb) as pl:
+                async with LiveStreamListener(pb) as lsl:
                     # This will retrieve the previous push because it occurred
                     # after the enclosing AsyncPushbullet connection was made
-                    push = await pl.next_push()
+                    push = await lsl.next_push()
                     print("Previous push, now received:", push)
 
                     # Alternately get pushes with a 3 second inter-push timeout
                     print("Awaiting pushes with 3 second inter-push timeout...")
-                    async for push in pl.with_timeout(3):
+                    async for push in lsl.timeout(3):
                         print("Push received:", push)
 
                     # Alternately get pushes forever
                     print("Awaiting pushes forever...")
-                    async for push in pl:
+                    async for push in lsl:
                         print("Push received:", push)
 
         except InvalidKeyError as ke:

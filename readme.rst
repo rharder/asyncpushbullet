@@ -75,7 +75,7 @@ the command line:
     2. Use the ``--key`` command line option and include the key as an argument.
     3. Use the ``--key-file`` command line option and point to a text file
        containing the API key.
-    4. Use the --oauth2 flag once to authenticate your command line tools using OAuth2.
+    4. Use the ``--oauth2`` flag once to authenticate your command line tools using OAuth2.
 
 
 Pushing a Note from the Command Line
@@ -96,7 +96,7 @@ The flags available for the ``pbpush`` command line script: ::
 
     usage: pbpush [-h] [-k KEY] [--key-file KEY_FILE] [--proxy PROXY] [-t TITLE]
                   [-b BODY] [-d DEVICE] [--list-devices] [-u URL] [-f FILE]
-                  [--transfer.sh] [-q] [--oauth2] [--debug] [-v]
+                  [--transfer.sh] [-q] [--oauth2] [--debug] [-v] [--version]
 
     optional arguments:
       -h, --help            show this help message and exit
@@ -117,6 +117,7 @@ The flags available for the ``pbpush`` command line script: ::
       --oauth2              Register your command line tool using OAuth2
       --debug               Turn on debug logging
       -v, --verbose         Turn on verbose logging (INFO messages)
+      --version             show program's version number and exit
 
 
 There is also a variant of ``pbpush`` called ``pbtransfer`` that makes it even
@@ -127,7 +128,8 @@ faster and easier to send off files using the http://transfer.sh service. ::
 The flags available for the ``pbtransfer`` command line script: ::
 
     usage: pbtransfer [-h] [-k KEY] [--key-file KEY_FILE] [--proxy PROXY]
-                      [-d DEVICE] [--list-devices] [-f FILE] [-q]
+                      [-d DEVICE] [--list-devices] [-f FILE] [-q] [--oauth2]
+                      [--debug] [-v] [--version]
                       [files [files ...]]
 
     positional arguments:
@@ -143,7 +145,10 @@ The flags available for the ``pbtransfer`` command line script: ::
       --list-devices        List registered device names
       -f FILE, --file FILE  Pathname to file to push
       -q, --quiet           Suppress all output
-
+      --oauth2              Register your command line tool using OAuth2
+      --debug               Turn on debug logging
+      -v, --verbose         Turn on verbose logging (INFO messages)
+      --version             show program's version number and exit
 
 
 Listening for and Responding to Pushes
@@ -197,9 +202,11 @@ The flags available for the ``pblisten`` command line script: ::
 
     usage: pblisten [-h] [-k KEY] [--key-file KEY_FILE] [-e] [-x EXEC [EXEC ...]]
                     [-s EXEC_SIMPLE [EXEC_SIMPLE ...]]
+                    [-p EXEC_PYTHON [EXEC_PYTHON ...]] [-t TIMEOUT]
                     [--throttle-count THROTTLE_COUNT]
                     [--throttle-seconds THROTTLE_SECONDS] [-d DEVICE]
-                    [--list-devices] [--proxy PROXY] [--debug] [-v]
+                    [--list-devices] [--proxy PROXY] [--debug] [-v] [-q]
+                    [--oauth2] [--clear-oauth2] [--version]
 
     optional arguments:
       -h, --help            show this help message and exit
@@ -209,11 +216,11 @@ The flags available for the ``pblisten`` command line script: ::
       -x EXEC [EXEC ...], --exec EXEC [EXEC ...]
                             ACTION: Execute a script to receive push as json via
                             stdin. Your script can write json to stdout to send
-                            pushes back. [ { "title" = "Fish Food
-                            Served", "body" = "Your automated fish feeding gadget
-                            has fed your fish. " } ]  Or simpler form for a
-                            single push: { "title" = "title here", "body" = "body
-                            here"}
+                            pushes back. [ { "title" : "Fish Food Served", "body"
+                            : "Your automated fish feeding gadget has fed your
+                            fish. " }, { "title" : "Second push", "body" : "Second
+                            body" } ] Or simpler form for a single push: { "title"
+                            : "title here", "body" : "body here"}
       -s EXEC_SIMPLE [EXEC_SIMPLE ...], --exec-simple EXEC_SIMPLE [EXEC_SIMPLE ...]
                             ACTION: Execute a script to receive push in simplified
                             form via stdin. The first line of stdin will be the
@@ -221,6 +228,15 @@ The flags available for the ``pblisten`` command line script: ::
                             script can write lines back to stdout to send a single
                             push back. The first line of stdout will be the title,
                             and subsequent lines will be the body.
+      -p EXEC_PYTHON [EXEC_PYTHON ...], --exec-python EXEC_PYTHON [EXEC_PYTHON ...]
+                            ACTION: Load the given python file and execute it by
+                            calling its on_push(p, pb) function with 2 arguments:
+                            the push that was received and a live/connected
+                            AsyncPushbullet object with which responses may be
+                            sent.
+      -t TIMEOUT, --timeout TIMEOUT
+                            Timeout in seconds to use for actions being called
+                            (default 30).
       --throttle-count THROTTLE_COUNT
                             Pushes will be throttled to this many pushes (default
                             10) in a certain number of seconds (default 10)
@@ -233,6 +249,10 @@ The flags available for the ``pblisten`` command line script: ::
       --proxy PROXY         Optional web proxy
       --debug               Turn on debug logging
       -v, --verbose         Turn on verbose logging (INFO messages)
+      -q, --quiet           Suppress all output
+      --oauth2              Register your command line tool using OAuth2
+      --clear-oauth2        Clears/unregisters the oauth2 token
+      --version             show program's version number and exit
 
 
 
@@ -251,14 +271,22 @@ Here is a well-behaved example right off the bat to take a look at:
 
     # !/usr/bin/env python3
     # -*- coding: utf-8 -*-
+    """
+    A basic, complete example of using AsyncPushbullet to interact with the Pushbullet.com service.
+    """
     import asyncio
     import os
     import sys
+    import traceback
 
+    sys.path.append("..")  # Since examples are buried one level into source tree
     from asyncpushbullet import AsyncPushbullet, InvalidKeyError, PushbulletError, LiveStreamListener
 
-    API_KEY = "whatever your key is"
+    API_KEY = ""  # YOUR API KEY
     PROXY = os.environ.get("https_proxy") or os.environ.get("http_proxy")
+    EXIT_INVALID_KEY = 1
+    EXIT_PUSHBULLET_ERROR = 2
+    EXIT_OTHER = 3
 
 
     def main():
@@ -277,31 +305,45 @@ Here is a well-behaved example right off the bat to take a look at:
                     print("Push sent:", push)
 
                     # Ways to listen for pushes
-                    async with LiveStreamListener(pb) as pl:
+                    async with LiveStreamListener(pb) as lsl:
                         # This will retrieve the previous push because it occurred
                         # after the enclosing AsyncPushbullet connection was made
-                        push = await pl.next_push()
+                        push = await lsl.next_push()
                         print("Previous push, now received:", push)
 
-                        # Get pushes forever
-                        print("Awaiting pushes forever...")
-                        async for push in pl:
+                        # Alternately get pushes with a 3 second inter-push timeout
+                        print("Awaiting pushes with 3 second inter-push timeout...")
+                        async for push in lsl.timeout(3):
                             print("Push received:", push)
 
-
+                        # Alternately get pushes forever
+                        print("Awaiting pushes forever...")
+                        async for push in lsl:
+                            print("Push received:", push)
 
             except InvalidKeyError as ke:
                 print(ke, file=sys.stderr)
+                return EXIT_INVALID_KEY
 
             except PushbulletError as pe:
                 print(pe, file=sys.stderr)
+                return EXIT_PUSHBULLET_ERROR
+
+            except Exception as ex:
+                print(ex, file=sys.stderr)
+                traceback.print_tb(sys.exc_info()[2])
+                return EXIT_OTHER
 
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(_run())
+        return loop.run_until_complete(_run())
 
 
     if __name__ == "__main__":
-        main()
+        if API_KEY == "":
+            with open("../api_key.txt") as f:
+                API_KEY = f.read().strip()
+        sys.exit(main())
+
 
 Authentication
 ^^^^^^^^^^^^^^
