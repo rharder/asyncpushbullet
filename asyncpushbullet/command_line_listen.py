@@ -113,7 +113,7 @@ def main():
     # sys.argv += ["--exec", r"C:\windows\System32\notepad.exe"]
     # sys.argv += ["--exec", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_imagesnap.py"]
     # sys.argv += ["--exec-python", r"../examples/exec_python_example.py"]
-    sys.argv += ["--exec-python", r"../examples/exec_python_imagesnap.py"]
+    # sys.argv += ["--exec-python", r"../examples/exec_python_imagesnap.py"]
     #              r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\exec_python_example.py"]
     # sys.argv += ["--exec-simple", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_exec_simple.py"]
 
