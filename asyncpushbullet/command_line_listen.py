@@ -68,6 +68,7 @@ import logging
 import math
 import os
 import pprint
+import subprocess
 import sys
 import textwrap
 import threading
@@ -112,7 +113,7 @@ def main():
     # sys.argv += ["--exec", r"C:\windows\System32\notepad.exe"]
     # sys.argv += ["--exec", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_imagesnap.py"]
     # sys.argv += ["--exec-python", r"../examples/exec_python_example.py"]
-    # sys.argv += ["--exec-python", r"../examples/exec_python_imagesnap.py"]
+    sys.argv += ["--exec-python", r"../examples/exec_python_imagesnap.py"]
     #              r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\exec_python_example.py"]
     # sys.argv += ["--exec-simple", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_exec_simple.py"]
 
@@ -214,7 +215,7 @@ async def _run(args):
                            timeout=timeout)
 
     # Windows needs special event loop in order to launch processes on it
-    proc_loop = None  # type: asyncio.BaseEventLoop
+    proc_loop: asyncio.BaseEventLoop
     if sys.platform == 'win32':
         proc_loop = asyncio.ProactorEventLoop()
     else:
@@ -226,7 +227,6 @@ async def _run(args):
         loop.run_forever()
 
     threading.Thread(target=partial(_run, proc_loop), name="Thread-proc", daemon=True).start()
-    # proc_loop = asyncio.get_event_loop()
 
     # Add actions from command line arguments
     if args.exec:
@@ -260,19 +260,15 @@ async def _run(args):
         print("No actions specified -- defaulting to Echo.")
         listen_app.add_action(EchoAction())
 
-    # loop = asyncio.get_event_loop()
-
-    exit_code = None
+    exit_code: int = None
     try:
         exit_code = await listen_app.run()
     except KeyboardInterrupt as e:
         print("Caught keyboard interrupt")
     finally:
-        # loop.run_until_complete(listen_app.close())
         await listen_app.close()
         if exit_code is None:
             exit_code = errors.__EXIT_NO_ERROR__
-        # sys.exit(exit_code)
         return exit_code
         # END OF PROGRAM
 
@@ -770,6 +766,7 @@ class ListenApp:
                                 except asyncio.TimeoutError as te:
                                     err_msg = "Action {} timed out after {}+ seconds".format(_action,
                                                                                              self.action_timeout)
+                                    await pb.async_push_note(title="AsyncPushbullet Error", body=err_msg)
                                     if not self.log.isEnabledFor(logging.DEBUG):
                                         err_msg += " (turn on --debug to see traceback)"
                                     self.log.warning(err_msg)
@@ -778,6 +775,7 @@ class ListenApp:
 
                                 except Exception as ex:
                                     err_msg = "Action {} caused exception {}".format(_action, ex)
+                                    await pb.async_push_note(title="AsyncPushbullet Error", body=err_msg)
                                     if not self.log.isEnabledFor(logging.DEBUG):
                                         err_msg += " (turn on --debug to see traceback)"
                                     self.log.warning(err_msg)
