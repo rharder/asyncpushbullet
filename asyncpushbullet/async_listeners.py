@@ -266,15 +266,13 @@ class LiveStreamListener:
             push = await self._queue.get()
             if type(push) == StopAsyncIteration:
                 raise push
-            # return push
         else:
             push = await asyncio.wait_for(self.next_push(), timeout=timeout)
-            # return push
 
         if asyncio.iscoroutinefunction(self._post_process):
-            post = await self._post_process(push)
+            return await self._post_process(push)
         elif callable(self._post_process):
-            post = self._post_process(push)
+            return self._post_process(push)
         else:
             return push
 

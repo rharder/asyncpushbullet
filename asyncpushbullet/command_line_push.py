@@ -39,6 +39,7 @@ import asyncio
 import logging
 import os
 import sys
+from typing import Dict
 
 from asyncpushbullet import AsyncPushbullet, __version__
 from asyncpushbullet import Device
@@ -172,7 +173,6 @@ async def _run(args):
                                              body=args.body,
                                              target_device=target_device)
 
-
         # Push note
         elif args.title or args.body:
 
@@ -220,33 +220,33 @@ async def _transfer_file(pb: AsyncPushbullet,
         print("File not found:", file_path, file=sys.stderr)
         return errors.__ERR_FILE_NOT_FOUND__
 
-    info = {}
     show_progress = not quiet
     if use_transfer_sh:
         if not quiet:
             print("Uploading file to transfer.sh ... {}".format(file_path))
 
-        info = await pb.async_upload_file_to_transfer_sh(file_path=file_path,
-                                                         show_progress=show_progress)
+        info: Dict = await pb.async_upload_file_to_transfer_sh(file_path=file_path,
+                                                               show_progress=show_progress)
 
     else:
         if not quiet:
             print("Uploading file to Pushbullet ... {}".format(file_path))
-        info = await pb.async_upload_file(file_path=file_path,
-                                          show_progress=show_progress)
+        info: Dict = await pb.async_upload_file(file_path=file_path,
+                                                show_progress=show_progress)
 
-    file_url = info["file_url"]
-    file_type = info["file_type"]
-    file_name = info["file_name"]
+    file_url: str = info["file_url"]
+    file_type: str = info["file_type"]
+    file_name: str = info["file_name"]
     if not quiet:
         print("Pushing file ... {}".format(file_url))
 
-    _ = await pb.async_push_file(file_name=file_name,
-                                 file_type=file_type,
-                                 file_url=file_url,
-                                 title=title or "File: {}".format(file_name),
-                                 body=body or file_url,
-                                 device=target_device)
+    title = title or "File: {}".format(file_name)
+    await pb.async_push_file(file_name=file_name,
+                             file_type=file_type,
+                             file_url=file_url,
+                             title=title,
+                             body=body or file_url,
+                             device=target_device)
 
 
 def parse_args_pbpush():

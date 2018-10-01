@@ -68,7 +68,6 @@ import logging
 import math
 import os
 import pprint
-import subprocess
 import sys
 import textwrap
 import threading
@@ -108,15 +107,10 @@ def main():
     # sys.argv.append("--echo")
     # sys.argv += ["--proxy", "foo"]
     # sys.argv.append("--list-devices")
-
     # sys.argv += ["--exec-simple", r"C:\windows\System32\clip.exe"]
     # sys.argv += ["--exec", r"C:\windows\System32\notepad.exe"]
-    # sys.argv += ["--exec", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_imagesnap.py"]
     # sys.argv += ["--exec-python", r"../examples/exec_python_example.py"]
     # sys.argv += ["--exec-python", r"../examples/exec_python_imagesnap.py"]
-    #              r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\exec_python_example.py"]
-    # sys.argv += ["--exec-simple", r"c:\python37-32\python.exe", r"C:\Users\rharder\Documents\Programming\asyncpushbullet\examples\respond_to_listen_exec_simple.py"]
-
     # oauth2.PREFS.set(oauth2.OAUTH2_TOKEN_KEY, None)
 
     args = parse_args()
@@ -222,11 +216,11 @@ async def _run(args):
         proc_loop = asyncio.new_event_loop()  # Processes
         asyncio.get_child_watcher()  # Main loop
 
-    def _run(loop):
+    def _thread_run(loop):
         asyncio.set_event_loop(loop)
         loop.run_forever()
 
-    threading.Thread(target=partial(_run, proc_loop), name="Thread-proc", daemon=True).start()
+    threading.Thread(target=partial(_thread_run, proc_loop), name="Thread-proc", daemon=True).start()
 
     # Add actions from command line arguments
     if args.exec:
@@ -263,7 +257,7 @@ async def _run(args):
     exit_code: int = None
     try:
         exit_code = await listen_app.run()
-    except KeyboardInterrupt as e:
+    except KeyboardInterrupt:
         print("Caught keyboard interrupt")
     finally:
         await listen_app.close()
@@ -468,9 +462,12 @@ class ExecutableAction(Action):
                         "Awaiting process completion {}".format([self.path_to_executable, *self.args_for_exec]))
                     stdout_data, stderr_data = await asyncio.wait_for(proc.communicate(input=input_bytes),
                                                                       timeout=self.timeout)
-                except asyncio.futures.TimeoutError as e:
-                    self.log.error("Execution time out after {} seconds. {}".format(self.timeout, repr(self)))
+                except asyncio.futures.TimeoutError:
+                    err_msg = "Execution timed out after {} seconds. {}".format(self.timeout, repr(self))
+                    self.log.error(err_msg)
+                    await pb.async_push_note(title="AsyncPushbullet Error", body=err_msg)
                     proc.terminate()
+
                 else:
                     # Handle the response from the subprocess
                     # This goes back on the io_loop since it may involve
@@ -513,21 +510,23 @@ class ExecutableAction(Action):
 
         # If there's anything to respond with, send a push back
         if stderr_txt is not None:
-            title = "Error"
+            title = "AsyncPushbullet Error"
             body = "Stderr: {}\nStdout: {}".format(stderr_txt, stdout_txt)
             # await app.respond(title=title, body=body)
             await pb.async_push_note(title=title, body=body)
+            del title, body
 
         elif stdout_txt is not None:
             # See if we got a structured response with JSON data
             try:
                 response = json.loads(stdout_txt)
-            except json.decoder.JSONDecodeError as e:
+            except json.decoder.JSONDecodeError:
                 # Not json, just respond with a simple push
-                title = "Response"
+                title = "AsyncPushbullet Response"
                 body = stdout_txt
                 # await app.respond(title=title, body=body)
                 await pb.async_push_note(title=title, body=body)
+                del title, body
 
             else:
 
@@ -547,6 +546,7 @@ class ExecutableAction(Action):
                                                  body=body)
                     else:
                         await pb.async_push_note(title=title, body=body)
+                    del title, body
 
                 if type(response) == list:
                     for resp in response:
@@ -772,6 +772,7 @@ class ListenApp:
                                     self.log.warning(err_msg)
                                     if self.log.isEnabledFor(logging.DEBUG):
                                         traceback.print_tb(sys.exc_info()[2])
+                                    del err_msg
 
                                 except Exception as ex:
                                     err_msg = "Action {} caused exception {}".format(_action, ex)
@@ -781,6 +782,7 @@ class ListenApp:
                                     self.log.warning(err_msg)
                                     if self.log.isEnabledFor(logging.DEBUG):
                                         traceback.print_tb(sys.exc_info()[2])
+                                    del err_msg
 
                                 finally:
                                     self.log.debug("Leaving action {}".format(repr(_action)))
