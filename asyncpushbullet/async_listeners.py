@@ -66,14 +66,13 @@ class LiveStreamListener:
             types = (types,)  # Convert to tuple of one
         self.push_types = set(types) if types is not None else ("push",)  # type: Set[str]
 
+        # In the form ephemeral:foo
         eph_types = []
         for x in self.push_types:
             compound = x.split(":")
             if len(compound) >= 2 and compound[0] == "ephemeral":
                 eph_types.append(compound[1])
         self.ephemeral_types = tuple(eph_types)
-        # print("Ephemeral types:", self.ephemeral_types)
-        # self.ephemeral_types = tuple([x.split(":")[-1] for x in self.push_types if len(x.split(":")) > 1])
 
     @property
     def closed(self):
@@ -114,11 +113,10 @@ class LiveStreamListener:
                 sai = StopAsyncIteration(msg)
                 await self._queue.put(sai)
 
-        session = await self.pb.aio_session()
+        _ = await self.pb.aio_session()
         wc = WebsocketClient(url=self.PUSHBULLET_WEBSOCKET_URL + self.pb.api_key,
                              proxy=self.pb.proxy,
-                             verify_ssl=self.pb.verify_ssl)  # ,
-        # session=session)
+                             verify_ssl=self.pb.verify_ssl)
         self._ws_client = await wc.__aenter__()
         asyncio.get_event_loop().create_task(_listen_for_websocket_messages(wc))
         await asyncio.sleep(0)

@@ -9,6 +9,7 @@ usage: command_line_push.py [-h] [-k KEY] [--key-file KEY_FILE]
                             [--proxy PROXY] [-t TITLE] [-b BODY] [-d DEVICE]
                             [--list-devices] [-u URL] [-f FILE]
                             [--transfer.sh] [-q] [--oauth2] [--debug] [-v]
+                            [--version]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -29,6 +30,7 @@ optional arguments:
   --oauth2              Register your command line tool using OAuth2
   --debug               Turn on debug logging
   -v, --verbose         Turn on verbose logging (INFO messages)
+  --version             show program's version number and exit
 
 
 """
@@ -44,9 +46,6 @@ from asyncpushbullet import InvalidKeyError, PushbulletError
 from asyncpushbullet import errors
 from asyncpushbullet import oauth2
 from asyncpushbullet.command_line_listen import try_to_find_key
-
-
-# logging.basicConfig(logging.ERROR)
 
 
 def main():

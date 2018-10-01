@@ -10,7 +10,8 @@ usage: command_line_listen.py [-h] [-k KEY] [--key-file KEY_FILE] [-e]
                               [--throttle-count THROTTLE_COUNT]
                               [--throttle-seconds THROTTLE_SECONDS]
                               [-d DEVICE] [--list-devices] [--proxy PROXY]
-                              [--debug] [-v] [-q] [--oauth2] [--version]
+                              [--debug] [-v] [-q] [--oauth2] [--clear-oauth2]
+                              [--version]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -39,7 +40,8 @@ optional arguments:
                         AsyncPushbullet object with which responses may be
                         sent.
   -t TIMEOUT, --timeout TIMEOUT
-                        Timeout in seconds to use for actions being called.
+                        Timeout in seconds to use for actions being called
+                        (default 30).
   --throttle-count THROTTLE_COUNT
                         Pushes will be throttled to this many pushes (default
                         10) in a certain number of seconds (default 10)
@@ -54,9 +56,8 @@ optional arguments:
   -v, --verbose         Turn on verbose logging (INFO messages)
   -q, --quiet           Suppress all output
   --oauth2              Register your command line tool using OAuth2
+  --clear-oauth2        Clears/unregisters the oauth2 token
   --version             show program's version number and exit
-
-
 
 """
 import argparse
@@ -81,8 +82,6 @@ from asyncpushbullet import InvalidKeyError, PushbulletError
 from asyncpushbullet import LiveStreamListener
 from asyncpushbullet import errors
 from asyncpushbullet import oauth2
-
-# import wrapt
 
 __author__ = "Robert Harder"
 __email__ = "rob@iHarder.net"
