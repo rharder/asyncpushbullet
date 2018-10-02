@@ -381,7 +381,7 @@ class EchoAction(Action):
     """ Echoes pushes in json format to standard out. """
 
     async def on_push(self, push: dict, pb: AsyncPushbullet):
-        print("Echo push:", pprint.pformat(push))
+        print("Echo push: {}".format(pprint.pformat(push)), flush=True)
 
 
 class ExecutableAction(Action):
@@ -454,7 +454,7 @@ class ExecutableAction(Action):
 
             else:
                 # Pass the incoming push via stdin (json form)
-                input_bytes = self.transform_push_to_stdin_data(push)
+                input_bytes = json.dumps(push).encode(ENCODING)
 
                 try:
                     # print("Awaiting process completion", self.path_to_executable, *self.args_for_exec)
@@ -487,10 +487,10 @@ class ExecutableAction(Action):
         # a different event loop, a ProactorLoop, to handle subprocesses.
         asyncio.run_coroutine_threadsafe(_on_proc_loop(), self.proc_loop)
 
-    def transform_push_to_stdin_data(self, push: dict) -> bytes:
-        json_push = json.dumps(push)
-        input_bytes = json_push.encode(ENCODING)
-        return input_bytes
+    # def transform_push_to_stdin_data(self, push: dict) -> bytes:
+    #     json_push = json.dumps(push)
+    #     input_bytes = json_push.encode(ENCODING)
+    #     return input_bytes
 
     async def handle_process_response(self, stdout_data: bytes, stderr_data: bytes, pb: AsyncPushbullet):
 
