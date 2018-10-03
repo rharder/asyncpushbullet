@@ -77,7 +77,7 @@ class EphemeralComm(Generic[T]):
     #             raise kmsg
     #         return kmsg
 
-    async def next(self, timeout=None, break_on_timeout=True, timeout_val=None) -> T:
+    async def next(self, timeout=None, break_on_timeout=False, timeout_val=None) -> T:
         """Returns the next message or None if the stream has closed or waiting times out."""
         aiter = EphemeralComm._Iterator(self, timeout=timeout, timeout_val=timeout_val,
                                         break_on_timeout=break_on_timeout)
@@ -115,7 +115,7 @@ class EphemeralComm(Generic[T]):
                                        break_on_timeout=break_on_timeout)
 
     class _Iterator(AsyncIterator):
-        def __init__(self, parent, timeout: float = None, timeout_val=None, break_on_timeout=False):
+        def __init__(self, parent, timeout: float = None, timeout_val=None, break_on_timeout=True):
             self.timeout = timeout
             self.returnval = timeout_val
             self.break_on_timeout = break_on_timeout
@@ -123,17 +123,6 @@ class EphemeralComm(Generic[T]):
 
         def __aiter__(self) -> AsyncIterator[T]:
             return self
-
-        # async def __anextZZ__(self) -> T:
-        #     try:
-        #         val = await self.parent.next(timeout=self.timeout)
-        #     except futures.TimeoutError as te:
-        #         if self.break_on_timeout:
-        #             raise StopAsyncIteration(te).with_traceback(sys.exc_info()[2])
-        #         else:
-        #             return self.returnval
-        #     else:
-        #         return val
 
         async def __anext__(self) -> T:
             if self.parent.closed:

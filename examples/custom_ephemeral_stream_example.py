@@ -30,11 +30,6 @@ def main():
             async with AsyncPushbullet(API_KEY, proxy=PROXY) as pb:
                 async with EphemeralComm(pb, Msg) as ec:  # type: EphemeralComm[Msg]
                     await q.put(ec)
-                    # async for kmsg in ec:
-                    print(await ec.next(.5))
-                    print(await ec.next(.5))
-                    print(await ec.next(.5))
-                    print(await ec.next(.5))
                     print(await ec.next(.5))
                     print(await ec.next(.5))
                     print(await ec.next(.5))
@@ -48,7 +43,7 @@ def main():
 
     async def _send_stuff():
         ec: EphemeralComm = await q.get()
-        await asyncio.sleep(2)
+        await asyncio.sleep(1)
         # msg = {"type": "mystuff"}
         # msg["what else do I want to say"] = "Just add extra keys"
         # msg = MyStuff(data={"what else do I want to say": "Just add extra keys"})
