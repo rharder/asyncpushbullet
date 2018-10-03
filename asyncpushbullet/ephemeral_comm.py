@@ -65,27 +65,31 @@ class EphemeralComm(Generic[T]):
             await self.lsl.close()
 
     def __aiter__(self) -> AsyncIterator[T]:
-        return self
+        # return self
+        return EphemeralComm._Iterator(self, break_on_timeout=True)
 
-    async def __anext__(self) -> T:
-        if self.closed:
-            raise StopAsyncIteration()
-        else:
-            kmsg = await self.queue.get()
-            if isinstance(kmsg, StopAsyncIteration):
-                raise kmsg
-            return kmsg
+    # async def __anext__(self) -> T:
+    #     if self.closed:
+    #         raise StopAsyncIteration()
+    #     else:
+    #         kmsg = await self.queue.get()
+    #         if isinstance(kmsg, StopAsyncIteration):
+    #             raise kmsg
+    #         return kmsg
 
-    async def next(self, timeout=None) -> T:
+    async def next(self, timeout=None, break_on_timeout=True, timeout_val=None) -> T:
         """Returns the next message or None if the stream has closed or waiting times out."""
-        try:
-            kmsg = await asyncio.wait_for(self.__anext__(), timeout=timeout)
-        except futures.TimeoutError as te:
-            return None
-        except StopAsyncIteration as sai:
-            return None
-        else:
-            return kmsg
+        aiter = EphemeralComm._Iterator(self, timeout=timeout, timeout_val=timeout_val,
+                                        break_on_timeout=break_on_timeout)
+        return await aiter.__anext__()
+        # try:
+        #     kmsg = await asyncio.wait_for(self.__anext__(), timeout=timeout)
+        # # except futures.TimeoutError as te:
+        # #     return None
+        # except StopAsyncIteration as sai:
+        #     return None
+        # else:
+        #     return kmsg
 
     async def send(self, kmsg: T):
         if self.closed:
@@ -97,3 +101,59 @@ class EphemeralComm(Generic[T]):
         except Exception as ex:
             print("ERROR:", ex, file=sys.stderr, flush=True)
             traceback.print_tb(sys.exc_info()[2])
+
+    def with_timeout(self, timeout=None, break_on_timeout=True, timeout_val=None) -> AsyncIterator[T]:
+        """Enables the async for loop to have a timeout.
+
+        async for msg in ec.timeout(1):
+            if msg is None:
+                ...
+            else:
+                ...
+        """
+        return EphemeralComm._Iterator(self, timeout=timeout, timeout_val=timeout_val,
+                                       break_on_timeout=break_on_timeout)
+
+    class _Iterator(AsyncIterator):
+        def __init__(self, parent, timeout: float = None, timeout_val=None, break_on_timeout=False):
+            self.timeout = timeout
+            self.returnval = timeout_val
+            self.break_on_timeout = break_on_timeout
+            self.parent = parent
+
+        def __aiter__(self) -> AsyncIterator[T]:
+            return self
+
+        # async def __anextZZ__(self) -> T:
+        #     try:
+        #         val = await self.parent.next(timeout=self.timeout)
+        #     except futures.TimeoutError as te:
+        #         if self.break_on_timeout:
+        #             raise StopAsyncIteration(te).with_traceback(sys.exc_info()[2])
+        #         else:
+        #             return self.returnval
+        #     else:
+        #         return val
+
+        async def __anext__(self) -> T:
+            if self.parent.closed:
+                raise StopAsyncIteration("EphemeralComm is closed.")
+            else:
+                try:
+                    kmsg = await asyncio.wait_for(self.parent.queue.get(), timeout=self.timeout)
+
+                except futures.TimeoutError as te:
+                    if self.break_on_timeout:
+                        raise StopAsyncIteration(f"Timed out after {self.timeout} seconds.") \
+                            .with_traceback(sys.exc_info()[2])
+                    else:
+                        return None
+
+                except futures.CancelledError as ce:
+                    raise StopAsyncIteration(f"Cancelled.").with_traceback(sys.exc_info()[2])
+
+                else:
+                    if isinstance(kmsg, StopAsyncIteration):
+                        raise kmsg
+                    else:
+                        return kmsg
