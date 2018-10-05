@@ -40,7 +40,7 @@ def main():
         t1 = loop.create_task(run_console())
         t2 = loop.create_task(run_cmd_server(cmd))
         loop.run_until_complete(asyncio.gather(t1, t2))
-        loop.run_until_complete(asyncio.sleep(1))
+        # loop.run_until_complete(asyncio.sleep(1))
         print("both closed")
         return
 
