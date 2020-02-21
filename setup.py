@@ -4,6 +4,7 @@ import shutil
 import sys
 
 from setuptools import setup
+import twine
 
 with open("./asyncpushbullet/__version__.py") as version_file:
     version = version_file.read().split("\"")[1]
@@ -29,7 +30,8 @@ if sys.argv[-1] in ('build', 'all'):
             print("Removed.")
 
     try:
-        os.system('python3 setup.py sdist bdist_wheel')
+        # os.system('python3 setup.py sdist bdist_wheel')
+        os.system('python3 setup.py sdist')
     except:
         print("Do you need to pip install wheel?", file=sys.stderr)
         # os.system('python3 setup.py sdist bdist_wheel')
