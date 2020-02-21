@@ -7,3 +7,4 @@ asyncpushbullet.egg-info/
 .idea
 api_key.txt
 venv/
+credentials*.txt
