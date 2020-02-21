@@ -61,7 +61,7 @@ class PushbulletAsyncIterator(AsyncIterator, Generic[T]):
 
         # Internal management
         self.log = logging.getLogger(__name__ + "." + self.__class__.__name__)
-        self.loop: asyncio.BaseEventLoop = None
+        self.loop: asyncio.AbstractEventLoop = None
         self._paused: bool = False
         self._stop: bool = None  # Instructed to stop or end of iterator
         self._objects: List[Dict] = []  # Use as FIFO queue of objects retrieved
@@ -247,8 +247,8 @@ class AsyncPushbullet(Pushbullet):
     def __init__(self, api_key: str = None, verify_ssl: bool = None, *kargs, **kwargs):
         Pushbullet.__init__(self, api_key, *kargs, **kwargs)
 
-        self.loop: asyncio.BaseEventLoop = None
-        self._aio_session: aiohttp.ClientSession = None
+        self.loop: Optional[asyncio.AbstractEventLoop] = None
+        self._aio_session: Optional[aiohttp.ClientSession] = None
         self.verify_ssl: bool = verify_ssl
 
     async def __aenter__(self):
@@ -274,7 +274,7 @@ class AsyncPushbullet(Pushbullet):
 
          Raises a PushbulletError if something goes wrong.
          """
-        session:aiohttp.ClientSession = self._aio_session
+        session: aiohttp.ClientSession = self._aio_session
 
         if session is None or session.closed:
             self.log.debug("Creating aiohttp-based, asyncio session.")

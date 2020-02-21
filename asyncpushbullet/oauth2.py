@@ -137,9 +137,9 @@ function connect() {
             "anything on github.com or elsewhere.</p>" + 
             "<p>You may safely close this page.</p>";
     } else {
-        //document.getElementById("approve_btn").innerHTML = "Failed!";
-        //document.getElementById("approve_btn").style.backgroundColor = "red";
-        //document.getElementById("detail").innerHTML = "Something went wrong: " + msg.error;
+        /*document.getElementById("approve_btn").innerHTML = "Failed!";*/
+        /*document.getElementById("approve_btn").style.backgroundColor = "red";*/
+        /*document.getElementById("detail").innerHTML = "Something went wrong: " + msg.error;*/
     }
   };
 }
