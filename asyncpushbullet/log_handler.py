@@ -44,7 +44,8 @@ class PushbulletLogHandler(logging.Handler):
         """
         try:
             msg = self.format(record)
-            self.pushbullet.push_note(title=record.name, body=msg)
+            title = f"{record.name}:: {record.getMessage()}"
+            self.pushbullet.push_note(title=title, body=msg)
 
         except RecursionError:  # See issue 36272
             raise
@@ -70,14 +71,15 @@ class AsyncPushbulletLogHandler(PushbulletLogHandler):
         Emit a record.
         """
         try:
-            msg = self.format(record)
             if self.pushbullet.loop is None:
                 # print(
                 #     "AsyncPushbullet has no event loop - has it connected at least once while in a loop? Using synchronous calls instead.")
                 super().emit(record)
             else:
+                msg = self.format(record)
+                title = f"{record.name}: {record.getMessage()}"
                 return asyncio.run_coroutine_threadsafe(
-                    self.pushbullet.async_push_note(title=record.name, body=msg),
+                    self.pushbullet.async_push_note(title=title, body=msg),
                     loop=self.pushbullet.loop)
 
         except RecursionError:  # See issue 36272
