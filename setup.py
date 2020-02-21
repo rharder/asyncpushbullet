@@ -4,7 +4,7 @@ import shutil
 import sys
 
 from setuptools import setup
-import twine
+# You may need to pip install twine
 
 with open("./asyncpushbullet/__version__.py") as version_file:
     version = version_file.read().split("\"")[1]
