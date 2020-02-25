@@ -34,7 +34,7 @@ class PushbulletLogHandler(logging.Handler):
         Initialize the handler.
         """
         super().__init__(level=level)
-        self.pushbullet = pushbullet
+        self.pushbullet: Pushbullet = pushbullet
         formatter = logging.Formatter('%(asctime)s\n%(levelname)s\n%(message)s')
         self.setFormatter(formatter)
 
@@ -43,9 +43,9 @@ class PushbulletLogHandler(logging.Handler):
         Emit a record.
         """
         try:
-            msg = self.format(record)
             title = f"{record.name}:: {record.getMessage()}"
-            self.pushbullet.push_note(title=title, body=msg)
+            body = self.format(record)
+            self.pushbullet.push_note(title=title, body=body)
 
         except RecursionError:  # See issue 36272
             raise
@@ -72,15 +72,12 @@ class AsyncPushbulletLogHandler(PushbulletLogHandler):
         """
         try:
             if self.pushbullet.loop is None:
-                # print(
-                #     "AsyncPushbullet has no event loop - has it connected at least once while in a loop? Using synchronous calls instead.")
                 super().emit(record)
             else:
-                msg = self.format(record)
                 title = f"{record.name}: {record.getMessage()}"
-                return asyncio.run_coroutine_threadsafe(
-                    self.pushbullet.async_push_note(title=title, body=msg),
-                    loop=self.pushbullet.loop)
+                body = self.format(record)
+                coro = self.pushbullet.async_push_note(title=title, body=body)
+                asyncio.run_coroutine_threadsafe(coro, loop=self.pushbullet.loop)
 
         except RecursionError:  # See issue 36272
             raise
@@ -96,7 +93,7 @@ def main():
     # Just an example
     async def run():
         api_key = os.environ["PUSHBULLET_API_KEY"].strip()
-        pb = AsyncPushbullet(api_key=api_key)
+        pb = await AsyncPushbullet(api_key=api_key).connect()
         handler = AsyncPushbulletLogHandler(pb, level=logging.WARNING)
         logger = logging.getLogger(__name__)
         logger.setLevel(logging.INFO)

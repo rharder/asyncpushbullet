@@ -265,6 +265,10 @@ class AsyncPushbullet(Pushbullet):
         """
         _ = await self.aio_session()
 
+    async def connect(self):
+        await self.aio_session()
+        return self
+
     async def aio_session(self) -> aiohttp.ClientSession:
         """Returns an open aiohttp.ClientSession with API key verified and timestamp
          of latest push updated.
